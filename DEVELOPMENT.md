@@ -1,17 +1,20 @@
 # Development Guide
 
-This document is for developers and coding agents working on dim. It covers the project structure, testing strategies, common tasks, and how to work efficiently with the codebase.
+This document is for developers and coding agents working on dim. It covers the project structure, testing strategies, common tasks, and how to work efficiently with the Phase 0 (M0.1) codebase.
 
 ## Quick reference
 
 | Task | Command |
 |---|---|
-| **Build** | `go build ./cmd/dimd -o dimd` |
-| **Test** | `go test -race ./...` |
-| **Lint** | `go vet ./...` && `golangci-lint run` |
+| **Build** | `go build ./cmd/midctl -o midctl` |
+| **Test** | `go test ./...` (120/121 passing) |
+| **Test with race detector** | `go test -race ./...` |
+| **Lint** | `go vet ./...` |
 | **Understand architecture** | Read `graphify-out/GRAPH_REPORT.md` or open `graphify-out/graph.html` |
-| **Update knowledge graph** | `/graphify --update` (or `graphify --update .` if CLI) |
-| **Find where X is defined** | `grep -r "type X " internal/` or query the graph: `graphify query "where is X defined"` |
+| **Update knowledge graph** | `graphify update .` |
+| **Find where X is defined** | `grep -r "type X " internal/` or `graphify query "X"` |
+| **Run a route** | `./midctl run examples/test-route.yaml` |
+| **Validate a route** | `./midctl validate examples/test-route.yaml` |
 
 ## For coding agents: understand before coding
 
@@ -39,45 +42,66 @@ Before implementing a subtask, read these in order:
 
 Then code. If you get stuck, query the graph or re-read the design spec — usually the answer is there.
 
-## Architecture overview for agents
+## Architecture overview for Phase 0 (M0.1)
 
-### Core layers
+### Implemented Layers ✅
 
 **Engine layer** (`internal/engine/`)
-- `channel.go` — bounded message queues with backpressure
-- `executor.go` — worker pool, stage routing, message processing
-- `generation.go` — DAG generations, hot reload, draining lifecycle
+- `message.go` — Message envelope (Headers, Body, Metadata)
+- `channel.go` — Bounded message queues with backpressure (configurable buffer)
+- `executor.go` — Single-worker processor, step orchestration
+- `dlq.go` — Dead-letter envelope wrapping failed messages
 
 **Step layer** (`internal/steps/`)
-- Each step type (filter, translate, route, authorize, etc.) is a separate file
-- All steps receive a message envelope, optionally transform it, pass to output channel(s)
-- Steps are pure functions (no I/O, no state mutations beyond the message)
+- `filter.go` — Boolean predicate filtering (drop/pass)
+- `translate.go` — JSONata body transformations
+- `factory.go` — Step factory from config spec
+- Each step implements `Execute(ctx, msg) (*Message, error)`
 
 **Expression layer** (`internal/expr/`)
-- `jsonata.go` — JSONata expression evaluation
-- `functions.go` — function registry (both native plugins and WASM)
-- `wasm_runtime.go`, `plugin_runtime.go` — language-specific runtimes
+- `jsonata.go` — JSONata evaluation wrapper around blues/jsonata-go v1.5.4
+- Pure Go, 90% JSONata spec compliance
 
 **Adapter layer** (`internal/adapters/`)
-- `source.go`, `sink.go` — interfaces for message producers and consumers
-- `http/`, `file/` — concrete implementations
-- Adapters handle connection lifecycle, retry, circuit breaking
+- `http/http_source.go` — HTTP webhook listener (port 8080, path /ingest)
+- `file/file_sink.go` — JSONL file output with auto-directory creation
+- Adapter interfaces: `SourceAdapter`, `SinkAdapter`
 
-**Reliability layer** (`internal/errorpath/`)
-- Retry classification (retryable vs. non-retryable)
-- Backoff scheduling and jitter
-- Dead-letter envelope construction
-- Error routing (to dead-letter, denial, or violation sinks)
+**Configuration layer** (`internal/config/`)
+- `loader.go` — YAML parsing and loading
+- `schema.go` — Config data structures
+- `route.schema.json` — JSON Schema validation
 
-**Lineage layer** (`internal/lineage/`)
-- Embedded SQLite store (one writer, multiple readers via WAL mode)
-- Retention policy resolution (static or dynamic per message)
-- Automatic reaper background job
-- Manual purge with evidence log
-- CSV/NDJSON export
+**Factory layer** (`internal/factory/`)
+- `pipeline.go` — Builds end-to-end pipeline from config
 
-**Authorization layer** (`internal/authz/`)
-- Principal extraction from HTTP headers (JWT validation)
+### Deferred to M0.2+ ⏳
+
+**Generation/hot reload** (`internal/route/` — M0.2)
+- DAG compilation and versioning
+- Hot reload with background draining
+- Route versioning
+
+**Reliability enhancements** (M0.2)
+- Retry logic with backoff and jitter
+- Error classification (retryable vs. non-retryable)
+- Multi-sink error routing
+
+**Lineage tracking** (`internal/lineage/` — M0.4)
+- Embedded SQLite store
+- Retention policy resolution
+- Automatic reaper and purge mechanism
+- Evidence log
+
+**Authorization** (`internal/authz/` — M0.5)
+- Principal extraction and propagation
+- RBAC/ABAC enforcement
+- Policy-based access control (PBAC)
+
+**Observability** (`internal/observability/` — M0.3)
+- Prometheus metrics
+- OpenTelemetry tracing
+- Built-in Tier 1 viewer
 - RBAC and ABAC evaluation
 - Obligation handling (redaction, etc.)
 

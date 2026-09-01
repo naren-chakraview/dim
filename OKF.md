@@ -2,6 +2,12 @@
 
 A living document for tracking business intent, architectural decisions, concurrency patterns, state management, security validation, and change history. This grows alongside the codebase as each phase is implemented.
 
+**Current Status:** Phase 0 (M0.1) Walking Skeleton ✅  
+**Phase 0 Completion:** September 1, 2026  
+**Tests Passing:** 120/121 (99.2%)
+
+**Note:** Many decisions below describe M0.2+ features. Use the phase/milestone labels (e.g., "M0.4", "Phase 2") to distinguish between implemented and future work.
+
 ## Business intent
 
 **Problem:** Integration middleware today forces a choice between powerful-but-heavyweight (NiFi, Camel, Airflow) and lightweight-but-limited (bash scripts, single-purpose tools). Teams building data infrastructure need observability, lineage, and reliability built-in from the start, not bolted on later.
@@ -37,67 +43,77 @@ A living document for tracking business intent, architectural decisions, concurr
 
 ### Config composition: imports and fragments
 
-**Decision:** Routes can `import` reusable config files; those files can define `fragments` (named, unparameterized, literal step lists).
+**Decision (Phase 2+):** Routes will support `import` of reusable config files with `fragments` (named, unparameterized, literal step lists).
 
-**Rationale:**
-- Allows domain teams to compose shared governance fragments (e.g., mandatory auth checks) without code duplication
-- Unparameterized in Phase 0 to keep scope bounded; parameterization deferred to Phase 2
-- Fragment inclusion is compositional: a route compiles into a single resolved config before DAG generation
-- Supports the "mandatory governance fragment" pattern (data-mesh-reference-architecture.md §5)
+**Phase 0 status:** Not implemented. Phase 0 supports single-file YAML configs only.
 
-**Enforceability:** `midctl validate` can be extended (Phase 1) to lint for required fragments, making governance computational not just aspirational.
+**Rationale (for Phase 2):**
+- Allows domain teams to compose shared governance fragments without code duplication
+- Unparameterized initially; parameterization in Phase 3
+- Fragment inclusion is compositional before DAG generation
+- Supports "mandatory governance fragment" pattern
+
+**Enforceability:** Future `midctl validate` enhancements can lint for required fragments.
 
 ### Plugin vs. WASM for custom functions
 
-**Decision:** Both are first-class from Phase 0 start. No forced default.
+**Decision (M0.2+):** Both will be first-class. No forced default.
 
-**Rationale:**
-- Native Go plugins: performance-sensitive, trusted logic, direct access to Go ecosystem
-- WASM: sandboxed, language-agnostic, distributable independently of `dimd` builds
-- Plugin transport: `hashicorp/go-plugin` (subprocess RPC), not Go's built-in `plugin` package (fragile across toolchain versions)
+**Phase 0 status:** Not implemented. Phase 0 uses only built-in JSONata functions.
 
-**Tradeoff:** `hashicorp/go-plugin` has higher per-call latency than in-process `.so` calls, but avoids the fragility and keeps plugins independently deployable.
+**Rationale (for M0.2+):**
+- Native Go plugins: performance-sensitive, trusted logic, direct Go ecosystem access
+- WASM: sandboxed, language-agnostic, independently distributable
+- Plugin transport: `hashicorp/go-plugin` (subprocess RPC) for safety across toolchain versions
+
+**Tradeoff:** `hashicorp/go-plugin` has higher latency than in-process `.so` calls, but avoids fragility and enables independent plugin deployment.
 
 ### Hot reload: new generation takeover with background draining
 
-**Decision:** On config change, new DAG takes traffic immediately; old DAG drains stragglers in the background until in-flight count reaches zero. No pause, no message loss, no abort.
+**Decision (M0.2):** On config change, new DAG takes traffic immediately; old DAG drains stragglers in the background until in-flight count reaches zero. No pause, no message loss, no abort.
 
-**Rationale:**
-- New routes/changes go live immediately without a maintenance window
-- In-flight messages complete with correct semantics (old DAG's version of the logic)
-- `route_version` stamped on every message so you know which DAG processed it
-- Safety valve: cap concurrent draining generations per route (default 3); beyond that, queue the reload
+**Phase 0 status:** Not implemented. Phase 0 runs single pipeline instance until process exit.
 
-**Implementation note:** Requires careful state machine and goroutine lifecycle management. Highest-risk item in M0.2.10; `-race` tests are standing CI gate.
+**Rationale (for M0.2):**
+- New routes/changes go live immediately without maintenance window
+- In-flight messages complete with old DAG's version (semantic correctness)
+- `route_version` stamped on every message for auditability
+- Safety valve: cap concurrent draining generations (default 3)
+
+**Implementation note (M0.2):** Requires careful state machine and goroutine lifecycle management. Highest-risk item in M0.2.10; `-race` tests are standing CI gate.
 
 ### Lineage store: per-instance, embedded, not shared
 
-**Decision:** Each `dimd` instance runs its own embedded SQLite lineage store. No shared backend.
+**Decision (M0.4):** Each `dimd` instance runs its own embedded SQLite lineage store. No shared backend.
 
-**Rationale:**
+**Phase 0 status:** Not implemented. Phase 0 has no persistent lineage tracking.
+
+**Rationale (for M0.4):**
 - Zero infrastructure requirement; single binary stays single binary
-- Each instance fully self-sufficient for its own provenance queries
-- Cross-instance aggregation handled on demand (`midctl lineage export`, sent to OpenLineage catalog)
+- Each instance fully self-sufficient for provenance queries
+- Cross-instance aggregation via `midctl lineage export` to OpenLineage catalog
 - Per-instance retention policies + evidence logs; no coordination protocol needed
 
-**Retention:** Named, configurable policies (default, pci, phi, public, custom). Static assignment (preferred) or dynamic per message (for mixed-sensitivity routes). Fail-open to `default` on policy resolution failure.
+**Retention (M0.4):** Named, configurable policies (default, pci, phi, public, custom). Static assignment (preferred) or dynamic per message. Fail-open to `default` on policy resolution failure.
 
-**Purge:** Automatic reaper (background job per policy cadence) + manual trigger (`midctl lineage purge`, including subject targeting). Every purge appends to append-only evidence log (separate, longer retention, own expiry warnings).
+**Purge (M0.4):** Automatic reaper (background job per policy cadence) + manual `midctl lineage purge` (including subject targeting). Every purge appends to append-only evidence log with longer retention and expiry warnings.
 
-**Tradeoff:** Per-instance lineage means no "all instances" query without aggregation. Accepted because: (a) most queries are within one instance; (b) cross-instance is solved by export; (c) distributed store is Phase 3.
+**Tradeoff:** Per-instance lineage means no single "all instances" query without aggregation. Accepted because: (a) most queries within one instance; (b) cross-instance solved by export; (c) distributed store is Phase 3.
 
 ### Authorization: structural declaration, opt-in enforcement
 
-**Decision:** Routes must declare `auth: none` or carry at least one `authorize` step. Declaration is validated at **warning level by default**. A team explicitly flips `validation.auth_declaration: enforce` to make it a hard failure.
+**Decision (M0.5):** Routes must declare `auth: none` or carry at least one `authorize` step. Declaration validated at **warning level by default**. Teams explicitly flip `validation.auth_declaration: enforce` to make it a hard failure.
 
-**Rationale:**
-- Visible guardrail: you can't accidentally ship unauthenticated route (you get a warning)
-- Opt-in escalation: no engine-driven timeline change, no version bump surprise
-- Per-team control: each team decides when to tighten (RBAC first, then PBAC once policies are written)
+**Phase 0 status:** Declaration required in schema (`auth` field mandatory). Enforcement deferred to M0.5.
 
-**Implementation:** RBAC (require_roles) and ABAC (JSONata predicates) ship in Phase 0. PBAC (policy engine) with formal PDP contract deferred to Phase 1 as a single schema+implementation unit (not stubbed in Phase 0 schema).
+**Rationale (for M0.5):**
+- Visible guardrail: can't accidentally ship unauthenticated route (you get a warning)
+- Opt-in escalation: no engine-driven timeline change, no surprise version bumps
+- Per-team control: each team decides when to tighten (RBAC first, then PBAC once policies exist)
 
-**Related:** principal propagation is structural too (attached to message metadata by source adapter, available to all downstream expressions).
+**Implementation (M0.5):** RBAC (require_roles) and ABAC (JSONata predicates) will ship. PBAC (policy engine) with formal PDP contract deferred to Phase 1+ as a single unit (not stubbed in Phase 0).
+
+**Related (M0.5):** Principal propagation will be structural (attached to message metadata by source adapter, available to all downstream expressions).
 
 ### Data contracts: inline first, registry second
 

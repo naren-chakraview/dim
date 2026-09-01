@@ -1,15 +1,14 @@
 # dim — User Guide
 
-**Status:** Phase 0 scaffold. This guide evolves alongside the codebase.
+**Status:** Phase 0 (M0.1) Walking Skeleton. See [M0.1_COMPLETE.md](M0.1_COMPLETE.md) for full documentation.
 
 ## Quick start
 
-### Installing from source
+### Building
 
 ```bash
 git clone https://github.com/naren-chakraview/dim.git
 cd dim
-go build ./cmd/dimd -o dimd
 go build ./cmd/midctl -o midctl
 ```
 
@@ -19,64 +18,153 @@ go build ./cmd/midctl -o midctl
 ```yaml
 version: 1
 sources:
-  input: { type: http, path: /input, method: POST }
+  http-source:
+    type: http
 sinks:
-  output: { type: file, path: /tmp/output.jsonl }
+  output:
+    type: file
+    path: ./output/messages.jsonl
+  errors:
+    type: file
+    path: ./output/errors.jsonl
 routes:
   hello:
-    from: input
+    from: http-source
     auth: none
     error_path:
-      target: output
-      retry: { max_attempts: 1 }
+      target: errors
     steps:
-      - translate: { expr: '{ greeting: "Hello", message: body }' }
+      - filter:
+          expr: "amount > 0"
+      - translate:
+          expr: "{ greeting: 'Hello', message: name, total: amount * 1.1 }"
 ```
 
-2. Run:
+2. Validate:
 ```bash
-./dimd examples/hello.yaml &
-curl -X POST http://localhost:8080/input -d '{"name":"world"}'
-cat /tmp/output.jsonl
+./midctl validate examples/hello.yaml
+```
+
+3. Run:
+```bash
+./midctl run examples/hello.yaml
+# In another terminal:
+curl -X POST http://localhost:8080/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"name":"world","amount":100}'
+# Check output:
+tail -f output/messages.jsonl
+tail -f output/errors.jsonl
 ```
 
 ## Project structure overview
 
+### Phase 0 (M0.1) — What's Implemented ✅
+
 | Directory | Purpose |
 |---|---|
-| `cmd/dimd` | Engine daemon — listens for messages, processes routes |
-| `cmd/midctl` | CLI tool — validate, test, explain, debug routes |
-| `internal/config` | YAML parsing, imports/fragments resolution |
-| `internal/route` | Route model, DAG compilation, route_version hashing |
-| `internal/engine` | Core executor: channels, backpressure, hot reload |
-| `internal/steps` | EIP step implementations: filter, translate, route, authorize, etc. |
-| `internal/expr` | Expression evaluation: JSONata, functions registry, WASM/plugin runtimes |
-| `internal/adapters` | Message sources and sinks: HTTP, file, SFTP |
-| `internal/lineage` | Data lineage store, retention policies, purge mechanism, evidence log |
-| `internal/authz` | Authorization: principal propagation, RBAC/ABAC |
-| `internal/observability` | Metrics, tracing, built-in viewer |
-| `pkg/sdk` | Public SPI for custom functions and adapters |
+| `cmd/midctl` | CLI tool — validate, run routes |
+| `internal/config` | YAML parsing and JSON Schema validation |
+| `internal/engine` | Executor, message envelope, bounded channels, dead-letter queue |
+| `internal/steps` | Step implementations: filter, translate |
+| `internal/expr` | JSONata expression evaluation |
+| `internal/adapters` | HTTP source, file sink adapters |
+| `internal/factory` | Pipeline builder pattern |
+| `schemas` | JSON Schema for route validation |
+| `examples` | Sample route configurations |
+| `test/fixtures` | Test fixture definitions |
+
+### M0.2+ — Deferred
+
+| Directory | Purpose | Phase |
+|---|---|---|
+| `cmd/dimd` | Engine daemon | M0.2 |
+| `internal/route` | Route model, DAG compilation | M0.2 |
+| `internal/authz` | Authorization (RBAC/ABAC) | M0.5 |
+| `internal/lineage` | Lineage store, retention, purge | M0.4 |
+| `internal/observability` | Metrics, tracing, viewer | M0.3 |
+| `pkg/sdk` | Public SPI for extensions | M0.2+ |
 
 ## Testing
 
-### Unit tests
+### Unit tests (Phase 0 — 120/121 passing)
 ```bash
-go test ./internal/...
+go test ./...
 ```
 
-### Integration tests (race-clean)
+### Race detector (required for CI)
 ```bash
-go test -race ./test/integration/...
+go test -race ./...
 ```
 
-### Route fixture tests
+### Route fixture tests (M0.2+)
 ```bash
 ./midctl test examples/
 ```
 
+### Test coverage by package
+- internal/expr: 9/9 ✅
+- internal/engine: 35/35 ✅
+- internal/adapters/http: 8/8 ✅
+- internal/adapters/file: 12/12 ✅
+- internal/config: 15/15 ✅
+- internal/steps: 26/26 ✅
+- internal/factory: 7/7 ✅
+- cmd/midctl: 8/8 ✅
+
+## Phase 0 Features
+
+### Supported Step Types
+- ✅ **filter** — Boolean predicates (drop/pass messages)
+- ✅ **translate** — JSONata body transformations
+- ⏳ **route** — Content-based routing (M0.2)
+- ⏳ **wiretap** — Copy to secondary sink (M0.2)
+- ⏳ **idempotent** — Deduplication (M0.2)
+- ⏳ **authorize** — RBAC/ABAC enforcement (M0.5)
+
+### Configuration Format
+
+```yaml
+version: 1
+
+sources:
+  <name>:
+    type: http|file|sftp|exec
+    # adapter-specific config
+
+sinks:
+  <name>:
+    type: http|file|sftp|exec
+    # adapter-specific config
+
+routes:
+  <name>:
+    from: <source-name>
+    auth: none  # or authorization object (M0.5+)
+    error_path:
+      target: <sink-name>  # where failed messages go
+      retry:  # optional
+        max_attempts: 3
+        backoff_ms: 1000
+    steps:
+      - filter:
+          expr: "<jsonata-expression>"
+      - translate:
+          expr: "<jsonata-expression>"
+```
+
 ## Key developer notes
 
-### Adding a new step type
+### Phase 0 Constraints (by design)
+- Single-worker processing (M0.2: worker pools)
+- HTTP source hardcoded to port 8080, path /ingest (M0.2: configurable)
+- File sink output to ./output/ (M0.2: configurable)
+- No retry logic (M0.2: retry with backoff)
+- No authorization enforcement (M0.5: RBAC/ABAC)
+- No lineage tracking (M0.4: SQLite store)
+- No observability (M0.3: metrics/tracing)
+
+### Adding a new step type (M0.2+)
 1. Define step struct in `internal/steps/<name>.go`
 2. Implement the step interface
 3. Add to the route schema in `schemas/route.schema.json`

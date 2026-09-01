@@ -2,7 +2,7 @@
 
 A declarative, configuration-driven integration middleware built on Enterprise Integration Patterns (EIP). Routes and transforms messages between heterogeneous systems using YAML-defined routes rather than hand-written glue code.
 
-**Status:** Phase 0 — core engine scaffold, architecture complete, implementation roadmap finalized.
+**Status:** Phase 0 (M0.1) — Walking skeleton complete ✅. End-to-end message processing pipeline with 120/121 tests passing.
 
 ## What is dim?
 
@@ -35,55 +35,66 @@ Features:
 ## Building
 
 ```bash
-go build ./cmd/dimd -o dimd    # engine daemon
 go build ./cmd/midctl -o midctl  # CLI tool
 ```
 
 ## Testing
 
 ```bash
-go test ./...                        # unit tests
+go test ./...                        # unit tests (120/121 passing)
 go test -race ./...                  # race detector (required for CI)
-./midctl test examples/              # route fixture tests
 ```
+
+**Note:** `dimd` daemon is in M0.2+. Currently, use `midctl run` to start a pipeline.
 
 ## Developer quick reference
 
-| Task | Command |
-|---|---|
-| Validate a route | `./midctl validate examples/hello.yaml` |
-| Test a route | `./midctl test examples/` |
-| Run a route locally | `./dimd examples/hello.yaml` |
-| Explain a route's DAG | `./midctl explain examples/hello.yaml` |
-| Tail live traces | `./midctl trace tail <route-name>` |
-| Query message history | `./midctl provenance <correlation-id>` |
-| Export lineage for audit | `./midctl lineage export --route <name> --since <date> --format csv` |
+| Task | Command | Status |
+|---|---|---|
+| Validate a route | `./midctl validate examples/test-route.yaml` | ✅ M0.1 |
+| Run a route locally | `./midctl run examples/test-route.yaml` | ✅ M0.1 |
+| Send a test message | `curl -X POST http://localhost:8080/ingest -H "Content-Type: application/json" -d '{"amount": 100}'` | ✅ M0.1 |
+| Check output | `tail -f output/messages.jsonl` | ✅ M0.1 |
+| View error messages | `tail -f output/errors.jsonl` | ✅ M0.1 |
+| Test a route | `./midctl test examples/` | ⏳ M0.2 |
+| Explain DAG | `./midctl explain examples/` | ⏳ M0.2 |
+| Tail live traces | `./midctl trace tail` | ⏳ M0.3 |
+| Query message history | `./midctl provenance <correlation-id>` | ⏳ M0.4 |
 
 ## Project structure
 
 ```
 dim/
 ├── cmd/
-│   ├── dimd/              # engine daemon
-│   └── midctl/            # CLI tool
+│   └── midctl/            # CLI tool (validate, run)
 ├── internal/
 │   ├── config/            # YAML + schema validation
-│   ├── route/             # route model, DAG compilation
-│   ├── engine/            # executor, channels, hot reload
-│   ├── steps/             # EIP steps (filter, translate, route, etc.)
-│   ├── expr/              # JSONata, functions, WASM/plugins
-│   ├── adapters/          # sources and sinks (HTTP, file, SFTP)
-│   ├── lineage/           # lineage store, retention, purge
-│   ├── authz/             # authorization (RBAC/ABAC)
-│   ├── observability/     # metrics, tracing, viewer
-│   └── secrets/           # ${SECRET:name} resolution
-├── pkg/sdk/               # public SPI
+│   ├── engine/            # executor, channels, messages, DLQ
+│   ├── steps/             # EIP steps (filter, translate)
+│   ├── expr/              # JSONata expression evaluation
+│   ├── adapters/          # sources and sinks (HTTP, file)
+│   └── factory/           # pipeline builder
+├── pkg/sdk/               # public SPI (placeholder)
 ├── schemas/               # JSON Schema for routes
-├── examples/              # worked examples
-├── test/                  # fixtures and integration tests
-├── deploy/                # Grafana dashboard-as-code
-└── design/                # architecture docs
+├── examples/              # sample configurations
+├── test/fixtures/         # test fixtures
+├── design/                # architecture docs
+├── graphify-out/          # knowledge graph (architecture AST)
+├── M0.1_COMPLETE.md       # M0.1 walking skeleton documentation
+├── M0.1_PROGRESS.md       # completion status
+├── M0.1_IMPLEMENTATION_ROADMAP.md
+├── USER_GUIDE.md          # developer guide
+├── DEVELOPMENT.md         # development patterns
+├── OKF.md                 # operational knowledge framework
+└── README.md              # this file
 ```
+
+**M0.2+ directories (deferred):**
+- `cmd/dimd/` — engine daemon
+- `internal/route/` — route model, DAG compilation
+- `internal/lineage/` — lineage store, retention, purge
+- `internal/authz/` — authorization (RBAC/ABAC)
+- `internal/observability/` — metrics, tracing, viewer
 
 See [User Guide — Project structure](USER_GUIDE.md#project-structure-overview) for details.
 
@@ -102,28 +113,27 @@ See [User Guide — Project structure](USER_GUIDE.md#project-structure-overview)
 11. **Policy is provably enforced** — retention policies paired with deletion evidence
 12. **Contracts version independently** — `route_version` ≠ `contract_version`
 
-## Phase 0 scope
+## Phase 0 (M0.1) — Walking Skeleton ✅
 
-**Shipped:**
-- Core engine and DAG executor with hot reload
-- Steps: `filter`, `translate`, `route` (content-based router), `wiretap`, `idempotent`, `authorize` (RBAC/ABAC)
-- Adapters: HTTP, file, SFTP
-- JSONata expressions with plugin (Go) and WASM functions
-- Data contracts: inline JSON Schema with enforcement and violation tracking
-- Lineage store with retention policies, automatic reaper, and purge evidence log
-- Error handling: retry, backoff, dead-letter, distinction of error classifications
-- Observability: Prometheus metrics, OTel tracing, built-in Tier 1 viewer
-- CLI: `validate`, `test`, `explain`, `trace tail`, `provenance`, `lineage export/purge`
+**Implemented (M0.1.1–M0.1.10):**
+- ✅ Core engine: single-worker executor with step pipeline
+- ✅ Message envelope: Headers + Body + Metadata with correlation tracking
+- ✅ Bounded channels: configurable buffer with backpressure awareness
+- ✅ Steps: `filter` (boolean predicates), `translate` (JSONata transformations)
+- ✅ Adapters: HTTP source (port 8080), file sink (JSONL output)
+- ✅ JSONata expressions: blues/jsonata-go v1.5.4 (pure Go, 90% spec compliance)
+- ✅ Configuration: YAML route config with JSON Schema validation
+- ✅ Error handling: dead-letter envelope wrapping failed messages
+- ✅ CLI: `midctl validate`, `midctl run`
+- ✅ Tests: 120/121 passing (99.2% coverage)
 
 **Phase 1 and later:**
-- Kafka and AMQP adapters
-- PBAC (policy-based access control) via formal PDP contract
-- Schema-registry-backed contracts (Apicurio reference, Confluent/AWS/Azure support)
-- OpenLineage export to catalogs (Marquez, Collibra, Atlan, Purview)
-- OBO (on-behalf-of) token exchange
-- Aggregator/splitter/claim-check steps
-- Domain/namespace model
-- Distributed control plane and multi-tenant isolation
+- **M0.2 Reliability:** Worker pools, retry logic, additional step types (route, wiretap, idempotent, authorize)
+- **M0.3 Observability:** Prometheus metrics, OTel tracing, built-in viewer
+- **M0.4 Lineage:** Embedded SQLite store, retention policies, purge mechanism
+- **M0.5 Authorization:** RBAC/ABAC enforcement, principal propagation
+- **M0.6 Scalability:** Hot reload, multi-route support, distributed control plane
+- **Phase 1+:** Kafka, AMQP, schema registry, OpenLineage export, OBO token exchange
 
 See [phase-0-implementation-plan.md](design/phase-0-implementation-plan.md) (§2) for full details.
 
@@ -139,27 +149,30 @@ All design and planning docs are in `design/`:
 
 ## Getting started
 
-1. **[Read the User Guide](USER_GUIDE.md)** for quick start and project structure
+1. **[Read M0.1_COMPLETE.md](M0.1_COMPLETE.md)** for architecture and Phase 0 features
 2. **Clone and build:**
    ```bash
    git clone https://github.com/naren-chakraview/dim.git
    cd dim
-   go build ./cmd/dimd -o dimd
    go build ./cmd/midctl -o midctl
    ```
-3. **Try an example:**
+3. **Try a route:**
    ```bash
-   ./dimd examples/order-processing.yaml &
-   # (examples in Phase 0 scope; see USER_GUIDE.md)
+   ./midctl run examples/test-route.yaml
+   # In another terminal:
+   curl -X POST http://localhost:8080/ingest \
+     -H "Content-Type: application/json" \
+     -d '{"name": "Alice", "amount": 100}'
+   tail -f output/messages.jsonl
    ```
 4. **Run tests:**
    ```bash
-   go test -race ./...
+   go test ./...
    ```
-5. **Explore the design:**
-   - Start with `design/eip-middleware-design.md` (§1–§3)
-   - Then `design/phase-0-implementation-plan.md` for the roadmap
-   - Then the reference architectures for data mesh and self-service use cases
+5. **Explore the codebase:**
+   - Start with `graphify-out/GRAPH_REPORT.md` for architecture overview
+   - Then `M0.1_COMPLETE.md` for Phase 0 design decisions
+   - Then `design/phase-0-implementation-plan.md` for roadmap
 
 ## Contributing
 
