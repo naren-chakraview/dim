@@ -1,3 +1,4 @@
 package expr
 
-// functions registry
+// FunctionsRegistry manages custom JSONata functions (plugin + WASM)
+// This will be implemented in Phase 0

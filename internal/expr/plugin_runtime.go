@@ -1,3 +1,4 @@
 package expr
 
-// native plugin runtime
+// PluginRuntime manages native Go plugin execution via hashicorp/go-plugin
+// This will be implemented in Phase 0
