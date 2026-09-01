@@ -1,0 +1,557 @@
+{
+  "directed": false,
+  "multigraph": false,
+  "graph": {},
+  "nodes": [
+    {
+      "id": "cmd_dimd_main",
+      "label": "dimd/main.go",
+      "_origin": "ast",
+      "community": 0,
+      "file_type": "code",
+      "norm_label": "dimd/main.go",
+      "source_file": "cmd/dimd/main.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "cmd_dimd_main_main",
+      "label": "main()",
+      "_origin": "ast",
+      "community": 0,
+      "file_type": "code",
+      "norm_label": "main()",
+      "source_file": "cmd/dimd/main.go",
+      "source_location": "L3"
+    },
+    {
+      "id": "cmd_midctl_main",
+      "label": "midctl/main.go",
+      "_origin": "ast",
+      "community": 1,
+      "file_type": "code",
+      "norm_label": "midctl/main.go",
+      "source_file": "cmd/midctl/main.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "cmd_midctl_main_main",
+      "label": "main()",
+      "_origin": "ast",
+      "community": 1,
+      "file_type": "code",
+      "norm_label": "main()",
+      "source_file": "cmd/midctl/main.go",
+      "source_location": "L3"
+    },
+    {
+      "id": "internal_adapters_source",
+      "label": "source.go",
+      "_origin": "ast",
+      "community": 10,
+      "file_type": "code",
+      "norm_label": "source.go",
+      "source_file": "internal/adapters/source.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_authz_pdp",
+      "label": "pdp.go",
+      "_origin": "ast",
+      "community": 11,
+      "file_type": "code",
+      "norm_label": "pdp.go",
+      "source_file": "internal/authz/pdp.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_authz_principal",
+      "label": "principal.go",
+      "_origin": "ast",
+      "community": 12,
+      "file_type": "code",
+      "norm_label": "principal.go",
+      "source_file": "internal/authz/principal.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_config_config",
+      "label": "config.go",
+      "_origin": "ast",
+      "community": 13,
+      "file_type": "code",
+      "norm_label": "config.go",
+      "source_file": "internal/config/config.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_engine_channel",
+      "label": "channel.go",
+      "_origin": "ast",
+      "community": 14,
+      "file_type": "code",
+      "norm_label": "channel.go",
+      "source_file": "internal/engine/channel.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_engine_executor",
+      "label": "executor.go",
+      "_origin": "ast",
+      "community": 15,
+      "file_type": "code",
+      "norm_label": "executor.go",
+      "source_file": "internal/engine/executor.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_engine_generation",
+      "label": "generation.go",
+      "_origin": "ast",
+      "community": 16,
+      "file_type": "code",
+      "norm_label": "generation.go",
+      "source_file": "internal/engine/generation.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_errorpath_errorpath",
+      "label": "errorpath.go",
+      "_origin": "ast",
+      "community": 17,
+      "file_type": "code",
+      "norm_label": "errorpath.go",
+      "source_file": "internal/errorpath/errorpath.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_expr_functions",
+      "label": "functions.go",
+      "_origin": "ast",
+      "community": 18,
+      "file_type": "code",
+      "norm_label": "functions.go",
+      "source_file": "internal/expr/functions.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_expr_jsonata",
+      "label": "jsonata.go",
+      "_origin": "ast",
+      "community": 19,
+      "file_type": "code",
+      "norm_label": "jsonata.go",
+      "source_file": "internal/expr/jsonata.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_expr_plugin_runtime",
+      "label": "plugin_runtime.go",
+      "_origin": "ast",
+      "community": 20,
+      "file_type": "code",
+      "norm_label": "plugin_runtime.go",
+      "source_file": "internal/expr/plugin_runtime.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_expr_wasm_runtime",
+      "label": "wasm_runtime.go",
+      "_origin": "ast",
+      "community": 21,
+      "file_type": "code",
+      "norm_label": "wasm_runtime.go",
+      "source_file": "internal/expr/wasm_runtime.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_lineage_export",
+      "label": "export.go",
+      "_origin": "ast",
+      "community": 22,
+      "file_type": "code",
+      "norm_label": "export.go",
+      "source_file": "internal/lineage/export.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_lineage_purge",
+      "label": "purge.go",
+      "_origin": "ast",
+      "community": 23,
+      "file_type": "code",
+      "norm_label": "purge.go",
+      "source_file": "internal/lineage/purge.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_lineage_purgelog",
+      "label": "purgelog.go",
+      "_origin": "ast",
+      "community": 24,
+      "file_type": "code",
+      "norm_label": "purgelog.go",
+      "source_file": "internal/lineage/purgelog.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_lineage_reaper",
+      "label": "reaper.go",
+      "_origin": "ast",
+      "community": 25,
+      "file_type": "code",
+      "norm_label": "reaper.go",
+      "source_file": "internal/lineage/reaper.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_lineage_retention",
+      "label": "retention.go",
+      "_origin": "ast",
+      "community": 26,
+      "file_type": "code",
+      "norm_label": "retention.go",
+      "source_file": "internal/lineage/retention.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_lineage_store",
+      "label": "store.go",
+      "_origin": "ast",
+      "community": 27,
+      "file_type": "code",
+      "norm_label": "store.go",
+      "source_file": "internal/lineage/store.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_observability_metrics",
+      "label": "metrics.go",
+      "_origin": "ast",
+      "community": 28,
+      "file_type": "code",
+      "norm_label": "metrics.go",
+      "source_file": "internal/observability/metrics.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_observability_tracing",
+      "label": "tracing.go",
+      "_origin": "ast",
+      "community": 29,
+      "file_type": "code",
+      "norm_label": "tracing.go",
+      "source_file": "internal/observability/tracing.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_observability_viewer_viewer",
+      "label": "viewer.go",
+      "_origin": "ast",
+      "community": 30,
+      "file_type": "code",
+      "norm_label": "viewer.go",
+      "source_file": "internal/observability/viewer/viewer.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_route_route",
+      "label": "route.go",
+      "_origin": "ast",
+      "community": 31,
+      "file_type": "code",
+      "norm_label": "route.go",
+      "source_file": "internal/route/route.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_secrets_secrets",
+      "label": "secrets.go",
+      "_origin": "ast",
+      "community": 32,
+      "file_type": "code",
+      "norm_label": "secrets.go",
+      "source_file": "internal/secrets/secrets.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_steps_authorize",
+      "label": "authorize.go",
+      "_origin": "ast",
+      "community": 33,
+      "file_type": "code",
+      "norm_label": "authorize.go",
+      "source_file": "internal/steps/authorize.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_steps_contract",
+      "label": "contract.go",
+      "_origin": "ast",
+      "community": 34,
+      "file_type": "code",
+      "norm_label": "contract.go",
+      "source_file": "internal/steps/contract.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_steps_filter",
+      "label": "filter.go",
+      "_origin": "ast",
+      "community": 35,
+      "file_type": "code",
+      "norm_label": "filter.go",
+      "source_file": "internal/steps/filter.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_steps_idempotent",
+      "label": "idempotent.go",
+      "_origin": "ast",
+      "community": 36,
+      "file_type": "code",
+      "norm_label": "idempotent.go",
+      "source_file": "internal/steps/idempotent.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_steps_route_step",
+      "label": "route_step.go",
+      "_origin": "ast",
+      "community": 37,
+      "file_type": "code",
+      "norm_label": "route_step.go",
+      "source_file": "internal/steps/route_step.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_steps_translate",
+      "label": "translate.go",
+      "_origin": "ast",
+      "community": 38,
+      "file_type": "code",
+      "norm_label": "translate.go",
+      "source_file": "internal/steps/translate.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_steps_wiretap",
+      "label": "wiretap.go",
+      "_origin": "ast",
+      "community": 39,
+      "file_type": "code",
+      "norm_label": "wiretap.go",
+      "source_file": "internal/steps/wiretap.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "pkg_sdk_sdk",
+      "label": "sdk.go",
+      "_origin": "ast",
+      "community": 43,
+      "file_type": "code",
+      "norm_label": "sdk.go",
+      "source_file": "pkg/sdk/sdk.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_adapters_file_file",
+      "label": "file.go",
+      "_origin": "ast",
+      "community": 7,
+      "file_type": "code",
+      "norm_label": "file.go",
+      "source_file": "internal/adapters/file/file.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_adapters_http_http",
+      "label": "http.go",
+      "_origin": "ast",
+      "community": 8,
+      "file_type": "code",
+      "norm_label": "http.go",
+      "source_file": "internal/adapters/http/http.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "internal_adapters_sink",
+      "label": "sink.go",
+      "_origin": "ast",
+      "community": 9,
+      "file_type": "code",
+      "norm_label": "sink.go",
+      "source_file": "internal/adapters/sink.go",
+      "source_location": "L1"
+    },
+    {
+      "id": "contract_data_contract",
+      "label": "Data Contracts",
+      "author": null,
+      "captured_at": null,
+      "community": 2,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "data contracts",
+      "source_file": "design/eip-middleware-design.md",
+      "source_location": "\u00a711"
+    },
+    {
+      "id": "dim_core_system",
+      "label": "Declarative Integration Middleware",
+      "author": null,
+      "captured_at": null,
+      "community": 3,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "declarative integration middleware",
+      "source_file": "README.md",
+      "source_location": "\u00a71"
+    },
+    {
+      "id": "eip_route",
+      "label": "Route (Message Pipeline)",
+      "author": null,
+      "captured_at": null,
+      "community": 4,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "route (message pipeline)",
+      "source_file": "design/eip-middleware-design.md",
+      "source_location": "\u00a72.2, \u00a74"
+    },
+    {
+      "id": "lineage_store",
+      "label": "Lineage Store",
+      "author": null,
+      "captured_at": null,
+      "community": 40,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "lineage store",
+      "source_file": "design/eip-middleware-design.md",
+      "source_location": "\u00a710.2"
+    },
+    {
+      "id": "phase0_milestone_m01",
+      "label": "M0.1 Walking Skeleton",
+      "author": null,
+      "captured_at": null,
+      "community": 41,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "m0.1 walking skeleton",
+      "source_file": "design/phase-0-implementation-plan.md",
+      "source_location": "\u00a75.1"
+    },
+    {
+      "id": "phase0_milestone_m02",
+      "label": "M0.2 Reliability",
+      "author": null,
+      "captured_at": null,
+      "community": 42,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "m0.2 reliability",
+      "source_file": "design/phase-0-implementation-plan.md",
+      "source_location": "\u00a75.2"
+    },
+    {
+      "id": "step_authorize",
+      "label": "Authorize Step",
+      "author": null,
+      "captured_at": null,
+      "community": 44,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "authorize step",
+      "source_file": "design/eip-middleware-design.md",
+      "source_location": "\u00a74, \u00a713.2"
+    },
+    {
+      "id": "step_filter",
+      "label": "Filter Step",
+      "author": null,
+      "captured_at": null,
+      "community": 45,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "filter step",
+      "source_file": "design/eip-middleware-design.md",
+      "source_location": "\u00a74"
+    },
+    {
+      "id": "step_route",
+      "label": "Route Step",
+      "author": null,
+      "captured_at": null,
+      "community": 46,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "route step",
+      "source_file": "design/eip-middleware-design.md",
+      "source_location": "\u00a74"
+    },
+    {
+      "id": "step_translate",
+      "label": "Translate Step",
+      "author": null,
+      "captured_at": null,
+      "community": 47,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "translate step",
+      "source_file": "design/eip-middleware-design.md",
+      "source_location": "\u00a74"
+    },
+    {
+      "id": "eip_step_types",
+      "label": "EIP Step Types",
+      "author": null,
+      "captured_at": null,
+      "community": 5,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "eip step types",
+      "source_file": "design/eip-middleware-design.md",
+      "source_location": "\u00a74"
+    },
+    {
+      "id": "hot_reload",
+      "label": "Hot Reload",
+      "author": null,
+      "captured_at": null,
+      "community": 6,
+      "contributor": null,
+      "file_type": "document",
+      "norm_label": "hot reload",
+      "source_file": "design/eip-middleware-design.md",
+      "source_location": "\u00a714.1"
+    }
+  ],
+  "links": [
+    {
+      "source": "cmd_dimd_main",
+      "target": "cmd_dimd_main_main",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "cmd/dimd/main.go",
+      "source_location": "L3",
+      "weight": 1.0
+    },
+    {
+      "source": "cmd_midctl_main",
+      "target": "cmd_midctl_main_main",
+      "relation": "contains",
+      "_origin": "ast",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "cmd/midctl/main.go",
+      "source_location": "L3",
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [],
+  "built_at_commit": "30b8dad8e46d2a8fd23225ad7bcba30135bfb9d7"
+}

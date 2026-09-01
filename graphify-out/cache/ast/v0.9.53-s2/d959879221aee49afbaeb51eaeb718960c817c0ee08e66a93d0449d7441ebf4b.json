@@ -1,0 +1,1 @@
+{"nodes": [{"id": "internal_observability_metrics_go", "label": "metrics.go", "file_type": "code", "source_file": "internal/observability/metrics.go", "source_location": "L1"}], "edges": [], "raw_calls": [], "go_imports": {}}

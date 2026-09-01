@@ -1,0 +1,1 @@
+{"nodes": [{"id": "internal_authz_pdp_go", "label": "pdp.go", "file_type": "code", "source_file": "internal/authz/pdp.go", "source_location": "L1"}], "edges": [], "raw_calls": [], "go_imports": {}}
