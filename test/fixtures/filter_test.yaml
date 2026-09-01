@@ -1,0 +1,144 @@
+# Filter Step Fixture Tests (M0.1.6)
+# Tests the filter step with JSONata boolean predicates
+
+route: filter-test
+
+cases:
+  - name: "accept message when predicate true"
+    input:
+      body:
+        amount: 150
+      headers: {}
+    steps:
+      - filter:
+          expr: "body.amount > 100"
+    expect:
+      output:
+        - body:
+            amount: 150
+
+  - name: "drop message when predicate false"
+    input:
+      body:
+        amount: 50
+      headers: {}
+    steps:
+      - filter:
+          expr: "body.amount > 100"
+    expect:
+      output: []
+
+  - name: "always true predicate passes message through"
+    input:
+      body:
+        data: "test"
+      headers: {}
+    steps:
+      - filter:
+          expr: "1 = 1"
+    expect:
+      output:
+        - body:
+            data: "test"
+
+  - name: "always false predicate drops message"
+    input:
+      body:
+        data: "test"
+      headers: {}
+    steps:
+      - filter:
+          expr: "1 = 2"
+    expect:
+      output: []
+
+  - name: "boolean comparison true"
+    input:
+      body:
+        active: true
+      headers: {}
+    steps:
+      - filter:
+          expr: "body.active = true"
+    expect:
+      output:
+        - body:
+            active: true
+
+  - name: "boolean comparison false"
+    input:
+      body:
+        active: false
+      headers: {}
+    steps:
+      - filter:
+          expr: "body.active = true"
+    expect:
+      output: []
+
+  - name: "string field comparison"
+    input:
+      body:
+        status: "active"
+      headers: {}
+    steps:
+      - filter:
+          expr: "body.status = \"active\""
+    expect:
+      output:
+        - body:
+            status: "active"
+
+  - name: "filter with headers available"
+    input:
+      body:
+        data: "test"
+      headers:
+        content-type: "application/json"
+    steps:
+      - filter:
+          expr: "headers.\"content-type\" = \"application/json\""
+    expect:
+      output:
+        - body:
+            data: "test"
+
+  - name: "filter with metadata available"
+    input:
+      body:
+        data: "test"
+      headers: {}
+    steps:
+      - filter:
+          expr: "metadata.route = \"filter-test\""
+    expect:
+      output:
+        - body:
+            data: "test"
+
+  - name: "complex predicate with multiple conditions"
+    input:
+      body:
+        amount: 150
+        status: "pending"
+      headers: {}
+    steps:
+      - filter:
+          expr: "body.amount > 100 and body.status = \"pending\""
+    expect:
+      output:
+        - body:
+            amount: 150
+            status: "pending"
+
+  - name: "complex predicate fails when one condition fails"
+    input:
+      body:
+        amount: 50
+        status: "pending"
+      headers: {}
+    steps:
+      - filter:
+          expr: "body.amount > 100 and body.status = \"pending\""
+    expect:
+      output: []

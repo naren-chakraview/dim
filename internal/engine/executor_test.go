@@ -280,6 +280,7 @@ func TestExecutorMultipleSteps(t *testing.T) {
 }
 
 // TestExecutorErrorHandling verifies that step failures are handled gracefully.
+// NOTE: After M0.1.9, error messages contain DeadLetterEnvelope, not the original message body
 func TestExecutorErrorHandling(t *testing.T) {
 	inputCh := NewChannel("input", 10)
 	outputCh := NewChannel("output", 10)
@@ -310,7 +311,7 @@ func TestExecutorErrorHandling(t *testing.T) {
 		executor.Run(ctx)
 	}()
 
-	// The message should end up in the error channel, not the output channel
+	// The message should end up in the error channel as a Message containing a DeadLetterEnvelope
 	errorMsg, err := errorCh.Recv(ctx)
 	if err != nil {
 		t.Fatalf("Recv from error channel failed: %v", err)
@@ -320,8 +321,17 @@ func TestExecutorErrorHandling(t *testing.T) {
 		t.Error("Expected message in error channel")
 	}
 
-	if errorMsg.Body != "test-payload" {
-		t.Errorf("Error message body mismatch: got %v, want test-payload", errorMsg.Body)
+	// After M0.1.9, the body is a DeadLetterEnvelope, not the original payload
+	envelope, ok := errorMsg.Body.(*DeadLetterEnvelope)
+	if !ok {
+		t.Fatalf("Error message body should be DeadLetterEnvelope, got %T", errorMsg.Body)
+	}
+
+	// Verify the original message is wrapped in the envelope
+	if envelope.OriginalMessage == nil {
+		t.Error("Envelope should contain OriginalMessage")
+	} else if envelope.OriginalMessage.Body != "test-payload" {
+		t.Errorf("Original message body mismatch: got %v, want test-payload", envelope.OriginalMessage.Body)
 	}
 
 	// Output channel should be empty

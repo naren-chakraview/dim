@@ -1,0 +1,175 @@
+route: translate-test
+description: Test fixtures for the translate step
+
+cases:
+  - name: "simple field transformation"
+    description: "Transform body.amount by dividing by 100"
+    input:
+      body:
+        id: "o1"
+        amount: 1500
+    steps:
+      - translate:
+          expr: 'body.amount / 100'
+    expect:
+      body: 15
+
+  - name: "object construction from fields"
+    description: "Construct a new object with selective field extraction and transformation"
+    input:
+      body:
+        id: "o1"
+        amount: 1500
+    steps:
+      - translate:
+          expr: '{ "order_id": body.id, "total": body.amount / 100 }'
+    expect:
+      body:
+        order_id: "o1"
+        total: 15
+
+  - name: "preserve input structure selectively"
+    description: "Extract only specific fields while ignoring others"
+    input:
+      body:
+        id: "o2"
+        amount: 500
+        extra: "ignored"
+    steps:
+      - translate:
+          expr: '{ "id": body.id, "amount": body.amount }'
+    expect:
+      body:
+        id: "o2"
+        amount: 500
+
+  - name: "headers preserved through translation"
+    description: "Verify headers are copied to output message"
+    input:
+      body:
+        value: 100
+      headers:
+        content-type: "application/json"
+        x-request-id: "req-123"
+    steps:
+      - translate:
+          expr: '{ "transformed": true }'
+    expect:
+      body:
+        transformed: true
+      headers:
+        content-type: "application/json"
+        x-request-id: "req-123"
+
+  - name: "array construction"
+    description: "Create an array from message fields"
+    input:
+      body:
+        id: "order-1"
+        amount: 99.99
+        status: "shipped"
+    steps:
+      - translate:
+          expr: '[body.id, body.amount, body.status]'
+    expect:
+      body:
+        - "order-1"
+        - 99.99
+        - "shipped"
+
+  - name: "expression with headers access"
+    description: "Use both body and headers in transformation"
+    input:
+      body:
+        id: "o1"
+      headers:
+        user_id: "user-42"
+    steps:
+      - translate:
+          expr: '{ "order_id": body.id, "user": headers.user_id }'
+    expect:
+      body:
+        order_id: "o1"
+        user: "user-42"
+
+  - name: "string concatenation"
+    description: "Build a string from multiple fields"
+    input:
+      body:
+        id: "o1"
+        status: "shipped"
+    steps:
+      - translate:
+          expr: '"Order " & body.id & " is " & body.status'
+    expect:
+      body: "Order o1 is shipped"
+
+  - name: "conditional transformation"
+    description: "Use ternary operator for conditional transformation"
+    input:
+      body:
+        amount: 1500
+        status: "paid"
+    steps:
+      - translate:
+          expr: '{ "status": body.status = "paid" ? "processing" : "pending", "amount": body.amount }'
+    expect:
+      body:
+        status: "processing"
+        amount: 1500
+
+  - name: "arithmetic operations"
+    description: "Perform calculations on numeric fields"
+    input:
+      body:
+        price: 100
+        quantity: 5
+        tax_rate: 0.1
+    steps:
+      - translate:
+          expr: 'body.price * body.quantity * (1 + body.tax_rate)'
+    expect:
+      body: 550
+
+  - name: "boolean result"
+    description: "Transform to a boolean value"
+    input:
+      body:
+        amount: 1500
+    steps:
+      - translate:
+          expr: 'body.amount > 1000'
+    expect:
+      body: true
+
+  - name: "null handling"
+    description: "Return null for undefined properties"
+    input:
+      body:
+        value: 42
+    steps:
+      - translate:
+          expr: 'body.nonexistent'
+    expect:
+      body: null
+
+  - name: "complex aggregation"
+    description: "Aggregate values from an array using functions"
+    input:
+      body:
+        id: "order-1"
+        status: "paid"
+        items:
+          - price: 10
+            quantity: 2
+          - price: 5
+            quantity: 3
+    steps:
+      - translate:
+          expr: '{ "order": body.id, "total": $sum(body.items.(price * quantity)), "item_count": $count(body.items), "status": body.status = "paid" ? "processing" : "pending_payment" }'
+    expect:
+      body:
+        order: "order-1"
+        total: 35
+        item_count: 2
+        status: "processing"

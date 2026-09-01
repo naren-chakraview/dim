@@ -2,5 +2,350 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "title": "Route Configuration Schema",
-  "description": "JSON Schema for dim route configuration (Phase 0)"
+  "description": "JSON Schema for dim route configuration (Phase 0). Validates route definitions with sources, sinks, and pipeline steps.",
+  "required": ["version", "sources", "sinks", "routes"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "type": "integer",
+      "title": "Configuration Version",
+      "description": "Route configuration version. Must be 1 for Phase 0.",
+      "const": 1
+    },
+    "sources": {
+      "type": "object",
+      "title": "Message Sources",
+      "description": "Named message inputs to the pipeline (HTTP, file, etc.)",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/definitions/source"
+      }
+    },
+    "sinks": {
+      "type": "object",
+      "title": "Message Sinks",
+      "description": "Named message outputs from the pipeline (HTTP, file, etc.)",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/definitions/sink"
+      }
+    },
+    "routes": {
+      "type": "object",
+      "title": "Route Definitions",
+      "description": "Pipeline definitions that flow messages from sources through steps to sinks",
+      "minProperties": 1,
+      "additionalProperties": {
+        "$ref": "#/definitions/route"
+      }
+    }
+  },
+  "definitions": {
+    "source": {
+      "type": "object",
+      "title": "Source Adapter",
+      "description": "A named message input (HTTP, file, etc.)",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["http", "file", "sftp", "exec"],
+          "title": "Source Type",
+          "description": "The adapter type for this source"
+        },
+        "path": {
+          "type": "string",
+          "title": "File Path",
+          "description": "Path for file/SFTP sources"
+        },
+        "url": {
+          "type": "string",
+          "title": "URL",
+          "description": "URL for HTTP sources"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
+          "title": "HTTP Method",
+          "description": "HTTP method for HTTP sources (default: POST)"
+        }
+      }
+    },
+    "sink": {
+      "type": "object",
+      "title": "Sink Adapter",
+      "description": "A named message output (HTTP, file, etc.)",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["http", "file", "sftp", "exec"],
+          "title": "Sink Type",
+          "description": "The adapter type for this sink"
+        },
+        "path": {
+          "type": "string",
+          "title": "File Path",
+          "description": "Path for file/SFTP sinks"
+        },
+        "url": {
+          "type": "string",
+          "title": "URL",
+          "description": "URL for HTTP sinks"
+        },
+        "method": {
+          "type": "string",
+          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
+          "title": "HTTP Method",
+          "description": "HTTP method for HTTP sinks (default: POST)"
+        }
+      }
+    },
+    "route": {
+      "type": "object",
+      "title": "Route Definition",
+      "description": "A pipeline definition flowing messages from a source through steps to error handling",
+      "required": ["from", "auth", "error_path", "steps"],
+      "properties": {
+        "from": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Source Name",
+          "description": "Name of the source this route ingests from"
+        },
+        "auth": {
+          "title": "Authentication Declaration",
+          "description": "Authorization configuration for this route (mandatory). Either 'none' or an authorization step object.",
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": ["none"],
+              "description": "No authorization required"
+            },
+            {
+              "type": "object",
+              "title": "Authorization Step",
+              "description": "Authorization configuration object",
+              "properties": {
+                "mode": {
+                  "type": "string",
+                  "enum": ["rbac", "abac"],
+                  "title": "Authorization Mode",
+                  "description": "Authorization mode: 'rbac' (role-based) or 'abac' (attribute-based)"
+                },
+                "rules": {}
+              }
+            }
+          ]
+        },
+        "error_path": {
+          "$ref": "#/definitions/error_path"
+        },
+        "steps": {
+          "type": "array",
+          "title": "Pipeline Steps",
+          "description": "Ordered sequence of pipeline steps to process the message",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/step"
+          }
+        }
+      }
+    },
+    "error_path": {
+      "type": "object",
+      "title": "Error Handling",
+      "description": "Where and how to route messages that fail processing",
+      "required": ["target"],
+      "properties": {
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Error Sink",
+          "description": "Sink name where failed messages are sent (typically dead-letter queue)"
+        },
+        "retry": {
+          "$ref": "#/definitions/retry_policy"
+        }
+      }
+    },
+    "retry_policy": {
+      "type": "object",
+      "title": "Retry Policy",
+      "description": "Retry configuration for transient failures",
+      "required": ["max_attempts"],
+      "properties": {
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "title": "Maximum Attempts",
+          "description": "Maximum number of retry attempts (total, including initial try)"
+        },
+        "backoff_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "title": "Backoff Milliseconds",
+          "description": "Milliseconds between retries (default: 1000)"
+        },
+        "jitter_ms": {
+          "type": "integer",
+          "minimum": 0,
+          "title": "Jitter Milliseconds",
+          "description": "Random jitter added to backoff (default: 100)"
+        }
+      }
+    },
+    "step": {
+      "type": "object",
+      "title": "Pipeline Step",
+      "description": "A single processing step in the pipeline (filter, translate, route, wiretap, idempotent, or authorize)",
+      "oneOf": [
+        { "$ref": "#/definitions/filter_step" },
+        { "$ref": "#/definitions/translate_step" },
+        { "$ref": "#/definitions/route_step" },
+        { "$ref": "#/definitions/wiretap_step" },
+        { "$ref": "#/definitions/idempotent_step" },
+        { "$ref": "#/definitions/authorize_step" }
+      ]
+    },
+    "filter_step": {
+      "type": "object",
+      "title": "Filter Step",
+      "description": "Boolean predicate to include/exclude messages",
+      "required": ["filter"],
+      "properties": {
+        "filter": {
+          "type": "object",
+          "required": ["expr"],
+          "properties": {
+            "expr": {
+              "type": "string",
+              "title": "Filter Expression",
+              "description": "JSONata expression that evaluates to boolean"
+            }
+          }
+        }
+      }
+    },
+    "translate_step": {
+      "type": "object",
+      "title": "Translate Step",
+      "description": "Transform the message body using a JSONata expression",
+      "required": ["translate"],
+      "properties": {
+        "translate": {
+          "type": "object",
+          "required": ["expr"],
+          "properties": {
+            "expr": {
+              "type": "string",
+              "title": "Transform Expression",
+              "description": "JSONata expression to transform the message"
+            }
+          }
+        }
+      }
+    },
+    "route_step": {
+      "type": "object",
+      "title": "Content-Based Router Step",
+      "description": "Route messages to different branches based on content evaluation",
+      "required": ["route"],
+      "properties": {
+        "route": {
+          "type": "object",
+          "required": ["expr"],
+          "properties": {
+            "expr": {
+              "type": "string",
+              "title": "Route Expression",
+              "description": "JSONata expression that evaluates to a route/case name"
+            },
+            "cases": {
+              "type": "object",
+              "title": "Route Cases",
+              "description": "Map of case names to target route names",
+              "additionalProperties": {
+                "type": "object",
+                "properties": {
+                  "target": {
+                    "type": "string",
+                    "title": "Target",
+                    "description": "Route or sink name for this case"
+                  }
+                }
+              }
+            },
+            "default": {
+              "type": "string",
+              "title": "Default Target",
+              "description": "Default route/sink if expression doesn't match any case"
+            }
+          }
+        }
+      }
+    },
+    "wiretap_step": {
+      "type": "object",
+      "title": "Wiretap Step",
+      "description": "Duplicate the message to a secondary sink without altering main flow",
+      "required": ["wiretap"],
+      "properties": {
+        "wiretap": {
+          "type": "object",
+          "required": ["sink"],
+          "properties": {
+            "sink": {
+              "type": "string",
+              "title": "Tap Sink",
+              "description": "Sink name to duplicate the message to"
+            }
+          }
+        }
+      }
+    },
+    "idempotent_step": {
+      "type": "object",
+      "title": "Idempotent Deduplication Step",
+      "description": "Suppress duplicate messages using a deduplication key",
+      "required": ["idempotent"],
+      "properties": {
+        "idempotent": {
+          "type": "object",
+          "required": ["key_expr"],
+          "properties": {
+            "key_expr": {
+              "type": "string",
+              "title": "Deduplication Key Expression",
+              "description": "JSONata expression to extract the dedup key from the message"
+            }
+          }
+        }
+      }
+    },
+    "authorize_step": {
+      "type": "object",
+      "title": "Authorization Step",
+      "description": "Enforce authorization policies (RBAC or ABAC)",
+      "required": ["authorize"],
+      "properties": {
+        "authorize": {
+          "type": "object",
+          "required": ["mode"],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": ["rbac", "abac"],
+              "title": "Authorization Mode",
+              "description": "Authorization mode: 'rbac' (role-based) or 'abac' (attribute-based)"
+            },
+            "rules": {
+              "title": "Authorization Rules",
+              "description": "Authorization rules for this mode"
+            }
+          }
+        }
+      }
+    }
+  }
 }

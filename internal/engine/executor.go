@@ -37,29 +37,60 @@ type Executor struct {
 	// errorCh receives messages that fail processing
 	// nil if error handling is not configured for this executor
 	errorCh *Channel
+
+	// stepNames maps step index to step type name (e.g., "filter", "translate")
+	// Used for generating informative dead-letter envelopes
+	// If empty, step types are inferred (or set to "unknown")
+	stepNames []string
 }
 
 // NewExecutor creates a new single-worker executor.
 // inputCh and outputCh must not be nil; errorCh may be nil (errors are logged but not sent anywhere).
 func NewExecutor(name string, inputCh, outputCh *Channel, steps []Step) *Executor {
-	return &Executor{
-		name:     name,
-		inputCh:  inputCh,
-		outputCh: outputCh,
-		steps:    steps,
-		errorCh:  nil,
-	}
+	return NewExecutorWithStepNames(name, inputCh, outputCh, nil, steps, nil)
 }
 
 // NewExecutorWithErrorChannel creates an executor with an error channel for failed messages.
 func NewExecutorWithErrorChannel(name string, inputCh, outputCh, errorCh *Channel, steps []Step) *Executor {
-	return &Executor{
-		name:     name,
-		inputCh:  inputCh,
-		outputCh: outputCh,
-		steps:    steps,
-		errorCh:  errorCh,
+	return NewExecutorWithStepNames(name, inputCh, outputCh, errorCh, steps, nil)
+}
+
+// NewExecutorWithStepNames creates an executor with explicit step type names.
+// stepNames maps step indices to their type names (e.g., "filter", "translate").
+// If stepNames is nil or has fewer entries than steps, missing entries are inferred or set to "unknown".
+func NewExecutorWithStepNames(name string, inputCh, outputCh, errorCh *Channel, steps []Step, stepNames []string) *Executor {
+	names := make([]string, len(steps))
+
+	// Populate from provided stepNames
+	for i := 0; i < len(steps) && i < len(stepNames); i++ {
+		names[i] = stepNames[i]
 	}
+
+	// Fill missing entries with inferred types
+	for i := len(stepNames); i < len(steps); i++ {
+		names[i] = inferStepType(steps[i])
+	}
+
+	return &Executor{
+		name:      name,
+		inputCh:   inputCh,
+		outputCh:  outputCh,
+		steps:     steps,
+		errorCh:   errorCh,
+		stepNames: names,
+	}
+}
+
+// inferStepType attempts to infer the step type from the step's concrete type.
+// Returns "unknown" if the type cannot be determined.
+func inferStepType(step Step) string {
+	// Try to extract a meaningful type name from the type string
+	// e.g., "*steps.FilterStep" -> "filter", "*steps.TranslateStep" -> "translate"
+	// For now, just return "unknown" as a safe default for Phase 0
+	// In M0.2+ this can be enhanced with actual type introspection
+	_ = fmt.Sprintf("%T", step) // inspect type, but defer parsing to future work
+
+	return "unknown"
 }
 
 // Run starts the executor's main loop.
@@ -80,13 +111,34 @@ func (e *Executor) Run(ctx context.Context) error {
 		}
 
 		// Process the message through all steps
-		result, procErr := e.processMessage(ctx, msg)
+		result, procErr, failedStepIndex := e.processMessageWithErrorTracking(ctx, msg)
 
 		// Handle errors
 		if procErr != nil {
-			// If we have an error channel, send the message there
+			// If we have an error channel, send a dead-letter envelope
 			if e.errorCh != nil {
-				if sendErr := e.errorCh.Send(ctx, msg); sendErr != nil {
+				stepType := "unknown"
+				if failedStepIndex >= 0 && failedStepIndex < len(e.stepNames) {
+					stepType = e.stepNames[failedStepIndex]
+				}
+
+				envelope := NewDeadLetterEnvelope(msg, procErr, failedStepIndex, stepType)
+				// Wrap envelope in a Message for the channel
+				envelopeMsg := &Message{
+					Headers: make(map[string]interface{}),
+					Body:    envelope,
+					Metadata: Metadata{
+						CorrelationID:  msg.Metadata.CorrelationID,
+						IngestedAt:     msg.Metadata.IngestedAt,
+						Route:          msg.Metadata.Route,
+						RouteVersion:   msg.Metadata.RouteVersion,
+						ContractVersion: msg.Metadata.ContractVersion,
+						Stage:          "error_path",
+						Principal:      msg.Metadata.Principal,
+					},
+				}
+
+				if sendErr := e.errorCh.Send(ctx, envelopeMsg); sendErr != nil {
 					return fmt.Errorf("executor %q error send failed: %w", e.name, sendErr)
 				}
 			}
@@ -110,27 +162,30 @@ func (e *Executor) Run(ctx context.Context) error {
 // This is useful for testing individual message processing without running the full loop.
 // Returns the final message (may be nil if a step drops it) or an error if any step fails.
 func (e *Executor) ProcessMessage(ctx context.Context, msg *Message) (*Message, error) {
-	return e.processMessage(ctx, msg)
+	result, err, _ := e.processMessageWithErrorTracking(ctx, msg)
+	return result, err
 }
 
-// processMessage is the internal implementation of message processing.
-func (e *Executor) processMessage(ctx context.Context, msg *Message) (*Message, error) {
+// processMessageWithErrorTracking is the internal implementation that tracks which step failed.
+// Returns (result, error, failedStepIndex).
+// failedStepIndex is -1 if no error, or the 0-based index of the failed step if an error occurred.
+func (e *Executor) processMessageWithErrorTracking(ctx context.Context, msg *Message) (*Message, error, int) {
 	current := msg
 
 	// Apply each step in sequence
 	for i, step := range e.steps {
 		result, err := step.Execute(ctx, current)
 		if err != nil {
-			return nil, fmt.Errorf("step %d in executor %q failed: %w", i, e.name, err)
+			return nil, fmt.Errorf("step %d in executor %q failed: %w", i, e.name, err), i
 		}
 
 		// If a step returns nil (e.g., filter rejection), stop processing and return nil
 		if result == nil {
-			return nil, nil
+			return nil, nil, -1
 		}
 
 		current = result
 	}
 
-	return current, nil
+	return current, nil, -1
 }
