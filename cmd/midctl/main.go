@@ -53,6 +53,16 @@ var validateCmd = &cobra.Command{
 		fmt.Fprintf(os.Stdout, "  Sinks: %d\n", len(cfg.Sinks))
 		fmt.Fprintf(os.Stdout, "  Routes: %d\n", len(cfg.Routes))
 
+		// Print route versions for lineage tracking
+		if len(cfg.Routes) > 0 {
+			fmt.Fprintf(os.Stdout, "  Route versions:\n")
+			for name, route := range cfg.Routes {
+				if route.RouteVersion != "" {
+					fmt.Fprintf(os.Stdout, "    %s: %s\n", name, route.RouteVersion)
+				}
+			}
+		}
+
 		return nil
 	},
 }

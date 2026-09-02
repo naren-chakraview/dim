@@ -33,6 +33,12 @@ type RouteSpec struct {
 	Steps     []StepSpec        `yaml:"steps" json:"steps"`
 	Retry     *RetryPolicy      `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Ordering  string            `yaml:"ordering,omitempty" json:"ordering,omitempty"` // "required" or "none" (default: "none")
+
+	// RouteVersion is the deterministic hash of this resolved route configuration.
+	// Computed automatically during route loading after fragment resolution.
+	// Used for lineage tracking to detect when route definitions change.
+	// Format: SHA256 hash as lowercase hex string (64 characters).
+	RouteVersion string `yaml:"-" json:"-"`
 }
 
 // ErrorPathSpec defines error handling (target sink and retry policy)

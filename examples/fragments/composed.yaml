@@ -1,0 +1,26 @@
+# Composed route — demonstrates fragment composition
+# This route combines:
+# - Base: HTTP source + file sink
+# - Auth: RBAC authorization
+# - Retry: Message filtering and transformation
+#
+# When all three are composed, the resulting route will:
+# - Accept HTTP POST requests on /ingest
+# - Require admin role (from auth fragment)
+# - Filter to only process active messages (from retry fragment)
+# - Transform messages using JSONata (from retry fragment)
+# - Output successful messages to /tmp/output.jsonl
+#
+# This demonstrates how fragments can be layered to build complex routes
+# from reusable components.
+
+$import: retry.yaml
+routes:
+  process:
+    auth:
+      mode: rbac
+      require_roles: [admin]
+    steps:
+      - authorize:
+          mode: rbac
+          require_roles: [admin]

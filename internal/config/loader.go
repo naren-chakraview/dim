@@ -11,7 +11,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// LoadRouteConfig loads and validates a route configuration from a YAML file
+// LoadRouteConfig loads and validates a route configuration from a YAML file,
+// resolving any $import directives and merging fragments
 func LoadRouteConfig(path string) (*RouteConfig, error) {
 	// Read the file
 	data, err := os.ReadFile(path)
@@ -19,15 +20,39 @@ func LoadRouteConfig(path string) (*RouteConfig, error) {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	// Parse YAML into RouteConfig
-	var config RouteConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
+	// Parse YAML into a map (for fragment resolution)
+	var rawConfig map[string]interface{}
+	if err := yaml.Unmarshal(data, &rawConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+	}
+
+	// Resolve imports and merge fragments
+	resolver := NewFragmentResolver(filepath.Dir(path))
+	resolvedConfig, err := resolver.ResolveImports(rawConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve imports: %w", err)
+	}
+
+	// Convert resolved config back to YAML and then to RouteConfig
+	resolvedYAML, err := yaml.Marshal(resolvedConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal resolved config: %w", err)
+	}
+
+	// Parse the resolved YAML into RouteConfig
+	var config RouteConfig
+	if err := yaml.Unmarshal(resolvedYAML, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse resolved YAML: %w", err)
 	}
 
 	// Validate against JSON Schema
 	if err := validateRouteConfig(&config); err != nil {
 		return nil, fmt.Errorf("config validation failed: %w", err)
+	}
+
+	// Compute route versions for all routes (deterministic hashing for lineage tracking)
+	if err := computeRouteVersions(&config); err != nil {
+		return nil, fmt.Errorf("failed to compute route versions: %w", err)
 	}
 
 	return &config, nil
@@ -113,4 +138,22 @@ func getSchemaDir() string {
 
 	// Fallback
 	return "./schemas"
+}
+
+// computeRouteVersions computes deterministic version hashes for all routes in the config.
+// This enables lineage tracking to detect when route definitions change.
+// Each route's hash is computed from its resolved configuration after fragment resolution.
+func computeRouteVersions(config *RouteConfig) error {
+	for routeName, routeSpec := range config.Routes {
+		rv, err := ComputeRouteVersion(&routeSpec)
+		if err != nil {
+			return fmt.Errorf("failed to compute version for route %q: %w", routeName, err)
+		}
+
+		// Update the route spec with its version hash
+		routeSpec.RouteVersion = rv.Hash
+		config.Routes[routeName] = routeSpec
+	}
+
+	return nil
 }

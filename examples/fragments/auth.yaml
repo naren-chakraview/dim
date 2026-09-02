@@ -1,0 +1,20 @@
+# Authorization layer fragment — adds RBAC authorization to a base route
+# This fragment imports the base route and adds an authorization step
+# that enforces role-based access control (RBAC) for the process route.
+#
+# When composed with base.yaml, the resulting route will:
+# - Use the HTTP source and file sink from base
+# - Add an authorize step that requires the 'admin' role
+#
+# Example usage:
+#   $import: base.yaml
+#   # Adds RBAC authorization
+
+$import: base.yaml
+routes:
+  process:
+    auth: none
+    steps:
+      - authorize:
+          mode: rbac
+          require_roles: [admin]

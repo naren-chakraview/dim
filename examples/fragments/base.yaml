@@ -1,0 +1,27 @@
+# Base route fragment — defines HTTP source and file sink
+# This fragment provides the foundational infrastructure for processing messages:
+# - HTTP source to ingest requests
+# - File sink for successful messages
+# - Basic route skeleton with no processing steps
+
+version: 1
+sources:
+  http-in:
+    type: http
+    path: /ingest
+    method: POST
+sinks:
+  output:
+    type: file
+    path: /tmp/output.jsonl
+routes:
+  process:
+    from: http-in
+    auth: none
+    error_path:
+      target: output
+      retry:
+        max_attempts: 1
+    steps:
+      - translate:
+          expr: 'body'

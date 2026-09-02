@@ -1,0 +1,23 @@
+# Retry and transformation fragment — adds message transformation and enhanced retry
+# This fragment imports the base route and adds:
+# - A filter step to validate message status
+# - A translate step to transform the message body
+#
+# When composed with base.yaml, the resulting route will:
+# - Use the HTTP source and file sink from base
+# - Filter messages to only process active ones
+# - Transform each message using JSONata
+#
+# Example usage:
+#   $import: base.yaml
+#   # Adds filtering and transformation
+
+$import: base.yaml
+routes:
+  process:
+    auth: none
+    steps:
+      - filter:
+          expr: 'body.status = "active"'
+      - translate:
+          expr: '{ id: body.id, message: body.message, timestamp: $now() }'
