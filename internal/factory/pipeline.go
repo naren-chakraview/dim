@@ -69,22 +69,24 @@ func (a *FileSinkAdapter) Stop() error {
 
 // MessageRouter routes messages from a source to the correct executor based on route name.
 // It reads from a source channel and sends to the appropriate executor's input channel.
+// Updated for M0.2.10: works with GenerationManager for hot reload support.
 type MessageRouter struct {
-	sourceOutCh *engine.Channel
-	executors   map[string]*engine.Executor
-	defaultRoute string
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
+	sourceOutCh      *engine.Channel
+	generationMgrs   map[string]*engine.GenerationManager
+	defaultRoute     string
+	ctx              context.Context
+	cancel           context.CancelFunc
+	wg               sync.WaitGroup
 }
 
 // NewMessageRouter creates a new router for multi-route scenarios.
-// It reads from sourceOutCh and routes to the appropriate executor based on message.Metadata.Route.
-func NewMessageRouter(sourceOutCh *engine.Channel, executors map[string]*engine.Executor, defaultRoute string) *MessageRouter {
+// It reads from sourceOutCh and routes to the appropriate generation manager based on message.Metadata.Route.
+// M0.2.10: Updated to use GenerationManager for hot reload support.
+func NewMessageRouter(sourceOutCh *engine.Channel, generationMgrs map[string]*engine.GenerationManager, defaultRoute string) *MessageRouter {
 	return &MessageRouter{
-		sourceOutCh:  sourceOutCh,
-		executors:    executors,
-		defaultRoute: defaultRoute,
+		sourceOutCh:    sourceOutCh,
+		generationMgrs: generationMgrs,
+		defaultRoute:   defaultRoute,
 	}
 }
 
@@ -111,7 +113,8 @@ func (r *MessageRouter) Stop() error {
 	return nil
 }
 
-// routeMessages reads from the source channel and routes messages to executors.
+// routeMessages reads from the source channel and routes messages to generation managers.
+// M0.2.10: Updated to route to active generation for hot reload support.
 func (r *MessageRouter) routeMessages() {
 	for {
 		// Read a message from the source
@@ -127,22 +130,28 @@ func (r *MessageRouter) routeMessages() {
 			return
 		}
 
-		// Determine the target executor
+		// Determine the target route
 		routeName := msg.Metadata.Route
 		if routeName == "" {
 			routeName = r.defaultRoute
 		}
 
-		// Get the executor for this route
-		executor, ok := r.executors[routeName]
+		// Get the generation manager for this route
+		gm, ok := r.generationMgrs[routeName]
 		if !ok {
-			log.Printf("[WARN] MessageRouter: no executor for route %q, correlation_id=%s", routeName, msg.Metadata.CorrelationID)
+			log.Printf("[WARN] MessageRouter: no generation manager for route %q, correlation_id=%s", routeName, msg.Metadata.CorrelationID)
 			continue
 		}
 
-		// Send the message to the executor's input channel
-		if err := executor.GetInputChannel().Send(r.ctx, msg); err != nil {
-			log.Printf("[WARN] MessageRouter: failed to send to executor %q: %v", routeName, err)
+		// Get the active generation's input channel and send the message
+		inputCh := gm.GetActiveInputChannel()
+		if inputCh == nil {
+			log.Printf("[WARN] MessageRouter: no active generation for route %q, correlation_id=%s", routeName, msg.Metadata.CorrelationID)
+			continue
+		}
+
+		if err := inputCh.Send(r.ctx, msg); err != nil {
+			log.Printf("[WARN] MessageRouter: failed to send to route %q (active generation): %v", routeName, err)
 		}
 	}
 }
@@ -177,7 +186,7 @@ func BuildPipeline(ctx context.Context, cfg *config.RouteConfig) (
 
 	// For multiple routes, use the new multi-route implementation
 	// Note: This returns nil for executor/channels and manages them internally via router
-	executors, router, sources, sinks, err := BuildMultiRoutePipeline(ctx, cfg)
+	generationMgrs, router, sources, sinks, err := BuildMultiRoutePipeline(ctx, cfg)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
@@ -189,8 +198,8 @@ func BuildPipeline(ctx context.Context, cfg *config.RouteConfig) (
 
 	// Return router as a special executor wrapper for compatibility
 	// Actually, for multi-route we need a different approach in main.go
-	// For now, we'll return nil and let main.go handle multiple executors directly
-	log.Printf("[INFO] BuildPipeline: configured %d routes", len(executors))
+	// For now, we'll return nil and let main.go handle multiple generation managers directly
+	log.Printf("[INFO] BuildPipeline: configured %d routes", len(generationMgrs))
 	_ = router // router is managed by the caller
 
 	return nil, nil, nil, nil, sources, sinks, nil
@@ -299,12 +308,14 @@ func BuildSingleRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 }
 
 // BuildMultiRoutePipeline constructs an end-to-end pipeline with multiple independent routes.
-// Each route gets its own executor, and messages are routed based on Metadata.Route.
+// Each route gets its own executor wrapped in a GenerationManager for hot reload support.
+// Messages are routed based on Metadata.Route and always sent to the active generation.
 //
-// Returns (executors, router, sources, sinks, error)
-// Callers should manage the lifecycle of returned sources, sinks, executors, and router.
+// Returns (generationManagers, router, sources, sinks, error)
+// M0.2.10: Updated to use GenerationManager for hot reload support (SIGHUP).
+// Callers should manage the lifecycle of returned sources, sinks, managers, and router.
 func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
-	map[string]*engine.Executor,
+	map[string]*engine.GenerationManager,
 	*MessageRouter,
 	[]SourceAdapter,
 	[]SinkAdapter,
@@ -315,7 +326,7 @@ func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 	}
 
 	// Create a shared channel for the HTTP source
-	// The router will read from this and distribute to individual executors
+	// The router will read from this and distribute to individual generation managers
 	sourceOutCh := engine.NewChannel("http-to-router", 100)
 
 	// Create HTTP source (shared across all routes)
@@ -329,14 +340,14 @@ func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 		outCh:  sourceOutCh,
 	})
 
-	// Build executors for each route
-	executors := make(map[string]*engine.Executor)
+	// Build generation managers for each route
+	generationMgrs := make(map[string]*engine.GenerationManager)
 	var sinks []SinkAdapter
 
 	// Track which sinks we've already created to avoid duplicates
 	createdSinks := make(map[string]bool)
 
-	// First pass: create all route executors and sinks
+	// First pass: create all route executors wrapped in generation managers and sinks
 	for routeName, routeSpec := range cfg.Routes {
 		// Create channels for this route
 		outputCh := engine.NewChannel(fmt.Sprintf("executor-%s-to-sink", routeName), 100)
@@ -363,7 +374,10 @@ func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 		// Create executor with its own input channel and appropriate worker count
 		executorInputCh := engine.NewChannel(fmt.Sprintf("router-to-executor-%s", routeName), 100)
 		executor := engine.NewExecutorWithWorkers(routeName, executorInputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers)
-		executors[routeName] = executor
+
+		// Wrap executor in a GenerationManager with concurrent-draining cap of 3
+		generationMgr := engine.NewGenerationManager(routeName, executor, routeSpec.RouteVersion, 3)
+		generationMgrs[routeName] = generationMgr
 
 		// Create output sink for this route (if not already created)
 		outputSinkName := "output"
@@ -412,13 +426,13 @@ func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 
 	// Determine default route (first route in map)
 	var defaultRoute string
-	for routeName := range executors {
+	for routeName := range generationMgrs {
 		defaultRoute = routeName
 		break
 	}
 
-	// Create the message router
-	router := NewMessageRouter(sourceOutCh, executors, defaultRoute)
+	// Create the message router with generation managers
+	router := NewMessageRouter(sourceOutCh, generationMgrs, defaultRoute)
 
-	return executors, router, sources, sinks, nil
+	return generationMgrs, router, sources, sinks, nil
 }

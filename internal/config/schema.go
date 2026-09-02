@@ -34,6 +34,11 @@ type RouteSpec struct {
 	Retry     *RetryPolicy      `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Ordering  string            `yaml:"ordering,omitempty" json:"ordering,omitempty"` // "required" or "none" (default: "none")
 
+	// Lineage tracking fields (M0.4)
+	RetentionPolicy     string `yaml:"retention_policy,omitempty" json:"retention_policy,omitempty"`
+	RetentionPolicyExpr string `yaml:"retention_policy_expr,omitempty" json:"retention_policy_expr,omitempty"`
+	SubjectIDExpr       string `yaml:"subject_id_expr,omitempty" json:"subject_id_expr,omitempty"`
+
 	// RouteVersion is the deterministic hash of this resolved route configuration.
 	// Computed automatically during route loading after fragment resolution.
 	// Used for lineage tracking to detect when route definitions change.

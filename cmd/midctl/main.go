@@ -14,7 +14,10 @@ import (
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
 	"github.com/naren-chakraview/dim/internal/factory"
+	"github.com/naren-chakraview/dim/internal/lineage"
 	"github.com/naren-chakraview/dim/internal/observability"
+	"github.com/naren-chakraview/dim/internal/ordering"
+	"github.com/naren-chakraview/dim/internal/steps"
 	"github.com/naren-chakraview/dim/internal/testing"
 	"github.com/spf13/cobra"
 )
@@ -86,7 +89,7 @@ var runCmd = &cobra.Command{
 			return runSingleRoute(cfg)
 		}
 
-		return runMultiRoute(cfg)
+		return runMultiRoute(cfg, configPath)
 	},
 }
 
@@ -184,6 +187,53 @@ func runSingleRoute(cfg *config.RouteConfig) error {
 	return nil
 }
 
+// truncateVersion returns a short version string (first 16 chars or full if shorter)
+func truncateVersion(version string) string {
+	if len(version) > 16 {
+		return version[:16]
+	}
+	return version
+}
+
+// buildExecutorForRoute builds a new executor for a given route.
+// Used during hot reload to create executors for updated route configs.
+// M0.2.10: Helper for SIGHUP reload.
+func buildExecutorForRoute(ctx context.Context, routeName string, routeSpec config.RouteSpec) (*engine.Executor, error) {
+	// Create executor channels
+	// Note: channel names won't change for a given route
+	inputCh := engine.NewChannel(fmt.Sprintf("router-to-executor-%s", routeName), 100)
+	outputCh := engine.NewChannel(fmt.Sprintf("executor-%s-to-sink", routeName), 100)
+
+	// Create error channel if error path is configured
+	var errorCh *engine.Channel
+	if routeSpec.ErrorPath != nil {
+		errorCh = engine.NewChannel(fmt.Sprintf("executor-%s-to-error-sink", routeName), 100)
+	}
+
+	// Build steps from route config
+	stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build steps for route %q: %w", routeName, err)
+	}
+
+	// Determine worker count based on ordering requirement
+	defaultWorkers := 4
+	numWorkers := ordering.GetWorkerCount(&routeSpec, defaultWorkers)
+	if ordering.IsOrderingRequired(&routeSpec) {
+		log.Printf("[INFO] Route %q has ordering=required, constraining to 1 worker for serial processing", routeName)
+	}
+
+	// Create executor with appropriate worker count and error channel
+	var executor *engine.Executor
+	if errorCh != nil {
+		executor = engine.NewExecutorWithWorkers(routeName, inputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers)
+	} else {
+		executor = engine.NewExecutorWithWorkers(routeName, inputCh, outputCh, nil, stepsInstances, stepNames, numWorkers)
+	}
+
+	return executor, nil
+}
+
 // startMetricsServer starts the Prometheus metrics HTTP server
 func startMetricsServer(ctx context.Context, addr string, mc *observability.MetricsCollector) *http.Server {
 	server := &http.Server{
@@ -209,8 +259,9 @@ func startMetricsServer(ctx context.Context, addr string, mc *observability.Metr
 	return server
 }
 
-// runMultiRoute runs a multi-route configuration with coordinated lifecycle
-func runMultiRoute(cfg *config.RouteConfig) error {
+// runMultiRoute runs a multi-route configuration with coordinated lifecycle and hot reload support.
+// M0.2.10: Added SIGHUP handler for hot reload with graceful in-flight message draining.
+func runMultiRoute(cfg *config.RouteConfig, configPath string) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -237,7 +288,7 @@ func runMultiRoute(cfg *config.RouteConfig) error {
 		fmt.Fprintf(os.Stderr, "tracing enabled with %s exporter (sample_rate=%.2f)\n", obsConfig.OtelExporter, obsConfig.SampleRate)
 	}
 
-	executors, router, sources, sinks, err := factory.BuildMultiRoutePipeline(ctx, cfg)
+	generationMgrs, router, sources, sinks, err := factory.BuildMultiRoutePipeline(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("failed to build multi-route pipeline: %w", err)
 	}
@@ -246,7 +297,7 @@ func runMultiRoute(cfg *config.RouteConfig) error {
 	_ = metricsCollector
 	_ = tracingProvider
 
-	fmt.Fprintf(os.Stderr, "configured %d routes\n", len(executors))
+	fmt.Fprintf(os.Stderr, "configured %d routes\n", len(generationMgrs))
 
 	// Start all adapters
 	for _, source := range sources {
@@ -265,31 +316,98 @@ func runMultiRoute(cfg *config.RouteConfig) error {
 		return fmt.Errorf("failed to start message router: %w", err)
 	}
 
-	// Setup signal handling
+	// Setup signal handling (SIGTERM/SIGINT for shutdown, SIGHUP for reload)
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
+	sigHupCh := make(chan os.Signal, 1)
+	signal.Notify(sigHupCh, syscall.SIGHUP)
+
 	// Start all executors in goroutines
-	executorErrorChannels := make([]chan error, 0, len(executors))
-	routeNames := make([]string, 0, len(executors))
-	for routeName, executor := range executors {
+	executorErrorChannels := make([]chan error, 0, len(generationMgrs))
+	routeNames := make([]string, 0, len(generationMgrs))
+	for routeName, mgr := range generationMgrs {
 		ch := make(chan error, 1)
 		executorErrorChannels = append(executorErrorChannels, ch)
 		routeNames = append(routeNames, routeName)
-		go func(name string, exec *engine.Executor) {
-			ch <- exec.Run(ctx)
-		}(routeName, executor)
+		go func(name string, gm *engine.GenerationManager) {
+			// Get the active generation's executor
+			gen := gm.GetActiveGeneration()
+			if gen == nil {
+				ch <- fmt.Errorf("no active generation for route %q", name)
+				return
+			}
+			ch <- gen.Executor.Run(ctx)
+		}(routeName, mgr)
 	}
+
+	// Handle SIGHUP for hot reload (M0.2.10)
+	go func() {
+		for range sigHupCh {
+			if configPath == "" {
+				log.Printf("[WARN] reload requested but config path not provided")
+				continue
+			}
+
+			// Reload route config from file
+			newCfg, err := config.LoadRouteConfig(configPath)
+			if err != nil {
+				log.Printf("[ERROR] reload failed: %v", err)
+				continue
+			}
+
+			log.Printf("[INFO] hot reload triggered, checking %d route(s)", len(newCfg.Routes))
+
+			// For each route, check if route_version changed
+			for routeName, newRoute := range newCfg.Routes {
+				oldRoute, ok := cfg.Routes[routeName]
+				if !ok {
+					log.Printf("[WARN] route %q added (not reloading, requires restart)", routeName)
+					continue
+				}
+
+				if oldRoute.RouteVersion == newRoute.RouteVersion {
+					log.Printf("[INFO] route %q unchanged (version=%s)", routeName, truncateVersion(newRoute.RouteVersion))
+					continue
+				}
+
+				// Route config changed; trigger takeover
+				log.Printf("[INFO] reloading route %q (version %s → %s)",
+					routeName, truncateVersion(oldRoute.RouteVersion), truncateVersion(newRoute.RouteVersion))
+
+				// Build new executor for this route
+				newExecutor, err := buildExecutorForRoute(ctx, routeName, newRoute)
+				if err != nil {
+					log.Printf("[ERROR] failed to build executor for %q: %v", routeName, err)
+					continue
+				}
+
+				// Trigger takeover in generation manager
+				gm := generationMgrs[routeName]
+				if err := gm.Takeover(ctx, newExecutor, newRoute.RouteVersion); err != nil {
+					log.Printf("[ERROR] takeover failed for %q: %v", routeName, err)
+					continue
+				}
+
+				// Update the stored config for next reload comparison
+				cfg.Routes[routeName] = newRoute
+			}
+		}
+	}()
 
 	// Print startup message
 	fmt.Fprintf(os.Stderr, "listening on http://localhost:8080/ingest\n")
 	fmt.Fprintf(os.Stderr, "press Ctrl+C to stop\n")
+	if configPath != "" {
+		fmt.Fprintf(os.Stderr, "hot reload available: send SIGHUP to reload routes\n")
+	}
 
 	// Wait for signal or executor error
 	select {
 	case <-sigCh:
 		fmt.Fprintf(os.Stderr, "\nshutting down...\n")
 		signal.Stop(sigCh)
+		signal.Stop(sigHupCh)
 
 		// Shutdown metrics server if running
 		if metricsServer != nil {
@@ -300,6 +418,16 @@ func runMultiRoute(cfg *config.RouteConfig) error {
 
 		// Cancel the context to stop all executors and the router
 		cancel()
+
+		// Wait for all generation managers to drain (with timeout)
+		drainTimeout := time.After(15 * time.Second)
+		for routeName, gm := range generationMgrs {
+			drainCtx, drainCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			if err := gm.DrainAll(drainCtx, 10*time.Second); err != nil {
+				log.Printf("[WARN] Route %q drain error: %v", routeName, err)
+			}
+			drainCancel()
+		}
 
 		// Wait for all executors to finish (with timeout)
 		timeout := time.After(10 * time.Second)
@@ -315,6 +443,12 @@ func runMultiRoute(cfg *config.RouteConfig) error {
 				fmt.Fprintf(os.Stderr, "executor shutdown timeout (completed %d/%d)\n", completed, len(executorErrorChannels))
 				break
 			}
+		}
+
+		select {
+		case <-drainTimeout:
+			fmt.Fprintf(os.Stderr, "generation manager drain timeout\n")
+		default:
 		}
 
 		fmt.Fprintf(os.Stderr, "shutdown complete\n")
@@ -422,11 +556,180 @@ var testCmd = &cobra.Command{
 	},
 }
 
+// Lineage command group
+var lineageCmd = &cobra.Command{
+	Use:   "lineage",
+	Short: "Manage message lineage and audit trails",
+	Long:  "Commands for querying, purging, and exporting message lineage records from the embedded SQLite store",
+}
+
+var lineagePurgeCmd = &cobra.Command{
+	Use:   "purge",
+	Short: "Purge lineage records",
+	Long:  "Manually delete lineage records by subject ID or time range",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dbPath, _ := cmd.Flags().GetString("db")
+		if dbPath == "" {
+			dbPath = "./lineage.db"
+		}
+
+		ctx := context.Background()
+		store, err := lineage.NewStore(dbPath)
+		if err != nil {
+			return fmt.Errorf("failed to open lineage store: %w", err)
+		}
+		defer store.Close()
+
+		subjectID, _ := cmd.Flags().GetString("subject")
+		if subjectID == "" {
+			return fmt.Errorf("--subject is required for purge")
+		}
+
+		opts := lineage.PurgeOpts{SubjectID: subjectID}
+		count, err := lineage.Purge(ctx, store, opts)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(os.Stdout, "Purged %d records for subject %q\n", count, subjectID)
+		return nil
+	},
+}
+
+var lineageExportCmd = &cobra.Command{
+	Use:   "export",
+	Short: "Export lineage records",
+	Long:  "Export lineage records in CSV or NDJSON format",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dbPath, _ := cmd.Flags().GetString("db")
+		if dbPath == "" {
+			dbPath = "./lineage.db"
+		}
+
+		format, _ := cmd.Flags().GetString("format")
+		if format != "csv" && format != "ndjson" {
+			return fmt.Errorf("format must be 'csv' or 'ndjson'")
+		}
+
+		sinceStr, _ := cmd.Flags().GetString("since")
+		untilStr, _ := cmd.Flags().GetString("until")
+
+		var since, until time.Time
+		if sinceStr != "" {
+			var err error
+			since, err = time.Parse(time.RFC3339, sinceStr)
+			if err != nil {
+				return fmt.Errorf("invalid --since format: %w", err)
+			}
+		} else {
+			since = time.Now().UTC().Add(-30 * 24 * time.Hour) // Default: last 30 days
+		}
+
+		if untilStr != "" {
+			var err error
+			until, err = time.Parse(time.RFC3339, untilStr)
+			if err != nil {
+				return fmt.Errorf("invalid --until format: %w", err)
+			}
+		} else {
+			until = time.Now().UTC()
+		}
+
+		ctx := context.Background()
+		store, err := lineage.NewStore(dbPath)
+		if err != nil {
+			return fmt.Errorf("failed to open lineage store: %w", err)
+		}
+		defer store.Close()
+
+		filename := fmt.Sprintf("lineage-export.%s", format)
+		f, err := os.Create(filename)
+		if err != nil {
+			return fmt.Errorf("failed to create export file: %w", err)
+		}
+		defer f.Close()
+
+		err = lineage.Export(ctx, store, format, since, until, f)
+		if err != nil {
+			return err
+		}
+
+		fmt.Fprintf(os.Stdout, "Exported lineage records to %s\n", filename)
+		return nil
+	},
+}
+
+var provenanceCmd = &cobra.Command{
+	Use:   "provenance",
+	Short: "Query message provenance",
+	Long:  "Retrieve the complete provenance chain for a message or subject",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		dbPath, _ := cmd.Flags().GetString("db")
+		if dbPath == "" {
+			dbPath = "./lineage.db"
+		}
+
+		ctx := context.Background()
+		store, err := lineage.NewStore(dbPath)
+		if err != nil {
+			return fmt.Errorf("failed to open lineage store: %w", err)
+		}
+		defer store.Close()
+
+		messageID, _ := cmd.Flags().GetString("message-id")
+		subjectID, _ := cmd.Flags().GetString("subject-id")
+
+		if messageID == "" && subjectID == "" {
+			return fmt.Errorf("either --message-id or --subject-id is required")
+		}
+
+		var chain *lineage.ProvenanceChain
+		var chainErr error
+
+		if messageID != "" {
+			chain, chainErr = lineage.GetProvenance(ctx, store, messageID)
+		} else {
+			chain, chainErr = lineage.GetProvenanceBySubject(ctx, store, subjectID)
+		}
+
+		if chainErr != nil {
+			return chainErr
+		}
+
+		fmt.Fprintf(os.Stdout, "Provenance chain: %d records\n", len(chain.Records))
+		for i, record := range chain.Records {
+			fmt.Fprintf(os.Stdout, "  [%d] %s (route=%s, created=%s)\n",
+				i, record.ID, record.RouteName, record.CreatedAt.Format(time.RFC3339))
+		}
+
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(testCmd)
+	rootCmd.AddCommand(lineageCmd)
+
+	// Add lineage subcommands
+	lineageCmd.AddCommand(lineagePurgeCmd)
+	lineageCmd.AddCommand(lineageExportCmd)
+	lineageCmd.AddCommand(provenanceCmd)
 
 	// Add --config flag to test command
 	testCmd.Flags().StringP("config", "c", "", "Path to route configuration file (required for test command)")
+
+	// Add flags to lineage commands
+	lineagePurgeCmd.Flags().String("db", "./lineage.db", "Path to lineage database")
+	lineagePurgeCmd.Flags().String("subject", "", "Subject ID to purge (required)")
+
+	lineageExportCmd.Flags().String("db", "./lineage.db", "Path to lineage database")
+	lineageExportCmd.Flags().String("format", "csv", "Export format (csv or ndjson)")
+	lineageExportCmd.Flags().String("since", "", "Start time (RFC3339 format; default: 30 days ago)")
+	lineageExportCmd.Flags().String("until", "", "End time (RFC3339 format; default: now)")
+
+	provenanceCmd.Flags().String("db", "./lineage.db", "Path to lineage database")
+	provenanceCmd.Flags().String("message-id", "", "Message correlation ID")
+	provenanceCmd.Flags().String("subject-id", "", "Subject ID")
 }

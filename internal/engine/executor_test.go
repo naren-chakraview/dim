@@ -13,10 +13,19 @@ type mockStep struct {
 	name        string
 	shouldFail  bool
 	shouldDrop  bool
+	delay       time.Duration // Optional delay to simulate processing time
 	transformFn func(msg *Message) *Message
 }
 
 func (ms *mockStep) Execute(ctx context.Context, msg *Message) (*Message, error) {
+	if ms.delay > 0 {
+		select {
+		case <-time.After(ms.delay):
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
 	if ms.shouldFail {
 		return nil, errors.New("mock step error")
 	}

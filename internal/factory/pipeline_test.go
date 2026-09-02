@@ -432,25 +432,25 @@ func TestMultiRouteExecutorsCreated(t *testing.T) {
 	}
 }
 
-// TestMessageRouterRoutesMessages verifies that MessageRouter routes messages to correct executors
+// TestMessageRouterRoutesMessages verifies that MessageRouter routes messages to correct generation managers
 func TestMessageRouterRoutesMessages(t *testing.T) {
 	// Create channels for testing
 	sourceOutCh := engine.NewChannel("test-source", 100)
-	executors := make(map[string]*engine.Executor)
+	generationMgrs := make(map[string]*engine.GenerationManager)
 
-	// Create executors with output channels
+	// Create executors with output channels and wrap in generation managers
 	route1OutputCh := engine.NewChannel("route1-output", 100)
 	route1InputCh := engine.NewChannel("route1-input", 100)
 	executor1 := engine.NewExecutor("route1", route1InputCh, route1OutputCh, []engine.Step{})
-	executors["route1"] = executor1
+	generationMgrs["route1"] = engine.NewGenerationManager("route1", executor1, "v1_route1", 3)
 
 	route2OutputCh := engine.NewChannel("route2-output", 100)
 	route2InputCh := engine.NewChannel("route2-input", 100)
 	executor2 := engine.NewExecutor("route2", route2InputCh, route2OutputCh, []engine.Step{})
-	executors["route2"] = executor2
+	generationMgrs["route2"] = engine.NewGenerationManager("route2", executor2, "v1_route2", 3)
 
 	// Create router
-	router := NewMessageRouter(sourceOutCh, executors, "route1")
+	router := NewMessageRouter(sourceOutCh, generationMgrs, "route1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -519,21 +519,21 @@ func TestMessageRouterRoutesMessages(t *testing.T) {
 func TestRoutesProcessIndependently(t *testing.T) {
 	// Create channels for testing
 	sourceOutCh := engine.NewChannel("test-source", 100)
-	executors := make(map[string]*engine.Executor)
+	generationMgrs := make(map[string]*engine.GenerationManager)
 
-	// Create executors with output channels
+	// Create executors with output channels and wrap in generation managers
 	route1OutputCh := engine.NewChannel("route1-output", 100)
 	route1InputCh := engine.NewChannel("route1-input", 100)
 	executor1 := engine.NewExecutor("route1", route1InputCh, route1OutputCh, []engine.Step{})
-	executors["route1"] = executor1
+	generationMgrs["route1"] = engine.NewGenerationManager("route1", executor1, "v1_route1", 3)
 
 	route2OutputCh := engine.NewChannel("route2-output", 100)
 	route2InputCh := engine.NewChannel("route2-input", 100)
 	executor2 := engine.NewExecutor("route2", route2InputCh, route2OutputCh, []engine.Step{})
-	executors["route2"] = executor2
+	generationMgrs["route2"] = engine.NewGenerationManager("route2", executor2, "v1_route2", 3)
 
 	// Create router
-	router := NewMessageRouter(sourceOutCh, executors, "route1")
+	router := NewMessageRouter(sourceOutCh, generationMgrs, "route1")
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -649,7 +649,7 @@ func TestMultiRouteShutdown(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	executors, router, _, _, err := BuildMultiRoutePipeline(ctx, cfg)
+	generationMgrs, router, _, _, err := BuildMultiRoutePipeline(ctx, cfg)
 	if err != nil {
 		t.Fatalf("failed to build multi-route pipeline: %v", err)
 	}
@@ -659,12 +659,16 @@ func TestMultiRouteShutdown(t *testing.T) {
 		t.Fatalf("failed to start router: %v", err)
 	}
 
-	// Start executors
-	executorDone := make(chan error, len(executors))
-	for _, executor := range executors {
+	// Start executors from active generations
+	executorDone := make(chan error, len(generationMgrs))
+	for _, gm := range generationMgrs {
+		gen := gm.GetActiveGeneration()
+		if gen == nil {
+			t.Fatal("no active generation")
+		}
 		go func(exec *engine.Executor) {
 			executorDone <- exec.Run(ctx)
-		}(executor)
+		}(gen.Executor)
 	}
 
 	// Give executors time to start
@@ -676,18 +680,18 @@ func TestMultiRouteShutdown(t *testing.T) {
 	// Wait for all executors to complete (with timeout)
 	completedCount := 0
 	shutdownTimeout := time.After(3 * time.Second)
-	for completedCount < len(executors) {
+	for completedCount < len(generationMgrs) {
 		select {
 		case <-executorDone:
 			completedCount++
 		case <-shutdownTimeout:
-			t.Fatalf("executor shutdown timeout (completed %d/%d)", completedCount, len(executors))
+			t.Fatalf("executor shutdown timeout (completed %d/%d)", completedCount, len(generationMgrs))
 		}
 	}
 
 	// Verify all executors shut down gracefully
-	if completedCount != len(executors) {
-		t.Fatalf("expected %d executors to complete, got %d", len(executors), completedCount)
+	if completedCount != len(generationMgrs) {
+		t.Fatalf("expected %d executors to complete, got %d", len(generationMgrs), completedCount)
 	}
 
 	// Stop router
