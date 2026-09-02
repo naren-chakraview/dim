@@ -1,0 +1,30 @@
+version: 1
+
+sources:
+  http-source:
+    type: http
+    url: http://localhost:8080/ingest
+
+sinks:
+  output:
+    type: file
+    path: ./output/messages.jsonl
+  errors:
+    type: file
+    path: ./output/errors.jsonl
+
+routes:
+  # Ordered route with required message ordering
+  # Messages are processed sequentially (1 worker) to preserve order
+  # Useful for time-sensitive operations, financial transactions, or state-dependent processing
+  ordered-transactions:
+    from: http-source
+    ordering: required  # ← NEW: Constrains to 1 worker for serial processing
+    auth: none
+    error_path:
+      target: errors
+    steps:
+      - filter:
+          expr: "amount > 0"
+      - translate:
+          expr: "{name: name, amount: amount * 1.1, timestamp: $now(), transaction_id: $uuid()}"

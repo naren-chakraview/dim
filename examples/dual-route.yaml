@@ -1,0 +1,40 @@
+version: 1
+
+sources:
+  http-source:
+    type: http
+    url: http://localhost:8080/ingest
+
+sinks:
+  output-standard:
+    type: file
+    path: ./output/standard-route.jsonl
+  output-premium:
+    type: file
+    path: ./output/premium-route.jsonl
+  errors:
+    type: file
+    path: ./output/errors.jsonl
+
+routes:
+  standard-route:
+    from: http-source
+    auth: none
+    error_path:
+      target: errors
+    steps:
+      - filter:
+          expr: "amount < 1000"
+      - translate:
+          expr: "{type: 'standard', original_amount: amount, processed_amount: amount * 0.98, timestamp: $now()}"
+
+  premium-route:
+    from: http-source
+    auth: none
+    error_path:
+      target: errors
+    steps:
+      - filter:
+          expr: "amount >= 1000"
+      - translate:
+          expr: "{type: 'premium', original_amount: amount, processed_amount: amount * 1.05, timestamp: $now(), vip_status: true}"

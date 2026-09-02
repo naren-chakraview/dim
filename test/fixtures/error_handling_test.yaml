@@ -1,0 +1,20 @@
+# Error Handling Fixture Tests (M0.2.8)
+# Tests error scenarios and expected failures
+
+fixtures:
+  - name: "fixture expects error"
+    input:
+      invalid_data: true
+    expected_error: true
+
+  - name: "fixture expects specific error type"
+    input:
+      malformed: data
+    expected_error: true
+    expected_error_type: "ValidationError"
+
+  - name: "fixture with timeout handling"
+    input:
+      slow_operation: true
+    timeout_ms: 1000
+    expected_error: true

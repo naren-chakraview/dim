@@ -1,0 +1,61 @@
+version: 1
+
+sources:
+  http-source:
+    type: http
+    url: http://localhost:8080/ingest
+
+sinks:
+  output:
+    type: file
+    path: ./output/messages.jsonl
+  audit:
+    type: file
+    path: ./output/audit.jsonl
+  errors:
+    type: file
+    path: ./output/errors.jsonl
+
+routes:
+  # Ordered route for critical business logic
+  # Preserves message order - processes sequentially with 1 worker
+  # Use for: financial transactions, state-dependent operations, audit trails
+  orders:
+    from: http-source
+    ordering: required
+    auth: none
+    error_path:
+      target: errors
+    steps:
+      - filter:
+          expr: "type = 'order'"
+      - translate:
+          expr: "{order_id: id, customer: customer_id, amount: total, status: 'processing', created_at: $now()}"
+
+  # Unordered route for high-throughput operations
+  # Allows parallel processing with 4 workers (default)
+  # Use for: analytics, non-critical events, read-only operations
+  events:
+    from: http-source
+    ordering: none  # ← Explicit: Allow parallel processing (default behavior)
+    auth: none
+    error_path:
+      target: errors
+    steps:
+      - filter:
+          expr: "type = 'event'"
+      - translate:
+          expr: "{event_id: id, user: user_id, action: action, timestamp: $now()}"
+
+  # Route without ordering specified - defaults to unordered
+  # Processes in parallel with 4 workers
+  metrics:
+    from: http-source
+    auth: none
+    error_path:
+      target: errors
+    steps:
+      - filter:
+          expr: "type = 'metric'"
+      - translate:
+          expr: "{metric_name: name, value: value, tags: tags, recorded_at: $now()}"

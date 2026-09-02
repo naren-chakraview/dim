@@ -156,35 +156,76 @@ func TestBuildStepsFromSpecMultipleStepTypesError(t *testing.T) {
 	}
 }
 
-// TestBuildStepsFromSpecRouteStepNotImplemented tests error for route step
-func TestBuildStepsFromSpecRouteStepNotImplemented(t *testing.T) {
+// TestBuildStepsFromSpecRoute tests building route step successfully
+func TestBuildStepsFromSpecRoute(t *testing.T) {
 	specs := []config.StepSpec{
 		{
 			Route: &config.RouteStepSpec{
 				Expr: "body.type",
+				Cases: map[string]config.RouteCase{
+					"premium": {Target: "sink-premium"},
+					"standard": {Target: "sink-standard"},
+				},
+				Default: "sink-default",
 			},
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs)
-	if err == nil {
-		t.Fatal("expected error for route step not implemented")
+	steps, stepNames, err := BuildStepsFromSpec(specs)
+	if err != nil {
+		t.Fatalf("BuildStepsFromSpec failed: %v", err)
+	}
+
+	if len(steps) != 1 {
+		t.Fatalf("expected 1 step, got %d", len(steps))
+	}
+	if len(stepNames) != 1 {
+		t.Fatalf("expected 1 stepName, got %d", len(stepNames))
+	}
+	if stepNames[0] != "route" {
+		t.Fatalf("expected step name 'route', got '%s'", stepNames[0])
+	}
+
+	// Verify the step is a RouteStep
+	_, ok := steps[0].(*RouteStep)
+	if !ok {
+		t.Fatalf("expected RouteStep, got %T", steps[0])
 	}
 }
 
-// TestBuildStepsFromSpecWiretapStepNotImplemented tests error for wiretap step
-func TestBuildStepsFromSpecWiretapStepNotImplemented(t *testing.T) {
+// TestBuildStepsFromSpecWiretapStep tests wiretap step (M0.2.4+)
+func TestBuildStepsFromSpecWiretapStep(t *testing.T) {
 	specs := []config.StepSpec{
 		{
 			Wiretap: &config.WiretapSpec{
-				Sink: "other",
+				Sink: "audit_log",
 			},
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs)
-	if err == nil {
-		t.Fatal("expected error for wiretap step not implemented")
+	steps, stepNames, err := BuildStepsFromSpec(specs)
+	if err != nil {
+		t.Fatalf("BuildStepsFromSpec failed: %v", err)
+	}
+
+	if len(steps) != 1 {
+		t.Fatalf("expected 1 step, got %d", len(steps))
+	}
+	if len(stepNames) != 1 {
+		t.Fatalf("expected 1 stepName, got %d", len(stepNames))
+	}
+	if stepNames[0] != "wiretap" {
+		t.Fatalf("expected step name 'wiretap', got '%s'", stepNames[0])
+	}
+
+	// Verify the step is a WiretapStep
+	wiretapStep, ok := steps[0].(*WiretapStep)
+	if !ok {
+		t.Fatalf("expected WiretapStep, got %T", steps[0])
+	}
+
+	if wiretapStep.sinkName != "audit_log" {
+		t.Fatalf("expected sink name 'audit_log', got %q", wiretapStep.sinkName)
 	}
 }
 
@@ -204,19 +245,77 @@ func TestBuildStepsFromSpecIdempotentStepNotImplemented(t *testing.T) {
 	}
 }
 
-// TestBuildStepsFromSpecAuthorizeStepNotImplemented tests error for authorize step
-func TestBuildStepsFromSpecAuthorizeStepNotImplemented(t *testing.T) {
+// TestBuildStepsFromSpecAuthorizeStepRBAC tests building authorize step with RBAC mode
+func TestBuildStepsFromSpecAuthorizeStepRBAC(t *testing.T) {
 	specs := []config.StepSpec{
 		{
 			Authorize: &config.AuthorizeSpec{
-				Mode: "rbac",
+				Mode:         "rbac",
+				RequireRoles: []string{"admin", "editor"},
 			},
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs)
-	if err == nil {
-		t.Fatal("expected error for authorize step not implemented")
+	steps, stepNames, err := BuildStepsFromSpec(specs)
+	if err != nil {
+		t.Fatalf("BuildStepsFromSpec failed: %v", err)
+	}
+
+	if len(steps) != 1 {
+		t.Fatalf("expected 1 step, got %d", len(steps))
+	}
+	if len(stepNames) != 1 {
+		t.Fatalf("expected 1 stepName, got %d", len(stepNames))
+	}
+	if stepNames[0] != "authorize" {
+		t.Fatalf("expected step name 'authorize', got '%s'", stepNames[0])
+	}
+
+	// Verify the step is an AuthorizeStep
+	authorizeStep, ok := steps[0].(*AuthorizeStep)
+	if !ok {
+		t.Fatalf("expected AuthorizeStep, got %T", steps[0])
+	}
+
+	if authorizeStep.mode != "rbac" {
+		t.Fatalf("expected mode 'rbac', got '%s'", authorizeStep.mode)
+	}
+}
+
+// TestBuildStepsFromSpecAuthorizeStepABAC tests building authorize step with ABAC mode
+func TestBuildStepsFromSpecAuthorizeStepABAC(t *testing.T) {
+	specs := []config.StepSpec{
+		{
+			Authorize: &config.AuthorizeSpec{
+				Mode: "abac",
+				Expr: "principal.subject = 'admin'",
+			},
+		},
+	}
+
+	steps, stepNames, err := BuildStepsFromSpec(specs)
+	if err != nil {
+		t.Fatalf("BuildStepsFromSpec failed: %v", err)
+	}
+
+	if len(steps) != 1 {
+		t.Fatalf("expected 1 step, got %d", len(steps))
+	}
+	if len(stepNames) != 1 {
+		t.Fatalf("expected 1 stepName, got %d", len(stepNames))
+	}
+	if stepNames[0] != "authorize" {
+		t.Fatalf("expected step name 'authorize', got '%s'", stepNames[0])
+	}
+
+	// Verify the step is an AuthorizeStep
+	authorizeStep, ok := steps[0].(*AuthorizeStep)
+	if !ok {
+		t.Fatalf("expected AuthorizeStep, got %T", steps[0])
+	}
+
+	if authorizeStep.mode != "abac" {
+		t.Fatalf("expected mode 'abac', got '%s'", authorizeStep.mode)
 	}
 }
 

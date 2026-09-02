@@ -2,10 +2,11 @@ package config
 
 // RouteConfig represents the complete route configuration loaded from YAML
 type RouteConfig struct {
-	Version int                    `yaml:"version" json:"version"`
-	Sources map[string]SourceSpec  `yaml:"sources" json:"sources"`
-	Sinks   map[string]SinkSpec    `yaml:"sinks" json:"sinks"`
-	Routes  map[string]RouteSpec   `yaml:"routes" json:"routes"`
+	Version        int                       `yaml:"version" json:"version"`
+	Sources        map[string]SourceSpec     `yaml:"sources" json:"sources"`
+	Sinks          map[string]SinkSpec       `yaml:"sinks" json:"sinks"`
+	Routes         map[string]RouteSpec      `yaml:"routes" json:"routes"`
+	Observability  *ObservabilityConfig      `yaml:"observability,omitempty" json:"observability,omitempty"`
 }
 
 // SourceSpec defines a named message input
@@ -30,6 +31,8 @@ type RouteSpec struct {
 	Auth      interface{}       `yaml:"auth" json:"auth"` // can be string "none" or object with steps
 	ErrorPath *ErrorPathSpec    `yaml:"error_path" json:"error_path"`
 	Steps     []StepSpec        `yaml:"steps" json:"steps"`
+	Retry     *RetryPolicy      `yaml:"retry,omitempty" json:"retry,omitempty"`
+	Ordering  string            `yaml:"ordering,omitempty" json:"ordering,omitempty"` // "required" or "none" (default: "none")
 }
 
 // ErrorPathSpec defines error handling (target sink and retry policy)
@@ -42,6 +45,7 @@ type ErrorPathSpec struct {
 type RetryPolicy struct {
 	MaxAttempts int `yaml:"max_attempts" json:"max_attempts"`
 	BackoffMs   int `yaml:"backoff_ms,omitempty" json:"backoff_ms,omitempty"`
+	JitterMs    int `yaml:"jitter_ms,omitempty" json:"jitter_ms,omitempty"`
 }
 
 // StepSpec represents a single pipeline step
@@ -92,6 +96,27 @@ type IdempotentSpec struct {
 
 // AuthorizeSpec defines an authorization step
 type AuthorizeSpec struct {
-	Mode  string      `yaml:"mode" json:"mode"` // "rbac" or "abac"
-	Rules interface{} `yaml:"rules" json:"rules"`
+	Mode         string   `yaml:"mode" json:"mode"`                   // "rbac" or "abac"
+	RequireRoles []string `yaml:"require_roles,omitempty" json:"require_roles,omitempty"` // for RBAC mode
+	Expr         string   `yaml:"expr,omitempty" json:"expr,omitempty"`                   // for ABAC mode
+}
+
+// ObservabilityConfig defines observability settings for metrics and tracing
+type ObservabilityConfig struct {
+	Metrics *MetricsConfig `yaml:"metrics,omitempty" json:"metrics,omitempty"`
+	Tracing *TracingConfig `yaml:"tracing,omitempty" json:"tracing,omitempty"`
+}
+
+// MetricsConfig defines Prometheus metrics settings
+type MetricsConfig struct {
+	Enabled         bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	PrometheusAddr  string `yaml:"prometheus_addr,omitempty" json:"prometheus_addr,omitempty"` // default: ":2112"
+}
+
+// TracingConfig defines OpenTelemetry tracing settings
+type TracingConfig struct {
+	Enabled       bool    `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	OtelExporter  string  `yaml:"otel_exporter,omitempty" json:"otel_exporter,omitempty"` // stdout, jaeger, datadog
+	JaegerEndpoint string `yaml:"jaeger_endpoint,omitempty" json:"jaeger_endpoint,omitempty"` // for Jaeger exporter
+	SampleRate    float64 `yaml:"sample_rate,omitempty" json:"sample_rate,omitempty"`   // default: 0.1 (10%)
 }

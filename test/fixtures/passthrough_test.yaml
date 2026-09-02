@@ -1,0 +1,53 @@
+# Passthrough Fixture Tests (M0.2.8)
+# Tests basic message passing through the pipeline
+
+fixtures:
+  - name: "passthrough without modification"
+    input:
+      message: "hello"
+      value: 42
+    expected_output:
+      message: "hello"
+      value: 42
+
+  - name: "passthrough preserves all fields"
+    input:
+      id: 123
+      name: "test"
+      active: true
+      amount: 99.99
+    expected_output:
+      id: 123
+      name: "test"
+      active: true
+      amount: 99.99
+
+  - name: "passthrough with nested object"
+    input:
+      user:
+        id: 1
+        name: "Alice"
+        address:
+          street: "123 Main St"
+          city: "Anytown"
+    expected_output:
+      user:
+        id: 1
+        name: "Alice"
+        address:
+          street: "123 Main St"
+          city: "Anytown"
+
+  - name: "passthrough with array"
+    input:
+      items:
+        - id: 1
+          name: "item1"
+        - id: 2
+          name: "item2"
+    expected_output:
+      items:
+        - id: 1
+          name: "item1"
+        - id: 2
+          name: "item2"

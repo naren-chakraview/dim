@@ -1,0 +1,47 @@
+version: 1
+
+# Define message sources
+sources:
+  inbox:
+    type: http
+    path: /ingest
+
+# Define message outputs
+sinks:
+  processed:
+    type: file
+    path: output/processed.jsonl
+  errors:
+    type: file
+    path: output/errors.jsonl
+
+# Define the integration routes
+routes:
+  premium-processing:
+    from: inbox
+    auth: none
+    error_path:
+      target: errors
+    steps:
+      - filter:
+          expr: "$exists(payload.premium_flag) and payload.premium_flag = true"
+      - translate:
+          expr: "$merge([payload, {processed_at: $now()}])"
+    retry:
+      max_attempts: 3
+      backoff_ms: 1000
+      jitter_ms: 100
+
+# Observability configuration - tracks metrics and traces
+observability:
+  # Prometheus metrics settings
+  metrics:
+    enabled: true
+    prometheus_addr: ":2112"  # Metrics available at http://localhost:2112/metrics
+
+  # OpenTelemetry tracing settings
+  tracing:
+    enabled: true
+    otel_exporter: "stdout"   # Options: stdout, jaeger, datadog
+    sample_rate: 0.1          # 10% sampling (reduce overhead on high-volume systems)
+    jaeger_endpoint: "http://localhost:14268/api/traces"  # For Jaeger exporter

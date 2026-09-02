@@ -20,6 +20,9 @@ type DeadLetterEnvelope struct {
 	// FailedStepType is the type of the failed step (e.g., "filter", "translate")
 	FailedStepType string `json:"failed_step_type"`
 
+	// RetryAttempt is the number of retry attempts made before giving up (0 if no retries)
+	RetryAttempt int `json:"retry_attempt"`
+
 	// ProcessedAt is the time when the error occurred (UTC)
 	ProcessedAt time.Time `json:"processed_at"`
 
@@ -29,6 +32,11 @@ type DeadLetterEnvelope struct {
 
 // NewDeadLetterEnvelope creates a new dead-letter envelope for a failed message
 func NewDeadLetterEnvelope(msg *Message, err error, stepIndex int, stepType string) *DeadLetterEnvelope {
+	return NewDeadLetterEnvelopeWithRetryAttempt(msg, err, stepIndex, stepType, 0)
+}
+
+// NewDeadLetterEnvelopeWithRetryAttempt creates a new dead-letter envelope with retry attempt tracking
+func NewDeadLetterEnvelopeWithRetryAttempt(msg *Message, err error, stepIndex int, stepType string, retryAttempt int) *DeadLetterEnvelope {
 	errorMsg := ""
 	if err != nil {
 		errorMsg = err.Error()
@@ -39,6 +47,7 @@ func NewDeadLetterEnvelope(msg *Message, err error, stepIndex int, stepType stri
 		Error:           errorMsg,
 		FailedStep:      stepIndex,
 		FailedStepType:  stepType,
+		RetryAttempt:    retryAttempt,
 		ProcessedAt:     time.Now().UTC(),
 		Metadata:        make(map[string]interface{}),
 	}

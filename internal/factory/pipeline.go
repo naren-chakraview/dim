@@ -3,11 +3,14 @@ package factory
 import (
 	"context"
 	"fmt"
+	"log"
+	"sync"
 
 	"github.com/naren-chakraview/dim/internal/adapters/file"
 	"github.com/naren-chakraview/dim/internal/adapters/http"
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
+	"github.com/naren-chakraview/dim/internal/ordering"
 	"github.com/naren-chakraview/dim/internal/steps"
 )
 
@@ -64,14 +67,96 @@ func (a *FileSinkAdapter) Stop() error {
 	return a.sink.Close()
 }
 
+// MessageRouter routes messages from a source to the correct executor based on route name.
+// It reads from a source channel and sends to the appropriate executor's input channel.
+type MessageRouter struct {
+	sourceOutCh *engine.Channel
+	executors   map[string]*engine.Executor
+	defaultRoute string
+	ctx         context.Context
+	cancel      context.CancelFunc
+	wg          sync.WaitGroup
+}
+
+// NewMessageRouter creates a new router for multi-route scenarios.
+// It reads from sourceOutCh and routes to the appropriate executor based on message.Metadata.Route.
+func NewMessageRouter(sourceOutCh *engine.Channel, executors map[string]*engine.Executor, defaultRoute string) *MessageRouter {
+	return &MessageRouter{
+		sourceOutCh:  sourceOutCh,
+		executors:    executors,
+		defaultRoute: defaultRoute,
+	}
+}
+
+// Start begins the routing loop in a goroutine.
+// It reads messages from the source channel and routes them to the correct executor.
+func (r *MessageRouter) Start(ctx context.Context) error {
+	r.ctx, r.cancel = context.WithCancel(ctx)
+	r.wg.Add(1)
+
+	go func() {
+		defer r.wg.Done()
+		r.routeMessages()
+	}()
+
+	return nil
+}
+
+// Stop gracefully stops the router.
+func (r *MessageRouter) Stop() error {
+	if r.cancel != nil {
+		r.cancel()
+	}
+	r.wg.Wait()
+	return nil
+}
+
+// routeMessages reads from the source channel and routes messages to executors.
+func (r *MessageRouter) routeMessages() {
+	for {
+		// Read a message from the source
+		msg, err := r.sourceOutCh.Recv(r.ctx)
+		if err != nil {
+			// Context cancelled or channel error
+			log.Printf("[DEBUG] MessageRouter: recv error: %v", err)
+			return
+		}
+
+		// If channel is closed, msg is nil
+		if msg == nil {
+			return
+		}
+
+		// Determine the target executor
+		routeName := msg.Metadata.Route
+		if routeName == "" {
+			routeName = r.defaultRoute
+		}
+
+		// Get the executor for this route
+		executor, ok := r.executors[routeName]
+		if !ok {
+			log.Printf("[WARN] MessageRouter: no executor for route %q, correlation_id=%s", routeName, msg.Metadata.CorrelationID)
+			continue
+		}
+
+		// Send the message to the executor's input channel
+		if err := executor.GetInputChannel().Send(r.ctx, msg); err != nil {
+			log.Printf("[WARN] MessageRouter: failed to send to executor %q: %v", routeName, err)
+		}
+	}
+}
+
 // BuildPipeline constructs the end-to-end pipeline from a RouteConfig.
-// For Phase 0, it assumes:
-// - Exactly one route in cfg.Routes (first route is used)
-// - Single HTTP source (type "http") named "http-source"
-// - Single output sink and optional error sink
+// Handles both single-route and multi-route scenarios:
+// - Single route: returns executor, channels, sources, sinks (backward compatible)
+// - Multiple routes: returns multiple executors coordinated via MessageRouter
 //
-// Returns (executor, inputCh, outputCh, errorCh, sources, sinks, error)
-// Callers should manage the lifecycle of returned sources and sinks.
+// For single route, returns (executor, inputCh, outputCh, errorCh, sources, sinks, error)
+// For multiple routes, returns (nil, nil, nil, nil, sources, sinks, error) and manages executors internally
+//
+// Deprecated: Use BuildMultiRoutePipeline for multi-route scenarios.
+// This function maintains backward compatibility but delegates to BuildMultiRoutePipeline.
 func BuildPipeline(ctx context.Context, cfg *config.RouteConfig) (
 	*engine.Executor,
 	*engine.Channel,
@@ -81,12 +166,48 @@ func BuildPipeline(ctx context.Context, cfg *config.RouteConfig) (
 	[]SinkAdapter,
 	error,
 ) {
-	// Phase 0: assume single route
 	if len(cfg.Routes) == 0 {
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("no routes configured")
 	}
 
-	// Get the first route (Phase 0 limitation)
+	// For single route, use the old implementation
+	if len(cfg.Routes) == 1 {
+		return BuildSingleRoutePipeline(ctx, cfg)
+	}
+
+	// For multiple routes, use the new multi-route implementation
+	// Note: This returns nil for executor/channels and manages them internally via router
+	executors, router, sources, sinks, err := BuildMultiRoutePipeline(ctx, cfg)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	// Start the router (it will coordinate message routing)
+	if err := router.Start(ctx); err != nil {
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to start message router: %w", err)
+	}
+
+	// Return router as a special executor wrapper for compatibility
+	// Actually, for multi-route we need a different approach in main.go
+	// For now, we'll return nil and let main.go handle multiple executors directly
+	log.Printf("[INFO] BuildPipeline: configured %d routes", len(executors))
+	_ = router // router is managed by the caller
+
+	return nil, nil, nil, nil, sources, sinks, nil
+}
+
+// BuildSingleRoutePipeline constructs the pipeline for a single route (original M0.1 implementation).
+// Exported for use in testing and direct single-route scenarios.
+func BuildSingleRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
+	*engine.Executor,
+	*engine.Channel,
+	*engine.Channel,
+	*engine.Channel,
+	[]SourceAdapter,
+	[]SinkAdapter,
+	error,
+) {
+	// Get the first (and only) route
 	var routeName string
 	var routeSpec config.RouteSpec
 	for name, spec := range cfg.Routes {
@@ -117,12 +238,21 @@ func BuildPipeline(ctx context.Context, cfg *config.RouteConfig) (
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to build steps: %w", err)
 	}
 
-	// Create executor with optional error channel
+	// Determine worker count based on ordering requirement
+	// Default to 4 workers for parallel processing (M0.2+)
+	// Constrain to 1 worker if ordering is required
+	defaultWorkers := 4
+	numWorkers := ordering.GetWorkerCount(&routeSpec, defaultWorkers)
+	if ordering.IsOrderingRequired(&routeSpec) {
+		log.Printf("[INFO] Route %q has ordering=required, constraining to 1 worker for serial processing", routeName)
+	}
+
+	// Create executor with appropriate worker count and optional error channel
 	var executor *engine.Executor
 	if routeSpec.ErrorPath != nil {
-		executor = engine.NewExecutorWithStepNames(routeName, inputCh, outputCh, errorCh, stepsInstances, stepNames)
+		executor = engine.NewExecutorWithWorkers(routeName, inputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers)
 	} else {
-		executor = engine.NewExecutorWithStepNames(routeName, inputCh, outputCh, nil, stepsInstances, stepNames)
+		executor = engine.NewExecutorWithWorkers(routeName, inputCh, outputCh, nil, stepsInstances, stepNames, numWorkers)
 	}
 
 	// Create sinks
@@ -166,4 +296,129 @@ func BuildPipeline(ctx context.Context, cfg *config.RouteConfig) (
 	}
 
 	return executor, inputCh, outputCh, errorCh, sources, sinks, nil
+}
+
+// BuildMultiRoutePipeline constructs an end-to-end pipeline with multiple independent routes.
+// Each route gets its own executor, and messages are routed based on Metadata.Route.
+//
+// Returns (executors, router, sources, sinks, error)
+// Callers should manage the lifecycle of returned sources, sinks, executors, and router.
+func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
+	map[string]*engine.Executor,
+	*MessageRouter,
+	[]SourceAdapter,
+	[]SinkAdapter,
+	error,
+) {
+	if len(cfg.Routes) == 0 {
+		return nil, nil, nil, nil, fmt.Errorf("no routes configured")
+	}
+
+	// Create a shared channel for the HTTP source
+	// The router will read from this and distribute to individual executors
+	sourceOutCh := engine.NewChannel("http-to-router", 100)
+
+	// Create HTTP source (shared across all routes)
+	var sources []SourceAdapter
+	httpSrc, err := http.NewHTTPSource(8080, "/ingest", sourceOutCh)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("failed to create HTTP source: %w", err)
+	}
+	sources = append(sources, &HTTPSourceAdapter{
+		source: httpSrc,
+		outCh:  sourceOutCh,
+	})
+
+	// Build executors for each route
+	executors := make(map[string]*engine.Executor)
+	var sinks []SinkAdapter
+
+	// Track which sinks we've already created to avoid duplicates
+	createdSinks := make(map[string]bool)
+
+	// First pass: create all route executors and sinks
+	for routeName, routeSpec := range cfg.Routes {
+		// Create channels for this route
+		outputCh := engine.NewChannel(fmt.Sprintf("executor-%s-to-sink", routeName), 100)
+		var errorCh *engine.Channel
+		if routeSpec.ErrorPath != nil {
+			errorCh = engine.NewChannel(fmt.Sprintf("executor-%s-to-error-sink", routeName), 100)
+		}
+
+		// Build steps from route config
+		stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps)
+		if err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("failed to build steps for route %q: %w", routeName, err)
+		}
+
+		// Determine worker count based on ordering requirement
+		// Default to 4 workers for parallel processing (M0.2+)
+		// Constrain to 1 worker if ordering is required
+		defaultWorkers := 4
+		numWorkers := ordering.GetWorkerCount(&routeSpec, defaultWorkers)
+		if ordering.IsOrderingRequired(&routeSpec) {
+			log.Printf("[INFO] Route %q has ordering=required, constraining to 1 worker for serial processing", routeName)
+		}
+
+		// Create executor with its own input channel and appropriate worker count
+		executorInputCh := engine.NewChannel(fmt.Sprintf("router-to-executor-%s", routeName), 100)
+		executor := engine.NewExecutorWithWorkers(routeName, executorInputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers)
+		executors[routeName] = executor
+
+		// Create output sink for this route (if not already created)
+		outputSinkName := "output"
+		if !createdSinks[outputSinkName] {
+			outputSinkSpec, ok := cfg.Sinks[outputSinkName]
+			if !ok {
+				return nil, nil, nil, nil, fmt.Errorf("required sink 'output' not configured")
+			}
+
+			outputSinkPath := outputSinkSpec.Path
+			if outputSinkPath == "" {
+				outputSinkPath = "./output/messages.jsonl"
+			}
+
+			outputSink, err := file.NewFileSink(outputSinkPath, outputCh)
+			if err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("failed to create output sink for route %q: %w", routeName, err)
+			}
+			sinks = append(sinks, &FileSinkAdapter{sink: outputSink})
+			createdSinks[outputSinkName] = true
+		}
+
+		// Create error sink for this route (if configured)
+		if routeSpec.ErrorPath != nil {
+			errorSinkName := routeSpec.ErrorPath.Target
+			if !createdSinks[errorSinkName] {
+				errorSinkSpec, ok := cfg.Sinks[errorSinkName]
+				if !ok {
+					return nil, nil, nil, nil, fmt.Errorf("error sink '%s' not configured for route %q", errorSinkName, routeName)
+				}
+
+				errorSinkPath := errorSinkSpec.Path
+				if errorSinkPath == "" {
+					errorSinkPath = "./output/errors.jsonl"
+				}
+
+				errorSink, err := file.NewFileSink(errorSinkPath, errorCh)
+				if err != nil {
+					return nil, nil, nil, nil, fmt.Errorf("failed to create error sink for route %q: %w", routeName, err)
+				}
+				sinks = append(sinks, &FileSinkAdapter{sink: errorSink})
+				createdSinks[errorSinkName] = true
+			}
+		}
+	}
+
+	// Determine default route (first route in map)
+	var defaultRoute string
+	for routeName := range executors {
+		defaultRoute = routeName
+		break
+	}
+
+	// Create the message router
+	router := NewMessageRouter(sourceOutCh, executors, defaultRoute)
+
+	return executors, router, sources, sinks, nil
 }

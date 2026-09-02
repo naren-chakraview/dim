@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
@@ -97,6 +98,7 @@ func (s *HTTPSource) Close() error {
 // handleIngest handles incoming HTTP requests at the configured path.
 // It expects a JSON body, converts it to a Message with metadata,
 // and sends it to the output channel.
+// Route detection: X-Route header, path component, or query parameter
 func (s *HTTPSource) handleIngest(w http.ResponseWriter, r *http.Request) {
 	// Only accept POST and GET requests
 	if r.Method != http.MethodPost && r.Method != http.MethodGet {
@@ -113,18 +115,19 @@ func (s *HTTPSource) handleIngest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Detect route from HTTP request
+	// Priority: X-Route header > path > query parameter
+	routeName := s.detectRoute(r)
+
 	// Create a message with the parsed body and set metadata
-	// Note: route and routeVersion will be set by the executor context
-	// For the HTTP source, we set them to empty for now; they'll be populated
-	// by the route configuration when processing
 	msg := &engine.Message{
 		Headers: make(map[string]interface{}),
 		Body:    body,
 		Metadata: engine.Metadata{
 			CorrelationID: generateHTTPCorrelationID(),
 			IngestedAt:    time.Now().UTC(),
-			Route:         "", // Will be set by route configuration
-			RouteVersion:  "", // Will be set by route configuration
+			Route:         routeName, // Set from HTTP request
+			RouteVersion:  "",        // Will be set by executor
 		},
 	}
 
@@ -144,8 +147,40 @@ func (s *HTTPSource) handleIngest(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{
 		"correlation_id": msg.Metadata.CorrelationID,
+		"route":          routeName,
 		"status":         "accepted",
 	})
+}
+
+// detectRoute extracts the route name from the HTTP request.
+// Detection order:
+// 1. X-Route header (explicit)
+// 2. Path component: /ingest/{routeName}
+// 3. Query parameter: ?route=routeName
+// 4. Empty string if not found (router will need to handle)
+func (s *HTTPSource) detectRoute(r *http.Request) string {
+	// Check X-Route header
+	if route := r.Header.Get("X-Route"); route != "" {
+		return route
+	}
+
+	// Check query parameter
+	if route := r.URL.Query().Get("route"); route != "" {
+		return route
+	}
+
+	// Check path component: /ingest/{routeName}
+	// Path format: /ingest or /ingest/{routeName} or /ingest/{routeName}/...
+	path := r.URL.Path
+	parts := strings.Split(path, "/")
+
+	// Format: ["", "ingest", "routeName", ...]
+	if len(parts) > 2 && parts[1] == "ingest" && parts[2] != "" {
+		return parts[2]
+	}
+
+	// No route detected
+	return ""
 }
 
 // generateHTTPCorrelationID generates a correlation ID for HTTP ingestion.

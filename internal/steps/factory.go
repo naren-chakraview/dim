@@ -11,12 +11,15 @@ import (
 // Returns (steps, stepNames, error).
 // stepNames is a parallel slice mapping step indices to their type names (e.g., "filter", "translate").
 //
-// Supported step types in Phase 0:
-// - filter: Boolean predicate to drop messages
-// - translate: JSONata expression to transform message body
+// Supported step types:
+// - filter: Boolean predicate to drop messages (Phase 0+)
+// - translate: JSONata expression to transform message body (Phase 0+)
+// - route: Content-based router (M0.2.3+)
+// - wiretap: Copy to secondary sink (M0.2.4+)
+// - authorize: RBAC/ABAC policy enforcement (M0.2.6+)
 //
 // Unsupported step types return error "not implemented in Phase 0":
-// - route, wiretap, idempotent, authorize
+// - idempotent (M0.2.5)
 func BuildStepsFromSpec(stepSpecs []config.StepSpec) ([]engine.Step, []string, error) {
 	var steps []engine.Step
 	var stepNames []string
@@ -71,13 +74,31 @@ func BuildStepsFromSpec(stepSpecs []config.StepSpec) ([]engine.Step, []string, e
 			stepNames = append(stepNames, "translate")
 
 		case spec.Route != nil:
-			return nil, nil, fmt.Errorf("step %d: route step not implemented in Phase 0", i)
+			// Convert RouteCase objects to a map[string]string
+			casesMap := make(map[string]string)
+			for caseName, routeCase := range spec.Route.Cases {
+				casesMap[caseName] = routeCase.Target
+			}
+
+			step, err = NewRouteStep(spec.Route.Expr, casesMap, spec.Route.Default)
+			if err != nil {
+				return nil, nil, fmt.Errorf("step %d (route): %w", i, err)
+			}
+			stepNames = append(stepNames, "route")
 		case spec.Wiretap != nil:
-			return nil, nil, fmt.Errorf("step %d: wiretap step not implemented in Phase 0", i)
+			step, err = NewWiretapStep(spec.Wiretap.Sink)
+			if err != nil {
+				return nil, nil, fmt.Errorf("step %d (wiretap): %w", i, err)
+			}
+			stepNames = append(stepNames, "wiretap")
 		case spec.Idempotent != nil:
 			return nil, nil, fmt.Errorf("step %d: idempotent step not implemented in Phase 0", i)
 		case spec.Authorize != nil:
-			return nil, nil, fmt.Errorf("step %d: authorize step not implemented in Phase 0", i)
+			step, err = NewAuthorizeStep(spec.Authorize.Mode, spec.Authorize.RequireRoles, spec.Authorize.Expr)
+			if err != nil {
+				return nil, nil, fmt.Errorf("step %d (authorize): %w", i, err)
+			}
+			stepNames = append(stepNames, "authorize")
 		}
 
 		steps = append(steps, step)
