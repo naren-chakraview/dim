@@ -1,0 +1,251 @@
+# M0.3.5-7: Data Contracts with JSON Schema Validation, Violation Routing, and Version Stamping
+#
+# This example demonstrates the complete data contract enforcement system:
+# - M0.3.5: Load inline JSON Schema contracts at startup
+# - M0.3.6: Validate payloads, classify violations, route to on_violation sink
+# - M0.3.7: Stamp contract_version on message metadata and lineage records
+#
+# Data contracts enforce schema compliance on incoming messages, either failing
+# the pipeline (strict mode) or routing non-conforming messages to a violation sink
+# (non-strict mode) for later inspection/reprocessing.
+
+version: 1
+
+sources:
+  payment-http:
+    type: http
+    path: /ingest
+
+sinks:
+  # Output sink for conforming messages
+  payment-output:
+    type: file
+    path: /tmp/payments_conforming.jsonl
+
+  # Dead-letter queue for contract violations
+  payment-dlq:
+    type: file
+    path: /tmp/payments_violations.jsonl
+
+  # Error sink for strict mode violations
+  payment-error-sink:
+    type: file
+    path: /tmp/payments_errors.jsonl
+
+routes:
+  payment-processor:
+    from: payment-http
+
+    # Define data contracts for this route (M0.3.5)
+    contracts:
+      # Contract 1: Payment schema validation
+      - id: payment-schema
+        version: "1.0.0"
+        schema: |
+          {
+            "type": "object",
+            "required": ["amount", "currency", "account_id"],
+            "properties": {
+              "amount": {
+                "type": "number",
+                "minimum": 0.01,
+                "description": "Transaction amount (must be positive)"
+              },
+              "currency": {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$",
+                "description": "ISO 4217 currency code (e.g., USD, EUR, GBP)"
+              },
+              "account_id": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Merchant account identifier"
+              },
+              "transaction_id": {
+                "type": "string",
+                "description": "Optional idempotency key"
+              },
+              "metadata": {
+                "type": "object",
+                "description": "Optional additional fields"
+              }
+            },
+            "additionalProperties": false
+          }
+        # Route violations to payment-dlq for non-strict processing
+        on_violation: payment-dlq
+        # Strict mode: if false (default), violations route to on_violation sink
+        # If true, violations cause pipeline failure with error path routing
+        strict: false
+
+      # Contract 2: Enhanced payment schema (stricter version)
+      # This could be used for a different step with stricter validation
+      - id: payment-schema-v2
+        version: "2.0.0"
+        schema: |
+          {
+            "type": "object",
+            "required": ["amount", "currency", "account_id", "transaction_id"],
+            "properties": {
+              "amount": {
+                "type": "number",
+                "minimum": 0.01,
+                "maximum": 999999.99
+              },
+              "currency": {
+                "type": "string",
+                "enum": ["USD", "EUR", "GBP", "JPY"]
+              },
+              "account_id": {
+                "type": "string",
+                "pattern": "^ACC-[0-9]{8}$"
+              },
+              "transaction_id": {
+                "type": "string",
+                "pattern": "^TXN-[0-9a-f]{32}$"
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
+        on_violation: payment-error-sink
+        # Strict mode: reject non-conforming messages with error
+        strict: true
+
+    # Pipeline steps
+    steps:
+      # Step 1: Validate against payment-schema (non-strict)
+      # Conforming messages pass through with contract_version stamped
+      # Non-conforming messages continue with violation marker for routing
+      - contract:
+          id: payment-schema
+          strict: false
+
+      # Step 2: Filter out very small transactions (optional)
+      - filter:
+          expr: "body.amount > 1.00"
+
+      # Step 3: Optional: Translate message format
+      - translate:
+          expr: "{
+            amount: body.amount,
+            currency: body.currency,
+            account: body.account_id,
+            id: body.transaction_id,
+            processed_at: $now()
+          }"
+
+      # Step 4: (Optional) Second contract validation with strict mode
+      # This would reject any non-conforming messages
+      # Note: Only include if you want stricter validation on V2 schema
+      # - contract:
+      #     id: payment-schema-v2
+      #     strict: true
+
+    # Error path for strict violations
+    # When a step returns an error (e.g., strict contract violation),
+    # the message is routed here instead of continuing
+    error_path:
+      target: payment-error-sink
+
+---
+
+# Alternative example: Non-conforming message handling with custom violation routing
+# This example shows how violations flow through the system
+
+routes:
+  audit-processor:
+    from: payment-http
+
+    contracts:
+      - id: audit-schema
+        version: "1.0.0"
+        schema: |
+          {
+            "type": "object",
+            "required": ["event_type", "timestamp"],
+            "properties": {
+              "event_type": {
+                "type": "string",
+                "enum": ["login", "logout", "purchase", "refund"]
+              },
+              "timestamp": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "user_id": {"type": "string"},
+              "amount": {"type": "number"}
+            }
+          }
+        on_violation: audit-violations-dlq
+        strict: false
+
+    steps:
+      # Validate message conforms to audit schema
+      # Non-conforming messages are stamped with violation marker
+      # but pass through to next steps (non-strict mode)
+      - contract:
+          id: audit-schema
+          strict: false
+
+      # Route based on event type
+      # Conforming messages with valid event_type route to appropriate sink
+      # Violation-marked messages also pass through but with violation marker
+      # (caller must handle routing based on ContractViolation marker)
+      - route:
+          expr: "body.event_type"
+          cases:
+            login:
+              target: audit-login-sink
+            logout:
+              target: audit-logout-sink
+            purchase:
+              target: audit-purchase-sink
+            refund:
+              target: audit-refund-sink
+          default: audit-default-sink
+
+---
+
+# Data Flow Examples:
+#
+# ✅ HAPPY PATH (Conforming Message - Non-Strict):
+#   HTTP Input (valid payment)
+#   → Contract Step (validates) ✓
+#   → Stamp contract_version="1.0.0"
+#   → Continue through steps
+#   → Output Sink ✓
+#   → Lineage includes contract_version="1.0.0"
+#
+# ⚠️  VIOLATION PATH (Non-Conforming - Non-Strict):
+#   HTTP Input (missing amount field)
+#   → Contract Step (validates) ✗
+#   → Stamp violation marker
+#   → Continue through steps (with violation marker)
+#   → on_violation routing decision
+#   → Payment DLQ Sink ✓
+#   → Lineage includes contract_version + violation reason
+#
+# ❌ STRICT VIOLATION PATH (Non-Conforming - Strict):
+#   HTTP Input (invalid currency)
+#   → Contract Step (validates) ✗ (strict=true)
+#   → Return ContractViolationError
+#   → Error Path routing
+#   → Payment Error Sink ✓
+#   → Lineage includes contract_version + error reason
+#
+# 🔄 MULTI-CONTRACT FLOW:
+#   Message validated by contract-1 (v1.0.0)
+#   → Stamped with contract_version="1.0.0"
+#   → Later validated by contract-2 (v2.0.0)
+#   → Stamped with contract_version="2.0.0" (overwrites)
+#   → Lineage only records final contract_version
+#   → Future: separate schema for each contract in lineage
+#
+# Observability:
+#   - Metrics (future): contract_violations_total{contract_id="...", severity="..."}
+#   - Tracing: Each step tagged with current contract_version
+#   - Logging: Violation reason included in audit trail
+#   - Lineage: contract_version column in lineage records for traceability

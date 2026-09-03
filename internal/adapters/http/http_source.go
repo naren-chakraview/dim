@@ -9,16 +9,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/naren-chakraview/dim/internal/authz"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
 
 // HTTPSource is an HTTP source adapter that listens for incoming HTTP requests
 // and converts them to messages that are sent to an output channel.
 type HTTPSource struct {
-	server   *http.Server
-	outChan  *engine.Channel
-	closed   chan struct{}
-	listener net.Listener
+	server         *http.Server
+	outChan        *engine.Channel
+	closed         chan struct{}
+	listener       net.Listener
+	jwtValidator   *authz.JWTValidator
+	requireAuth    bool
 }
 
 // NewHTTPSource creates a new HTTP source adapter listening on the given port
@@ -26,7 +29,15 @@ type HTTPSource struct {
 //
 // The adapter will listen on the specified port with the path being the endpoint
 // that accepts HTTP POST requests with JSON bodies.
+// JWT validation is optional; if not configured, principals will be nil.
 func NewHTTPSource(port int, path string, outChan *engine.Channel) (*HTTPSource, error) {
+	return NewHTTPSourceWithAuth(port, path, outChan, nil, false)
+}
+
+// NewHTTPSourceWithAuth creates an HTTP source adapter with optional JWT validation
+// jwtValidator can be nil to skip JWT validation
+// requireAuth determines if 401 is returned when no valid auth is present
+func NewHTTPSourceWithAuth(port int, path string, outChan *engine.Channel, jwtValidator *authz.JWTValidator, requireAuth bool) (*HTTPSource, error) {
 	if outChan == nil {
 		return nil, fmt.Errorf("output channel cannot be nil")
 	}
@@ -37,9 +48,11 @@ func NewHTTPSource(port int, path string, outChan *engine.Channel) (*HTTPSource,
 	}
 
 	src := &HTTPSource{
-		outChan:  outChan,
-		closed:   make(chan struct{}),
-		listener: listener,
+		outChan:      outChan,
+		closed:       make(chan struct{}),
+		listener:     listener,
+		jwtValidator: jwtValidator,
+		requireAuth:  requireAuth,
 	}
 
 	// Create the HTTP server with the handler
@@ -119,6 +132,35 @@ func (s *HTTPSource) handleIngest(w http.ResponseWriter, r *http.Request) {
 	// Priority: X-Route header > path > query parameter
 	routeName := s.detectRoute(r)
 
+	// Extract principal from Authorization header if JWT validator is configured
+	var principal *engine.Principal
+	if s.jwtValidator != nil {
+		authHeader := r.Header.Get("Authorization")
+		authzPrincipal, err := authz.ExtractPrincipalFromHeader(authHeader, s.jwtValidator)
+		if err != nil {
+			// Invalid token present
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+			return
+		}
+		// If no token present and auth is required, reject
+		if authzPrincipal == nil && s.requireAuth {
+			w.WriteHeader(http.StatusUnauthorized)
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+			return
+		}
+		// Convert authz.Principal to engine.Principal
+		if authzPrincipal != nil {
+			principal = &engine.Principal{
+				Subject: authzPrincipal.Subject,
+				Roles:   authzPrincipal.Roles,
+				Claims:  convertAttributesToClaims(authzPrincipal.Attributes),
+			}
+		}
+	}
+
 	// Create a message with the parsed body and set metadata
 	msg := &engine.Message{
 		Headers: make(map[string]interface{}),
@@ -128,6 +170,7 @@ func (s *HTTPSource) handleIngest(w http.ResponseWriter, r *http.Request) {
 			IngestedAt:    time.Now().UTC(),
 			Route:         routeName, // Set from HTTP request
 			RouteVersion:  "",        // Will be set by executor
+			Principal:     principal, // Set from Authorization header
 		},
 	}
 
@@ -187,4 +230,16 @@ func (s *HTTPSource) detectRoute(r *http.Request) string {
 // Using the same strategy as the engine's generateCorrelationID
 func generateHTTPCorrelationID() string {
 	return time.Now().UTC().Format("20060102150405000000")
+}
+
+// convertAttributesToClaims converts string attributes map to interface{} claims map
+func convertAttributesToClaims(attrs map[string]string) map[string]interface{} {
+	if len(attrs) == 0 {
+		return nil
+	}
+	claims := make(map[string]interface{})
+	for k, v := range attrs {
+		claims[k] = v
+	}
+	return claims
 }

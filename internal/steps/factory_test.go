@@ -8,7 +8,7 @@ import (
 
 // TestBuildStepsFromSpecEmptySteps tests building with no steps
 func TestBuildStepsFromSpecEmptySteps(t *testing.T) {
-	steps, stepNames, err := BuildStepsFromSpec([]config.StepSpec{})
+	steps, stepNames, err := BuildStepsFromSpec([]config.StepSpec{}, nil, "")
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -31,7 +31,7 @@ func TestBuildStepsFromSpecFilter(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs)
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestBuildStepsFromSpecTranslate(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs)
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestBuildStepsFromSpecMultiple(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs)
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestBuildStepsFromSpecNoStepTypeError(t *testing.T) {
 		{}, // No step type specified
 	}
 
-	_, _, err := BuildStepsFromSpec(specs)
+	_, _, err := BuildStepsFromSpec(specs, nil, "")
 	if err == nil {
 		t.Fatal("expected error when no step type specified")
 	}
@@ -150,7 +150,7 @@ func TestBuildStepsFromSpecMultipleStepTypesError(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs)
+	_, _, err := BuildStepsFromSpec(specs, nil, "")
 	if err == nil {
 		t.Fatal("expected error when multiple step types specified")
 	}
@@ -171,7 +171,7 @@ func TestBuildStepsFromSpecRoute(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs)
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestBuildStepsFromSpecWiretapStep(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs)
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestBuildStepsFromSpecIdempotentStepNotImplemented(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs)
+	_, _, err := BuildStepsFromSpec(specs, nil, "")
 	if err == nil {
 		t.Fatal("expected error for idempotent step not implemented")
 	}
@@ -256,7 +256,7 @@ func TestBuildStepsFromSpecAuthorizeStepRBAC(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs)
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestBuildStepsFromSpecAuthorizeStepABAC(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs)
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestBuildStepsFromSpecInvalidFilterExpression(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs)
+	_, _, err := BuildStepsFromSpec(specs, nil, "")
 	if err == nil {
 		t.Fatal("expected error for invalid filter expression")
 	}
@@ -345,8 +345,85 @@ func TestBuildStepsFromSpecInvalidTranslateExpression(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs)
+	_, _, err := BuildStepsFromSpec(specs, nil, "")
 	if err == nil {
 		t.Fatal("expected error for invalid translate expression")
+	}
+}
+
+// TestBuildStepsFromSpecContractStep tests building contract step (M0.3.5)
+func TestBuildStepsFromSpecContractStep(t *testing.T) {
+	// Setup contract store with a contract
+	contractStore := config.NewContractStore()
+	schema := map[string]interface{}{"type": "object"}
+	contract := config.ContractSpec{
+		ID:      "test-contract",
+		Version: "1.0.0",
+		Schema:  schema,
+	}
+	contractStore.LoadContracts("test-route", []config.ContractSpec{contract})
+
+	specs := []config.StepSpec{
+		{
+			Contract: &config.ContractStepSpec{
+				ID:     "test-contract",
+				Strict: false,
+			},
+		},
+	}
+
+	steps, stepNames, err := BuildStepsFromSpec(specs, contractStore, "test-route")
+	if err != nil {
+		t.Fatalf("BuildStepsFromSpec failed: %v", err)
+	}
+
+	if len(steps) != 1 {
+		t.Fatalf("expected 1 step, got %d", len(steps))
+	}
+	if len(stepNames) != 1 {
+		t.Fatalf("expected 1 stepName, got %d", len(stepNames))
+	}
+	if stepNames[0] != "contract" {
+		t.Fatalf("expected step name 'contract', got '%s'", stepNames[0])
+	}
+
+	// Verify the step is a ContractStep
+	_, ok := steps[0].(*ContractStep)
+	if !ok {
+		t.Fatalf("expected ContractStep, got %T", steps[0])
+	}
+}
+
+// TestBuildStepsFromSpecContractStepMissingContract tests error when contract not found
+func TestBuildStepsFromSpecContractStepMissingContract(t *testing.T) {
+	contractStore := config.NewContractStore()
+
+	specs := []config.StepSpec{
+		{
+			Contract: &config.ContractStepSpec{
+				ID: "nonexistent-contract",
+			},
+		},
+	}
+
+	_, _, err := BuildStepsFromSpec(specs, contractStore, "test-route")
+	if err == nil {
+		t.Fatal("expected error when contract not found")
+	}
+}
+
+// TestBuildStepsFromSpecContractStepNoStore tests error when contract store is nil
+func TestBuildStepsFromSpecContractStepNoStore(t *testing.T) {
+	specs := []config.StepSpec{
+		{
+			Contract: &config.ContractStepSpec{
+				ID: "any-contract",
+			},
+		},
+	}
+
+	_, _, err := BuildStepsFromSpec(specs, nil, "test-route")
+	if err == nil {
+		t.Fatal("expected error when contract store is nil")
 	}
 }

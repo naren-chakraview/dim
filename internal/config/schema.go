@@ -33,6 +33,7 @@ type RouteSpec struct {
 	Steps     []StepSpec        `yaml:"steps" json:"steps"`
 	Retry     *RetryPolicy      `yaml:"retry,omitempty" json:"retry,omitempty"`
 	Ordering  string            `yaml:"ordering,omitempty" json:"ordering,omitempty"` // "required" or "none" (default: "none")
+	Contracts []ContractSpec    `yaml:"contracts,omitempty" json:"contracts,omitempty"` // Data contracts (M0.3.5)
 
 	// Lineage tracking fields (M0.4)
 	RetentionPolicy     string `yaml:"retention_policy,omitempty" json:"retention_policy,omitempty"`
@@ -68,9 +69,16 @@ type StepSpec struct {
 	Wiretap   *WiretapSpec   `yaml:"wiretap,omitempty" json:"wiretap,omitempty"`
 	Idempotent *IdempotentSpec `yaml:"idempotent,omitempty" json:"idempotent,omitempty"`
 	Authorize *AuthorizeSpec `yaml:"authorize,omitempty" json:"authorize,omitempty"`
+	Contract  *ContractStepSpec `yaml:"contract,omitempty" json:"contract,omitempty"` // Contract validation step (M0.3.5)
 
 	// Extra fields for extensibility
 	Extra map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// ContractStepSpec defines a contract validation step
+type ContractStepSpec struct {
+	ID     string `yaml:"id" json:"id"`                           // contract ID to validate against
+	Strict bool   `yaml:"strict,omitempty" json:"strict,omitempty"` // fail pipeline on violation? (default: false)
 }
 
 // FilterSpec defines a filter step (boolean predicate)
@@ -110,6 +118,16 @@ type AuthorizeSpec struct {
 	Mode         string   `yaml:"mode" json:"mode"`                   // "rbac" or "abac"
 	RequireRoles []string `yaml:"require_roles,omitempty" json:"require_roles,omitempty"` // for RBAC mode
 	Expr         string   `yaml:"expr,omitempty" json:"expr,omitempty"`                   // for ABAC mode
+}
+
+// ContractSpec defines a data contract with JSON Schema validation (M0.3.5-7)
+type ContractSpec struct {
+	ID          string                 `yaml:"id" json:"id"`                               // contract identifier
+	Version     string                 `yaml:"version" json:"version"`                     // semver: 1.0.0
+	Schema      interface{}            `yaml:"schema" json:"schema"`                       // JSON Schema (can be YAML object or JSON string)
+	OnViolation string                 `yaml:"on_violation" json:"on_violation"`           // sink name or route for violations
+	Strict      bool                   `yaml:"strict,omitempty" json:"strict,omitempty"` // fail pipeline on violation? (default: false)
+	Extra       map[string]interface{} `yaml:",inline" json:"-"`                           // extensibility
 }
 
 // ObservabilityConfig defines observability settings for metrics and tracing

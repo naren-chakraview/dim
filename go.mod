@@ -4,6 +4,7 @@ go 1.26.7
 
 require (
 	github.com/blues/jsonata-go v1.5.4
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/santhosh-tekuri/jsonschema/v5 v5.3.1
 	github.com/spf13/cobra v1.7.0
 	gopkg.in/yaml.v3 v3.0.1

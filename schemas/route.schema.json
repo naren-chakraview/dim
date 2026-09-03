@@ -105,7 +105,7 @@
       "type": "object",
       "title": "Route Definition",
       "description": "A pipeline definition flowing messages from a source through steps to error handling",
-      "required": ["from", "auth", "error_path", "steps"],
+      "required": ["from", "error_path", "steps"],
       "properties": {
         "from": {
           "type": "string",
@@ -115,8 +115,12 @@
         },
         "auth": {
           "title": "Authentication Declaration",
-          "description": "Authorization configuration for this route (mandatory). Either 'none' or an authorization step object.",
+          "description": "Authorization configuration for this route (recommended). Either 'none' or an authorization step object. Validated with --strict flag.",
           "oneOf": [
+            {
+              "type": "null",
+              "description": "Missing (use --strict flag to enforce)"
+            },
             {
               "type": "string",
               "enum": ["none"],

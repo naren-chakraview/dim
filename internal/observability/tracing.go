@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+// Principal represents an authenticated identity for tracing attributes
+type Principal struct {
+	Subject string
+	Roles   []string
+}
+
 // Span represents an OpenTelemetry span with attributes
 type Span struct {
 	TraceID      string
@@ -74,8 +80,9 @@ func NewTracingProvider(exporter string, jaegerEndpoint string, sampleRate float
 	return tp
 }
 
-// StartMessageSpan creates a new span for message processing
-func (tp *TracingProvider) StartMessageSpan(ctx context.Context, route string, messageID string) (context.Context, *Span) {
+// StartMessageSpan creates a new span for message processing with full attributes
+// Attributes: correlation_id, route_name, route_version, contract_version, principal, principal.roles, source
+func (tp *TracingProvider) StartMessageSpan(ctx context.Context, routeName, routeVersion, correlationID, contractVersion string, principal *Principal) (context.Context, *Span) {
 	if !tp.enabled {
 		return ctx, nil
 	}
@@ -88,15 +95,30 @@ func (tp *TracingProvider) StartMessageSpan(ctx context.Context, route string, m
 	span := &Span{
 		TraceID:    tp.generateTraceID(),
 		SpanID:     tp.generateSpanID(),
-		Name:       fmt.Sprintf("message_processing.%s", route),
+		Name:       "message_processing",
 		StartTime:  time.Now(),
 		Attributes: make(map[string]interface{}),
 		Events:     make([]SpanEvent, 0),
 		Status:     "ok",
 	}
 
-	span.Attributes["route"] = route
-	span.Attributes["message_id"] = messageID
+	// Add attributes
+	span.Attributes["correlation_id"] = correlationID
+	span.Attributes["route_name"] = routeName
+	if routeVersion != "" {
+		span.Attributes["route_version"] = routeVersion
+	}
+	if contractVersion != "" {
+		span.Attributes["contract_version"] = contractVersion
+	}
+
+	// Add principal attributes if available
+	if principal != nil {
+		span.Attributes["principal"] = principal.Subject
+		if len(principal.Roles) > 0 {
+			span.Attributes["principal.roles"] = principal.Roles
+		}
+	}
 
 	tp.mu.Lock()
 	tp.spans[span.SpanID] = span
@@ -104,7 +126,8 @@ func (tp *TracingProvider) StartMessageSpan(ctx context.Context, route string, m
 
 	// Log if stdout exporter
 	if tp.exporter == "stdout" {
-		log.Printf("[TRACE] start_span trace_id=%s span_id=%s name=%s", span.TraceID, span.SpanID, span.Name)
+		log.Printf("[TRACE] start_span trace_id=%s span_id=%s name=%s correlation_id=%s route=%s",
+			span.TraceID, span.SpanID, span.Name, correlationID, routeName)
 	}
 
 	// Attach trace context to context
@@ -115,7 +138,8 @@ func (tp *TracingProvider) StartMessageSpan(ctx context.Context, route string, m
 }
 
 // RecordStepExecution records a step execution as a nested span
-func (tp *TracingProvider) RecordStepExecution(ctx context.Context, stepName string, durationMs int64) *Span {
+// Attributes: step_index, step_type, step_name, duration_ms
+func (tp *TracingProvider) RecordStepExecution(ctx context.Context, stepIndex int, stepType, stepName string, duration time.Duration, success bool, stepErr error) *Span {
 	if !tp.enabled {
 		return nil
 	}
@@ -126,20 +150,38 @@ func (tp *TracingProvider) RecordStepExecution(ctx context.Context, stepName str
 		return nil
 	}
 
-	span := &Span{
-		TraceID:      ctx.Value("otel_trace_id").(string),
-		SpanID:       tp.generateSpanID(),
-		ParentSpanID: parentSpanID,
-		Name:         fmt.Sprintf("step_execution.%s", stepName),
-		StartTime:    time.Now(),
-		Duration:     time.Duration(durationMs) * time.Millisecond,
-		Attributes:   make(map[string]interface{}),
-		Events:       make([]SpanEvent, 0),
-		Status:       "ok",
+	traceIDVal := ctx.Value("otel_trace_id")
+	if traceIDVal == nil {
+		return nil
 	}
 
-	span.Attributes["step"] = stepName
-	span.Attributes["duration_ms"] = durationMs
+	status := "ok"
+	if !success {
+		status = "error"
+	}
+
+	span := &Span{
+		TraceID:      traceIDVal.(string),
+		SpanID:       tp.generateSpanID(),
+		ParentSpanID: parentSpanID,
+		Name:         "step_execution",
+		StartTime:    time.Now(),
+		Duration:     duration,
+		Attributes:   make(map[string]interface{}),
+		Events:       make([]SpanEvent, 0),
+		Status:       status,
+		Error:        stepErr,
+	}
+
+	span.Attributes["step_index"] = stepIndex
+	if stepType != "" {
+		span.Attributes["step_type"] = stepType
+	}
+	if stepName != "" {
+		span.Attributes["step_name"] = stepName
+	}
+	span.Attributes["duration_ms"] = duration.Milliseconds()
+
 	span.EndTime = span.StartTime.Add(span.Duration)
 
 	tp.mu.Lock()
@@ -148,8 +190,8 @@ func (tp *TracingProvider) RecordStepExecution(ctx context.Context, stepName str
 
 	// Log if stdout exporter
 	if tp.exporter == "stdout" {
-		log.Printf("[TRACE] step_execution parent_span=%s span_id=%s name=%s duration_ms=%d",
-			parentSpanID, span.SpanID, span.Name, durationMs)
+		log.Printf("[TRACE] step_execution parent_span=%s span_id=%s step_index=%d step_name=%s status=%s duration_ms=%d",
+			parentSpanID, span.SpanID, stepIndex, stepName, status, duration.Milliseconds())
 	}
 
 	return span
@@ -174,6 +216,22 @@ func (tp *TracingProvider) EndSpan(span *Span) {
 
 	// Export based on configured exporter
 	tp.exportSpan(span)
+}
+
+// RecordMessageComplete closes a message span with success/failure status
+func (tp *TracingProvider) RecordMessageComplete(span *Span, success bool, err error) {
+	if !tp.enabled || span == nil {
+		return
+	}
+
+	if success {
+		span.Status = "ok"
+	} else {
+		span.Status = "error"
+		span.Error = err
+	}
+
+	tp.EndSpan(span)
 }
 
 // AddSpanEvent adds an event to a span

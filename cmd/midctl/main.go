@@ -16,6 +16,7 @@ import (
 	"github.com/naren-chakraview/dim/internal/factory"
 	"github.com/naren-chakraview/dim/internal/lineage"
 	"github.com/naren-chakraview/dim/internal/observability"
+	"github.com/naren-chakraview/dim/internal/observability/viewer"
 	"github.com/naren-chakraview/dim/internal/ordering"
 	"github.com/naren-chakraview/dim/internal/steps"
 	"github.com/naren-chakraview/dim/internal/testing"
@@ -41,11 +42,22 @@ var validateCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configPath := args[0]
+		strict, _ := cmd.Flags().GetBool("strict")
 
 		// Load and validate the configuration
 		cfg, err := config.LoadRouteConfig(configPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "validation error: %v\n", err)
+			return err
+		}
+
+		// Validate auth declarations
+		mode := config.AuthValidationWarn
+		if strict {
+			mode = config.AuthValidationStrict
+		}
+		if err := config.ValidateAuthDeclarations(cfg, mode); err != nil {
+			fmt.Fprintf(os.Stderr, "auth validation error: %v\n", err)
 			return err
 		}
 
@@ -107,6 +119,8 @@ func runSingleRoute(cfg *config.RouteConfig) error {
 	var metricsCollector *observability.MetricsCollector
 	var tracingProvider *observability.TracingProvider
 	var metricsServer *http.Server
+	var viewerServer *http.Server
+	var viewerSrv *viewer.ViewerServer
 
 	// Initialize metrics if enabled
 	if obsConfig.MetricsEnabled {
@@ -121,7 +135,16 @@ func runSingleRoute(cfg *config.RouteConfig) error {
 		fmt.Fprintf(os.Stderr, "tracing enabled with %s exporter (sample_rate=%.2f)\n", obsConfig.OtelExporter, obsConfig.SampleRate)
 	}
 
-	executor, _, _, _, sources, sinks, err := factory.BuildSingleRoutePipeline(ctx, cfg)
+	// Initialize Tier 1 viewer
+	var err error
+	viewerSrv, viewerServer, err = viewer.StartServer(":8081")
+	if err != nil {
+		return fmt.Errorf("failed to start viewer server: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Tier 1 viewer enabled on http://localhost:8081/debug/routes\n")
+	_ = viewerSrv // Use it when recording messages
+
+	executor, _, _, _, sources, sinks, err := factory.BuildSingleRoutePipelineWithTracing(ctx, cfg, tracingProvider)
 	if err != nil {
 		return fmt.Errorf("failed to build pipeline: %w", err)
 	}
@@ -156,6 +179,11 @@ func runSingleRoute(cfg *config.RouteConfig) error {
 	fmt.Fprintf(os.Stderr, "listening on http://localhost:8080/ingest\n")
 	fmt.Fprintf(os.Stderr, "press Ctrl+C to stop\n")
 
+	// Log JWT configuration if present
+	if os.Getenv("JWT_SECRET") != "" || os.Getenv("JWT_PUBLIC_KEY") != "" {
+		fmt.Fprintf(os.Stderr, "JWT authentication enabled\n")
+	}
+
 	// Wait for signal or executor error
 	select {
 	case err := <-executorErr:
@@ -170,6 +198,13 @@ func runSingleRoute(cfg *config.RouteConfig) error {
 		if metricsServer != nil {
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 			metricsServer.Shutdown(shutdownCtx)
+			shutdownCancel()
+		}
+
+		// Shutdown viewer server if running
+		if viewerServer != nil {
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			viewerServer.Shutdown(shutdownCtx)
 			shutdownCancel()
 		}
 
@@ -210,8 +245,16 @@ func buildExecutorForRoute(ctx context.Context, routeName string, routeSpec conf
 		errorCh = engine.NewChannel(fmt.Sprintf("executor-%s-to-error-sink", routeName), 100)
 	}
 
+	// Build contract store from route config (M0.3.5)
+	contractStore := config.NewContractStore()
+	if len(routeSpec.Contracts) > 0 {
+		if err := contractStore.LoadContracts(routeName, routeSpec.Contracts); err != nil {
+			return nil, fmt.Errorf("failed to load contracts for route %q: %w", routeName, err)
+		}
+	}
+
 	// Build steps from route config
-	stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps)
+	stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps, contractStore, routeName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build steps for route %q: %w", routeName, err)
 	}
@@ -274,6 +317,8 @@ func runMultiRoute(cfg *config.RouteConfig, configPath string) error {
 	var metricsCollector *observability.MetricsCollector
 	var tracingProvider *observability.TracingProvider
 	var metricsServer *http.Server
+	var viewerServer *http.Server
+	var viewerSrv *viewer.ViewerServer
 
 	// Initialize metrics if enabled
 	if obsConfig.MetricsEnabled {
@@ -288,7 +333,16 @@ func runMultiRoute(cfg *config.RouteConfig, configPath string) error {
 		fmt.Fprintf(os.Stderr, "tracing enabled with %s exporter (sample_rate=%.2f)\n", obsConfig.OtelExporter, obsConfig.SampleRate)
 	}
 
-	generationMgrs, router, sources, sinks, err := factory.BuildMultiRoutePipeline(ctx, cfg)
+	// Initialize Tier 1 viewer
+	var err error
+	viewerSrv, viewerServer, err = viewer.StartServer(":8081")
+	if err != nil {
+		return fmt.Errorf("failed to start viewer server: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "Tier 1 viewer enabled on http://localhost:8081/debug/routes\n")
+	_ = viewerSrv // Use it when recording messages
+
+	generationMgrs, router, sources, sinks, err := factory.BuildMultiRoutePipelineWithTracing(ctx, cfg, tracingProvider)
 	if err != nil {
 		return fmt.Errorf("failed to build multi-route pipeline: %w", err)
 	}
@@ -413,6 +467,13 @@ func runMultiRoute(cfg *config.RouteConfig, configPath string) error {
 		if metricsServer != nil {
 			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
 			metricsServer.Shutdown(shutdownCtx)
+			shutdownCancel()
+		}
+
+		// Shutdown viewer server if running
+		if viewerServer != nil {
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 2*time.Second)
+			viewerServer.Shutdown(shutdownCtx)
 			shutdownCancel()
 		}
 
@@ -706,16 +767,119 @@ var provenanceCmd = &cobra.Command{
 	},
 }
 
+// Trace command group
+var traceCmd = &cobra.Command{
+	Use:   "trace",
+	Short: "Trace management commands",
+	Long:  "Commands for querying, tailing, and analyzing OpenTelemetry spans",
+}
+
+var traceTailCmd = &cobra.Command{
+	Use:   "tail",
+	Short: "Stream live spans to terminal",
+	Long:  "Stream live OpenTelemetry spans to the terminal in real-time for debugging. Shows recent spans first, then streams new ones.",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		route, _ := cmd.Flags().GetString("route")
+		service, _ := cmd.Flags().GetString("service")
+		limit, _ := cmd.Flags().GetInt("limit")
+
+		// Get tracing provider from environment or use a default one
+		// In a running system, this would come from the observability system
+		jaegerEndpoint := os.Getenv("JAEGER_ENDPOINT")
+		if jaegerEndpoint == "" {
+			jaegerEndpoint = "http://localhost:16686"
+		}
+
+		otelExporter := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+		if otelExporter == "" {
+			otelExporter = "http://localhost:4317"
+		}
+
+		// Create a tracing provider for tail operations
+		// Note: In production, this would connect to the actual OTEL collector
+		// For MVP, we create a local provider that can query spans from the system
+		tp := observability.NewTracingProvider("stdout", jaegerEndpoint, 1.0)
+		streamer := observability.NewSpanStreamer(tp)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		// Setup signal handling for graceful shutdown
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
+
+		opts := observability.TailOptions{
+			Route:      route,
+			Service:    service,
+			Limit:      limit,
+			Endpoint:   otelExporter,
+			Ctx:        ctx,
+		}
+
+		fmt.Fprintf(os.Stderr, "Tailing spans from %s (service=%s, limit=%d)\n", service, service, limit)
+		if route != "" {
+			fmt.Fprintf(os.Stderr, "Filtering to route: %s\n", route)
+		}
+		fmt.Fprintf(os.Stderr, "Press Ctrl+C to stop\n\n")
+
+		// Query recent spans first
+		recentSpans, err := streamer.QueryRecentSpans(ctx, limit, route)
+		if err != nil {
+			return fmt.Errorf("failed to query recent spans: %w", err)
+		}
+
+		if len(recentSpans) > 0 {
+			fmt.Fprintf(os.Stderr, "Recent spans:\n")
+			for _, span := range recentSpans {
+				fmt.Fprintf(os.Stdout, "%s\n", observability.FormatSpan(span, false))
+			}
+			fmt.Fprintf(os.Stderr, "\nStreaming live spans...\n")
+		}
+
+		// Stream live spans
+		spanCh, err := streamer.StreamSpans(ctx, opts)
+		if err != nil {
+			return fmt.Errorf("failed to start span stream: %w", err)
+		}
+
+		// Process spans until cancelled
+		for {
+			select {
+			case <-sigCh:
+				fmt.Fprintf(os.Stderr, "\nshutting down span tail\n")
+				cancel()
+				return nil
+			case span, ok := <-spanCh:
+				if !ok {
+					return nil
+				}
+				if span != nil {
+					fmt.Fprintf(os.Stdout, "%s\n", observability.FormatSpan(span, true))
+				}
+			case <-ctx.Done():
+				return nil
+			}
+		}
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(testCmd)
 	rootCmd.AddCommand(lineageCmd)
+	rootCmd.AddCommand(traceCmd)
 
 	// Add lineage subcommands
 	lineageCmd.AddCommand(lineagePurgeCmd)
 	lineageCmd.AddCommand(lineageExportCmd)
 	lineageCmd.AddCommand(provenanceCmd)
+
+	// Add trace subcommands
+	traceCmd.AddCommand(traceTailCmd)
+
+	// Add flags to validate command
+	validateCmd.Flags().BoolP("strict", "s", false, "Treat missing auth declarations as errors instead of warnings")
 
 	// Add --config flag to test command
 	testCmd.Flags().StringP("config", "c", "", "Path to route configuration file (required for test command)")
@@ -732,4 +896,9 @@ func init() {
 	provenanceCmd.Flags().String("db", "./lineage.db", "Path to lineage database")
 	provenanceCmd.Flags().String("message-id", "", "Message correlation ID")
 	provenanceCmd.Flags().String("subject-id", "", "Subject ID")
+
+	// Add flags to trace tail command
+	traceTailCmd.Flags().StringP("route", "r", "", "Filter to specific route (optional)")
+	traceTailCmd.Flags().StringP("service", "s", "dim", "Service name (default: dim)")
+	traceTailCmd.Flags().IntP("limit", "l", 20, "Number of recent spans to show before streaming (default: 20)")
 }

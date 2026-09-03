@@ -34,6 +34,9 @@ type Metadata struct {
 	// ContractVersion is the schema version checked (if applicable)
 	ContractVersion string `json:"contract_version,omitempty"`
 
+	// ContractViolation is set if contract validation failed in non-strict mode (M0.3.6)
+	ContractViolation interface{} `json:"-"` // *steps.ViolationInfo but imported as interface{} to avoid circular dependency
+
 	// Stage is the current step in the pipeline (for debugging/observability)
 	Stage string `json:"stage,omitempty"`
 

@@ -4,11 +4,22 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 
 	"github.com/santhosh-tekuri/jsonschema/v5"
 	"gopkg.in/yaml.v3"
+)
+
+// AuthValidationMode controls how auth declaration validation behaves
+type AuthValidationMode int
+
+const (
+	// AuthValidationWarn: log warnings for missing auth but allow validation to pass
+	AuthValidationWarn AuthValidationMode = iota
+	// AuthValidationStrict: treat missing auth as validation error
+	AuthValidationStrict
 )
 
 // LoadRouteConfig loads and validates a route configuration from a YAML file,
@@ -153,6 +164,26 @@ func computeRouteVersions(config *RouteConfig) error {
 		// Update the route spec with its version hash
 		routeSpec.RouteVersion = rv.Hash
 		config.Routes[routeName] = routeSpec
+	}
+
+	return nil
+}
+
+// ValidateAuthDeclarations validates that all routes have explicit auth declarations.
+// Mode controls behavior: warn (default) logs warnings but passes, strict fails on missing auth.
+func ValidateAuthDeclarations(config *RouteConfig, mode AuthValidationMode) error {
+	for routeName, routeSpec := range config.Routes {
+		if routeSpec.Auth == nil {
+			msg := fmt.Sprintf("Route %q missing auth: declaration", routeName)
+			guidance := "Declare auth: none if this route is intentionally unauthenticated"
+
+			if mode == AuthValidationStrict {
+				return fmt.Errorf("%s. %s", msg, guidance)
+			}
+
+			// Warning mode: log but continue
+			log.Printf("[WARN] %s. %s\n", msg, guidance)
+		}
 	}
 
 	return nil

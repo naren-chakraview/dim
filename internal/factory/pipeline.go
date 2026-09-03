@@ -10,6 +10,7 @@ import (
 	"github.com/naren-chakraview/dim/internal/adapters/http"
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
+	"github.com/naren-chakraview/dim/internal/observability"
 	"github.com/naren-chakraview/dim/internal/ordering"
 	"github.com/naren-chakraview/dim/internal/steps"
 )
@@ -207,7 +208,23 @@ func BuildPipeline(ctx context.Context, cfg *config.RouteConfig) (
 
 // BuildSingleRoutePipeline constructs the pipeline for a single route (original M0.1 implementation).
 // Exported for use in testing and direct single-route scenarios.
+// Deprecated: Use BuildSingleRoutePipelineWithTracing for tracing support
 func BuildSingleRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
+	*engine.Executor,
+	*engine.Channel,
+	*engine.Channel,
+	*engine.Channel,
+	[]SourceAdapter,
+	[]SinkAdapter,
+	error,
+) {
+	return BuildSingleRoutePipelineWithTracing(ctx, cfg, nil)
+}
+
+// BuildSingleRoutePipelineWithTracing constructs the pipeline for a single route with tracing support (M0.5.1+).
+// tracingProvider may be nil (no tracing).
+// Exported for use in testing and direct single-route scenarios.
+func BuildSingleRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteConfig, tracingProvider *observability.TracingProvider) (
 	*engine.Executor,
 	*engine.Channel,
 	*engine.Channel,
@@ -241,8 +258,16 @@ func BuildSingleRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 		outCh:  inputCh,
 	})
 
+	// Build contract store from route config (M0.3.5)
+	contractStore := config.NewContractStore()
+	if len(routeSpec.Contracts) > 0 {
+		if err := contractStore.LoadContracts(routeName, routeSpec.Contracts); err != nil {
+			return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to load contracts for route %q: %w", routeName, err)
+		}
+	}
+
 	// Build steps from route config
-	stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps)
+	stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps, contractStore, routeName)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to build steps: %w", err)
 	}
@@ -256,12 +281,22 @@ func BuildSingleRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 		log.Printf("[INFO] Route %q has ordering=required, constraining to 1 worker for serial processing", routeName)
 	}
 
-	// Create executor with appropriate worker count and optional error channel
+	// Extract retry policy from route config if present
+	var retryPolicy *engine.RetryPolicy
+	if routeSpec.Retry != nil {
+		retryPolicy = &engine.RetryPolicy{
+			MaxAttempts: routeSpec.Retry.MaxAttempts,
+			BackoffMs:   routeSpec.Retry.BackoffMs,
+			JitterMs:    routeSpec.Retry.JitterMs,
+		}
+	}
+
+	// Create executor with appropriate worker count, error channel, and tracing (M0.5.1+)
 	var executor *engine.Executor
 	if routeSpec.ErrorPath != nil {
-		executor = engine.NewExecutorWithWorkers(routeName, inputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers)
+		executor = engine.NewExecutorWithTracing(routeName, inputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers, retryPolicy, tracingProvider)
 	} else {
-		executor = engine.NewExecutorWithWorkers(routeName, inputCh, outputCh, nil, stepsInstances, stepNames, numWorkers)
+		executor = engine.NewExecutorWithTracing(routeName, inputCh, outputCh, nil, stepsInstances, stepNames, numWorkers, retryPolicy, tracingProvider)
 	}
 
 	// Create sinks
@@ -313,8 +348,28 @@ func BuildSingleRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 //
 // Returns (generationManagers, router, sources, sinks, error)
 // M0.2.10: Updated to use GenerationManager for hot reload support (SIGHUP).
+// Deprecated: Use BuildMultiRoutePipelineWithTracing for tracing support
 // Callers should manage the lifecycle of returned sources, sinks, managers, and router.
 func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
+	map[string]*engine.GenerationManager,
+	*MessageRouter,
+	[]SourceAdapter,
+	[]SinkAdapter,
+	error,
+) {
+	return BuildMultiRoutePipelineWithTracing(ctx, cfg, nil)
+}
+
+// BuildMultiRoutePipelineWithTracing constructs an end-to-end pipeline with multiple independent routes (M0.5.1+).
+// Each route gets its own executor wrapped in a GenerationManager for hot reload support.
+// Messages are routed based on Metadata.Route and always sent to the active generation.
+//
+// Returns (generationManagers, router, sources, sinks, error)
+// M0.2.10: Updated to use GenerationManager for hot reload support (SIGHUP).
+// M0.5.1+: Added tracing support
+// tracingProvider may be nil (no tracing).
+// Callers should manage the lifecycle of returned sources, sinks, managers, and router.
+func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteConfig, tracingProvider *observability.TracingProvider) (
 	map[string]*engine.GenerationManager,
 	*MessageRouter,
 	[]SourceAdapter,
@@ -356,8 +411,16 @@ func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 			errorCh = engine.NewChannel(fmt.Sprintf("executor-%s-to-error-sink", routeName), 100)
 		}
 
+		// Build contract store from route config (M0.3.5)
+		contractStore := config.NewContractStore()
+		if len(routeSpec.Contracts) > 0 {
+			if err := contractStore.LoadContracts(routeName, routeSpec.Contracts); err != nil {
+				return nil, nil, nil, nil, fmt.Errorf("failed to load contracts for route %q: %w", routeName, err)
+			}
+		}
+
 		// Build steps from route config
-		stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps)
+		stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps, contractStore, routeName)
 		if err != nil {
 			return nil, nil, nil, nil, fmt.Errorf("failed to build steps for route %q: %w", routeName, err)
 		}
@@ -371,9 +434,19 @@ func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 			log.Printf("[INFO] Route %q has ordering=required, constraining to 1 worker for serial processing", routeName)
 		}
 
-		// Create executor with its own input channel and appropriate worker count
+		// Extract retry policy from route config if present
+		var retryPolicy *engine.RetryPolicy
+		if routeSpec.Retry != nil {
+			retryPolicy = &engine.RetryPolicy{
+				MaxAttempts: routeSpec.Retry.MaxAttempts,
+				BackoffMs:   routeSpec.Retry.BackoffMs,
+				JitterMs:    routeSpec.Retry.JitterMs,
+			}
+		}
+
+		// Create executor with its own input channel and appropriate worker count (M0.5.1+: with tracing)
 		executorInputCh := engine.NewChannel(fmt.Sprintf("router-to-executor-%s", routeName), 100)
-		executor := engine.NewExecutorWithWorkers(routeName, executorInputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers)
+		executor := engine.NewExecutorWithTracing(routeName, executorInputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers, retryPolicy, tracingProvider)
 
 		// Wrap executor in a GenerationManager with concurrent-draining cap of 3
 		generationMgr := engine.NewGenerationManager(routeName, executor, routeSpec.RouteVersion, 3)

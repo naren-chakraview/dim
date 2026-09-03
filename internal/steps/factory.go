@@ -17,10 +17,11 @@ import (
 // - route: Content-based router (M0.2.3+)
 // - wiretap: Copy to secondary sink (M0.2.4+)
 // - authorize: RBAC/ABAC policy enforcement (M0.2.6+)
+// - contract: Data contract validation with JSON Schema (M0.3.5+)
 //
 // Unsupported step types return error "not implemented in Phase 0":
 // - idempotent (M0.2.5)
-func BuildStepsFromSpec(stepSpecs []config.StepSpec) ([]engine.Step, []string, error) {
+func BuildStepsFromSpec(stepSpecs []config.StepSpec, contractStore *config.ContractStore, routeName string) ([]engine.Step, []string, error) {
 	var steps []engine.Step
 	var stepNames []string
 
@@ -44,6 +45,9 @@ func BuildStepsFromSpec(stepSpecs []config.StepSpec) ([]engine.Step, []string, e
 			stepTypeCount++
 		}
 		if spec.Authorize != nil {
+			stepTypeCount++
+		}
+		if spec.Contract != nil {
 			stepTypeCount++
 		}
 
@@ -99,6 +103,15 @@ func BuildStepsFromSpec(stepSpecs []config.StepSpec) ([]engine.Step, []string, e
 				return nil, nil, fmt.Errorf("step %d (authorize): %w", i, err)
 			}
 			stepNames = append(stepNames, "authorize")
+		case spec.Contract != nil:
+			if contractStore == nil {
+				return nil, nil, fmt.Errorf("step %d (contract): contract store is nil", i)
+			}
+			step, err = NewContractStep(contractStore, routeName, spec.Contract.ID)
+			if err != nil {
+				return nil, nil, fmt.Errorf("step %d (contract): %w", i, err)
+			}
+			stepNames = append(stepNames, "contract")
 		}
 
 		steps = append(steps, step)

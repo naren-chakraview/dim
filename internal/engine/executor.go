@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/naren-chakraview/dim/internal/observability"
 )
 
 // Step is the interface that all pipeline steps must implement.
@@ -33,6 +35,7 @@ type RetryPolicy struct {
 // and sends results to an output channel.
 // Supports 1 to N workers for concurrent processing (M0.2+).
 // Supports configurable retry logic with exponential backoff (M0.2.2+).
+// Supports distributed tracing with OpenTelemetry (M0.5.1+).
 type Executor struct {
 	// name is a diagnostic identifier for this executor
 	name string
@@ -63,6 +66,10 @@ type Executor struct {
 	// retryPolicy defines retry behavior for transient errors (M0.2.2+)
 	// nil means no retry (MaxAttempts = 1, fail-fast behavior)
 	retryPolicy *RetryPolicy
+
+	// tracingProvider enables distributed tracing (M0.5.1+)
+	// nil if tracing is not configured
+	tracingProvider *observability.TracingProvider
 
 	// inFlightCount tracks active messages across all workers
 	// Incremented on message receipt, decremented on completion
@@ -99,6 +106,12 @@ func NewExecutorWithWorkers(name string, inputCh, outputCh, errorCh *Channel, st
 // retryPolicy fields: MaxAttempts (>= 1), BackoffMs (default 1000), JitterMs (default 100)
 // numWorkers must be >= 1; defaults to 1 if invalid (backward compatible).
 func NewExecutorWithRetry(name string, inputCh, outputCh, errorCh *Channel, steps []Step, stepNames []string, numWorkers int, retryPolicy *RetryPolicy) *Executor {
+	return NewExecutorWithTracing(name, inputCh, outputCh, errorCh, steps, stepNames, numWorkers, retryPolicy, nil)
+}
+
+// NewExecutorWithTracing creates an executor with tracing support (M0.5.1+).
+// tracingProvider may be nil (no tracing).
+func NewExecutorWithTracing(name string, inputCh, outputCh, errorCh *Channel, steps []Step, stepNames []string, numWorkers int, retryPolicy *RetryPolicy, tracingProvider *observability.TracingProvider) *Executor {
 	if numWorkers < 1 {
 		numWorkers = 1
 	}
@@ -119,14 +132,15 @@ func NewExecutorWithRetry(name string, inputCh, outputCh, errorCh *Channel, step
 	normalizedPolicy := normalizeRetryPolicy(retryPolicy)
 
 	return &Executor{
-		name:        name,
-		inputCh:     inputCh,
-		outputCh:    outputCh,
-		steps:       steps,
-		errorCh:     errorCh,
-		stepNames:   names,
-		numWorkers:  numWorkers,
-		retryPolicy: normalizedPolicy,
+		name:             name,
+		inputCh:          inputCh,
+		outputCh:         outputCh,
+		steps:            steps,
+		errorCh:          errorCh,
+		stepNames:        names,
+		numWorkers:       numWorkers,
+		retryPolicy:      normalizedPolicy,
+		tracingProvider:  tracingProvider,
 	}
 }
 
@@ -221,6 +235,7 @@ func (e *Executor) Run(ctx context.Context) error {
 // worker is the main loop for a single worker goroutine.
 // It reads messages from inputCh, processes them, and sends to output/error channels.
 // Exits when inputCh is closed (receives nil).
+// M0.5.1+: Records distributed tracing spans for message processing
 func (e *Executor) worker(ctx context.Context, workerID int, wg *sync.WaitGroup) {
 	defer func() {
 		log.Printf("[DEBUG] Executor %q worker %d exiting", e.name, workerID)
@@ -246,8 +261,27 @@ func (e *Executor) worker(ctx context.Context, workerID int, wg *sync.WaitGroup)
 		// Increment in-flight counter
 		atomic.AddInt32(&e.inFlightCount, 1)
 
+		// Start message processing span for tracing
+		var msgSpan *observability.Span
+		if e.tracingProvider != nil {
+			principal := convertPrincipal(msg.Metadata.Principal)
+			ctx, msgSpan = e.tracingProvider.StartMessageSpan(
+				ctx,
+				msg.Metadata.Route,
+				msg.Metadata.RouteVersion,
+				msg.Metadata.CorrelationID,
+				msg.Metadata.ContractVersion,
+				principal,
+			)
+		}
+
 		// Process the message through all steps
 		result, procErr, failedStepIndex := e.processMessageWithErrorTracking(ctx, msg)
+
+		// Close message span with appropriate status
+		if msgSpan != nil {
+			e.tracingProvider.RecordMessageComplete(msgSpan, procErr == nil && result != nil, procErr)
+		}
 
 		// Handle errors
 		if procErr != nil {
@@ -443,13 +477,30 @@ func (e *Executor) executeStepWithRetry(ctx context.Context, step Step, msg *Mes
 // Returns (result, error, failedStepIndex).
 // failedStepIndex is -1 if no error, or the 0-based index of the failed step if an error occurred.
 // M0.2.2+: Implements retry logic for transient errors using executeStepWithRetry
+// M0.5.1+: Records step execution spans for distributed tracing
 func (e *Executor) processMessageWithErrorTracking(ctx context.Context, msg *Message) (*Message, error, int) {
 	current := msg
 
 	// Apply each step in sequence
 	for i, step := range e.steps {
+		stepStartTime := time.Now()
+
 		// Execute step with retry logic for transient errors
 		result, err, _ := e.executeStepWithRetry(ctx, step, current)
+
+		stepDuration := time.Since(stepStartTime)
+		stepSuccess := err == nil && result != nil
+
+		// Record step execution span
+		if e.tracingProvider != nil {
+			stepType := "unknown"
+			if i < len(e.stepNames) {
+				stepType = e.stepNames[i]
+			}
+			stepName := fmt.Sprintf("%s_%d", stepType, i)
+			e.tracingProvider.RecordStepExecution(ctx, i, stepType, stepName, stepDuration, stepSuccess, err)
+		}
+
 		if err != nil {
 			// Preserve stepExecutionError type to maintain retry attempt information
 			if see, ok := err.(*stepExecutionError); ok {
@@ -469,4 +520,16 @@ func (e *Executor) processMessageWithErrorTracking(ctx context.Context, msg *Mes
 	}
 
 	return current, nil, -1
+}
+
+// convertPrincipal converts engine.Principal to observability.Principal
+// Returns nil if the input principal is nil
+func convertPrincipal(p *Principal) *observability.Principal {
+	if p == nil {
+		return nil
+	}
+	return &observability.Principal{
+		Subject: p.Subject,
+		Roles:   p.Roles,
+	}
 }
