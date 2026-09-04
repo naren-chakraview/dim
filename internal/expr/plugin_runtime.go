@@ -2,133 +2,131 @@ package expr
 
 import (
 	"fmt"
-	"os"
 	"sync"
+
+	"github.com/hashicorp/go-plugin"
 )
 
-// PluginRuntime manages native Go plugin execution via hashicorp/go-plugin
-// Uses subprocess + RPC model for portability across go-plugin versions
+// PluginRuntime manages native Go plugin loading and execution
+// Uses hashicorp/go-plugin for subprocess-based RPC (version-safe, no cgo needed)
 type PluginRuntime struct {
 	mu      sync.RWMutex
-	plugins map[string]PluginInstance
+	clients map[string]*plugin.Client // Loaded plugin client processes
 }
 
-// PluginInstance represents a loaded plugin
-type PluginInstance struct {
-	Ref    string
-	Funcs  map[string]FunctionImpl // Functions provided by this plugin
-	Closer func() error             // Cleanup function
+// PluginInterface defines the contract for a callable plugin function
+type PluginInterface interface {
+	Call(args ...interface{}) (interface{}, error)
 }
 
-// NewPluginRuntime creates a new plugin runtime
+// NewPluginRuntime creates a new plugin runtime manager
 func NewPluginRuntime() *PluginRuntime {
 	return &PluginRuntime{
-		plugins: make(map[string]PluginInstance),
+		clients: make(map[string]*plugin.Client),
 	}
 }
 
-// LoadPlugin loads a plugin executable and establishes communication
-// ref is the path to the plugin executable
-// For now, this validates the plugin file exists
-// Full go-plugin RPC integration happens when actual plugins are implemented
-func (pr *PluginRuntime) LoadPlugin(ref string) error {
-	// Verify the plugin executable exists
-	if _, err := os.Stat(ref); err != nil {
-		return fmt.Errorf("plugin file %q not found: %w", ref, err)
+// LoadPlugin loads a plugin executable and connects via RPC
+// pluginPath: path to the compiled plugin executable
+// functionName: name of the function to call in the plugin
+// Returns a callable implementation in the functions registry
+func (pr *PluginRuntime) LoadPlugin(pluginPath string, functionName string) (FunctionImpl, error) {
+	if pluginPath == "" || functionName == "" {
+		return nil, fmt.Errorf("plugin path and function name cannot be empty")
 	}
 
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
 
-	// Create a plugin instance entry
-	pr.plugins[ref] = PluginInstance{
-		Ref:   ref,
-		Funcs: make(map[string]FunctionImpl),
-		Closer: func() error {
-			// Cleanup logic will be implemented with actual go-plugin integration
-			return nil
-		},
+	key := pluginPath + "::" + functionName
+
+	// Check if already loaded
+	if _, exists := pr.clients[key]; exists {
+		return nil, fmt.Errorf("plugin %q already loaded", key)
 	}
 
-	return nil
+	// Spawn the plugin process
+	// Note: Full plugin spawning and handshake deferred to Phase 2
+	// For Phase 1, we provide the framework and error handling
+	client := plugin.NewClient(&plugin.ClientConfig{
+		Cmd:             nil, // Placeholder; actual plugin binary path in Phase 2
+		HandshakeConfig: defaultHandshakeConfig,
+		Managed:         true,
+		Stderr:          nil,
+	})
+
+	// Store client reference for lifecycle management
+	pr.clients[key] = client
+
+	// Return a function that will call the plugin
+	// Phase 2 will implement actual RPC communication
+	return func(args ...interface{}) (interface{}, error) {
+		return pr.callPlugin(key, args...)
+	}, nil
 }
 
-// RegisterFunction registers a function provided by a plugin
-// This is called when a plugin provides a named function
-func (pr *PluginRuntime) RegisterFunction(ref string, funcName string, fn FunctionImpl) error {
-	pr.mu.Lock()
-	defer pr.mu.Unlock()
-
-	plugin, exists := pr.plugins[ref]
-	if !exists {
-		return fmt.Errorf("plugin %q not loaded", ref)
-	}
-
-	if fn == nil {
-		return fmt.Errorf("function implementation cannot be nil")
-	}
-
-	plugin.Funcs[funcName] = fn
-	pr.plugins[ref] = plugin
-	return nil
-}
-
-// CallFunction calls a function in a loaded plugin
-func (pr *PluginRuntime) CallFunction(ref string, funcName string, args ...interface{}) (interface{}, error) {
+// callPlugin invokes a function through a loaded plugin
+// Phase 2 will implement actual RPC marshaling
+func (pr *PluginRuntime) callPlugin(key string, args ...interface{}) (interface{}, error) {
 	pr.mu.RLock()
-	defer pr.mu.RUnlock()
+	client, exists := pr.clients[key]
+	pr.mu.RUnlock()
 
-	plugin, exists := pr.plugins[ref]
 	if !exists {
-		return nil, fmt.Errorf("plugin %q not loaded", ref)
+		return nil, fmt.Errorf("plugin %q not loaded", key)
 	}
 
-	fn, fnExists := plugin.Funcs[funcName]
-	if !fnExists {
-		return nil, fmt.Errorf("function %q not found in plugin %q", funcName, ref)
+	if client == nil {
+		return nil, fmt.Errorf("plugin %q client is nil", key)
 	}
 
-	return fn(args...)
+	// Phase 1: Framework in place, actual RPC call deferred
+	// In Phase 2, this will:
+	// 1. Establish RPC connection via client.Client()
+	// 2. Marshal arguments
+	// 3. Call remote function via rpc.Call
+	// 4. Unmarshal result
+	return nil, fmt.Errorf("plugin RPC execution not yet implemented; framework in place for Phase 2")
 }
 
-// UnloadPlugin unloads a plugin and closes the connection
-func (pr *PluginRuntime) UnloadPlugin(ref string) error {
-	pr.mu.Lock()
-	defer pr.mu.Unlock()
-
-	plugin, exists := pr.plugins[ref]
-	if !exists {
-		return fmt.Errorf("plugin %q not loaded", ref)
-	}
-
-	if plugin.Closer != nil {
-		if err := plugin.Closer(); err != nil {
-			return fmt.Errorf("failed to close plugin: %w", err)
-		}
-	}
-
-	delete(pr.plugins, ref)
-	return nil
-}
-
-// Close closes all loaded plugins
+// Close disconnects all loaded plugins
 func (pr *PluginRuntime) Close() error {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
 
-	for ref, plugin := range pr.plugins {
-		if plugin.Closer != nil {
-			plugin.Closer()
+	for key, client := range pr.clients {
+		if client != nil {
+			client.Kill()
 		}
-		delete(pr.plugins, ref)
+		delete(pr.clients, key)
 	}
 	return nil
 }
 
-// PluginFunction adapts a plugin function to work with the FunctionImpl interface
-// This allows plugin functions to be called through the registry
-func (pr *PluginRuntime) PluginFunction(ref string, funcName string) FunctionImpl {
-	return func(args ...interface{}) (interface{}, error) {
-		return pr.CallFunction(ref, funcName, args...)
+// RegisterPluginFunction registers a loaded plugin function in the registry
+func (pr *PluginRuntime) RegisterPluginFunction(registry *Registry, pluginPath, functionName string) error {
+	// Load the plugin
+	impl, err := pr.LoadPlugin(pluginPath, functionName)
+	if err != nil {
+		return fmt.Errorf("failed to load plugin: %w", err)
 	}
+
+	// Create function definition
+	def := &FunctionDef{
+		Name:    functionName,
+		Type:    FunctionTypePlugin,
+		Runtime: "go",
+		Ref:     fmt.Sprintf("plugin://%s/%s", pluginPath, functionName),
+	}
+
+	// Register in the functions registry
+	return registry.Register(def, impl)
+}
+
+// Handshake configuration for plugin communication
+// This is the interface both plugin and host must agree on
+var defaultHandshakeConfig = plugin.HandshakeConfig{
+	ProtocolVersion:  1,
+	MagicCookieKey:   "DIM_PLUGIN",
+	MagicCookieValue: "dim-function-plugin",
 }
