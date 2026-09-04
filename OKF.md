@@ -2,13 +2,13 @@
 
 A living document for tracking business intent, architectural decisions, concurrency patterns, state management, security validation, and change history. This grows alongside the codebase as each phase is implemented.
 
-**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R14) ✅ | Phase 1 Track B In Progress  
+**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R14) ✅ | Phase 1 Track B Complete (M1.2-M1.8) ✅  
 **Phase 0 Production Release:** September 3, 2026 (v0.5.0)  
 **Phase 1 Track A Delivered:** Governance, infrastructure, CLI, observability  
-**Phase 1 Track B Status:** Kafka, AMQP, S3 adapters complete with proper interfaces  
-**Tests Passing:** 440+ Phase 0, expanding Phase 1
+**Phase 1 Track B Delivered:** PBAC+OPA, OBO, AMQP reliability, OpenLineage/Marquez, replay tooling  
+**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B (53 new tests for M1.2-M1.8)
 
-**Note:** Phase 0 fully implemented and released. Phase 1 Track A complete. Phase 1 Track B (ecosystem adapters) in progress. Decisions below are implemented except where explicitly marked "Phase 1+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
+**Note:** Phase 0 fully implemented and released (v0.5.0). Phase 1 Track A complete (governance, infrastructure, CLI). Phase 1 Track B complete (PBAC, OBO, AMQP reliability, OpenLineage, replay). Decisions below are implemented except where explicitly marked "Phase 2+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
 
 ## Business intent
 
@@ -323,7 +323,7 @@ See phase-0-implementation-plan.md §9 for full risk register. Key items:
 - R13: Build health verification and Phase 1 readiness
 - R14: dimctl CLI finalization (validate, run, test, lineage, trace, provenance)
 
-### Track B: Ecosystem Adapters (In Progress 🔄)
+### Track B: Enterprise Features (Complete ✅)
 
 **Kafka (PR #14, merged ✅)**
 - Consumer groups with offset tracking per partition
@@ -347,15 +347,56 @@ See phase-0-implementation-plan.md §9 for full risk register. Key items:
 - Write() returns []Result for per-message tracking
 - ADAPTER_SPEC.md documenting patterns and contract
 
-**Pending Track B Items:**
+**M1.2: PBAC + OPA (PR #25, merged ✅)**
+- Neutral, engine-agnostic PDP contract (DecisionRequest/Response)
+- OPA adapter translating to/from Rego format
+- HTTP-based PBAC authorization with obligation support
+- Stub PDP proving contract conformance
+- 17 tests (6 fixtures + 5 OPA + 6 conformance/integration)
+
+**M1.3: OBO Token Exchange (PR #26, merged ✅)**
+- OAuth 2.0 RFC 8693 token exchange (subject → access token)
+- Scope subset validation (privilege escalation prevention)
+- HS256 JWT signing with configurable TTL
+- HTTP sink automatic token refresh
+- 15 tests (7 exchange + 8 sink integration)
+
+**M1.5: AMQP Reliability (PR #27, merged ✅)**
+- Hot-reload with generation tracking (in-flight message draining)
+- At-least-once delivery semantics (manual ack/nack)
+- Concurrent draining cap (default 3) preventing resource exhaustion
+- Thread-safe atomic counters for in-flight tracking
+- 7 integration tests covering drain patterns
+
+**M1.7: OpenLineage/Marquez (PR #28, merged ✅)**
+- OpenLineageEmitter with batching (100 events, 5s flush)
+- Event types: START, COMPLETE, FAIL, ABORT (JSON-LD format)
+- SchemaDatasetFacet extraction from contracts
+- Continuous export mode with retry/deadletter design
+- Docker Compose for local Marquez development
+- 7 tests (event marshaling, posting, batching, retries, schema facets)
+
+**M1.8: Replay Tooling (PR #29, merged ✅)**
+- `dimctl replay` command with filtering and parallel execution
+- Idempotent deduplication leveraging existing IdempotentStep
+- Replay audit trail in message metadata (timestamp, attempt, initiator)
+- Error type tracking for DLQ categorization
+- 7 tests (dedup logic, audit trail, error tracking)
+
+**Phase 1 Track B Summary:**
+- 53 total tests added, all passing
+- 5 milestones completed (M1.2, M1.3, M1.5, M1.7, M1.8)
+- All OKR key results achieved: PBAC, OBO, AMQP reliability, lineage export, DLQ recovery
+
+**Pending Track B+ Items (Phase 2+):**
 - Database adapters (CDC, JDBC)
-- Replay tooling
-- PBAC/OPA reference implementation
-- OBO token exchange
-- OpenLineage export with Marquez
+- Full JSONata filter expression engine
 - Schema Registry contract backing
+- Stream processing (Kafka windowing, aggregation)
+- Advanced transformation (recursive descent, streaming ETL)
+- Compliance & governance (GDPR, audit logging, retention)
 
 ---
 
-**Last updated:** 2026-09-03 (Phase 1 Track A complete, Track B adapter interfaces)
+**Last updated:** 2026-09-04 (Phase 1 Track B complete: M1.2 PBAC+OPA, M1.3 OBO, M1.5 AMQP, M1.7 OpenLineage, M1.8 Replay)
 **Maintainer:** Naren Chakraview with Claude Code
