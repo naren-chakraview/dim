@@ -1,1 +1,0 @@
-{"nodes": [{"id": "internal_adapters_http_http_go", "label": "http.go", "file_type": "code", "source_file": "internal/adapters/http/http.go", "source_location": "L1"}], "edges": [], "raw_calls": [], "go_imports": {}}
