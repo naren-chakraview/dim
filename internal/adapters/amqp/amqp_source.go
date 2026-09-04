@@ -247,3 +247,23 @@ func (as *AMQPSource) Close() error {
 	as.wg.Wait()
 	return nil
 }
+
+// HealthCheck verifies the AMQP source connection is alive
+func (as *AMQPSource) HealthCheck(ctx context.Context) error {
+	if as.conn == nil || as.channel == nil {
+		return fmt.Errorf("AMQP connection or channel not initialized")
+	}
+	if as.conn.IsClosed() {
+		return fmt.Errorf("AMQP connection is closed")
+	}
+	return nil
+}
+
+// Checkpoint returns the current message count as a checkpoint
+func (as *AMQPSource) Checkpoint() (interface{}, error) {
+	as.mu.Lock()
+	defer as.mu.Unlock()
+	return map[string]interface{}{
+		"messages_consumed": as.messageCount,
+	}, nil
+}

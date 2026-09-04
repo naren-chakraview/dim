@@ -113,3 +113,25 @@ func (s *S3Source) Close() error {
 	}
 	return nil
 }
+
+// HealthCheck verifies the S3 source is able to connect
+func (s *S3Source) HealthCheck(ctx context.Context) error {
+	if s.client == nil {
+		return fmt.Errorf("S3 client not initialized")
+	}
+	if s.bucket == "" {
+		return fmt.Errorf("S3 bucket not configured")
+	}
+	return nil
+}
+
+// Checkpoint returns the current last-sync map for resuming from a known state
+func (s *S3Source) Checkpoint() (interface{}, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	checkpoint := make(map[string]int64)
+	for k, v := range s.lastSync {
+		checkpoint[k] = v.Unix()
+	}
+	return checkpoint, nil
+}

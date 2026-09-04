@@ -10,6 +10,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/naren-chakraview/dim/internal/adapters"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
 
@@ -38,13 +39,23 @@ func NewS3Sink(cfg SinkConfig) (*S3Sink, error) {
 	}, nil
 }
 
-func (s *S3Sink) Write(ctx context.Context, messages ...*engine.Message) error {
+func (s *S3Sink) Write(ctx context.Context, messages ...*engine.Message) []adapters.Result {
 	s.mu.Lock()
 	if s.closed {
 		s.mu.Unlock()
-		return fmt.Errorf("sink is closed")
+		results := make([]adapters.Result, len(messages))
+		for i, msg := range messages {
+			results[i] = adapters.Result{
+				Message: msg,
+				Error:   fmt.Errorf("sink is closed"),
+				Success: false,
+			}
+		}
+		return results
 	}
 	s.mu.Unlock()
+
+	results := make([]adapters.Result, len(messages))
 
 	for i, msg := range messages {
 		var body []byte
@@ -60,7 +71,12 @@ func (s *S3Sink) Write(ctx context.Context, messages ...*engine.Message) error {
 				s.mu.Lock()
 				s.metrics.failed++
 				s.mu.Unlock()
-				return fmt.Errorf("marshal failed: %w", err)
+				results[i] = adapters.Result{
+					Message: msg,
+					Error:   err,
+					Success: false,
+				}
+				continue
 			}
 		}
 
@@ -76,15 +92,26 @@ func (s *S3Sink) Write(ctx context.Context, messages ...*engine.Message) error {
 			s.mu.Lock()
 			s.metrics.failed++
 			s.mu.Unlock()
-			return fmt.Errorf("put failed: %w", err)
+			results[i] = adapters.Result{
+				Message: msg,
+				Error:   err,
+				Success: false,
+			}
+			continue
 		}
 
 		s.mu.Lock()
 		s.metrics.written++
 		s.mu.Unlock()
+
+		results[i] = adapters.Result{
+			Message: msg,
+			Error:   nil,
+			Success: true,
+		}
 	}
 
-	return nil
+	return results
 }
 
 func (s *S3Sink) Start(ctx context.Context) error {
@@ -97,6 +124,17 @@ func (s *S3Sink) Close() error {
 	s.closed = true
 	if s.client != nil {
 		s.client.Close()
+	}
+	return nil
+}
+
+// HealthCheck verifies the S3 sink is able to connect
+func (s *S3Sink) HealthCheck(ctx context.Context) error {
+	if s.client == nil {
+		return fmt.Errorf("S3 client not initialized")
+	}
+	if s.bucket == "" {
+		return fmt.Errorf("S3 bucket not configured")
 	}
 	return nil
 }

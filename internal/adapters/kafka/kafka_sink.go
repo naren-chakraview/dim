@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/naren-chakraview/dim/internal/adapters"
 	"github.com/naren-chakraview/dim/internal/engine"
 	"github.com/segmentio/kafka-go"
 )
@@ -104,36 +105,61 @@ func NewKafkaSinkWithConfig(config SinkConfig) (*KafkaSink, error) {
 	return sink, nil
 }
 
-// Write writes messages to Kafka
-// Implements the sink interface: Write(ctx context.Context, messages ...*engine.Message) error
-func (ks *KafkaSink) Write(ctx context.Context, messages ...*engine.Message) error {
+// Write writes messages to Kafka and returns a result for each message
+func (ks *KafkaSink) Write(ctx context.Context, messages ...*engine.Message) []adapters.Result {
 	ks.mu.Lock()
 	if ks.closed {
 		ks.mu.Unlock()
-		return fmt.Errorf("sink is closed")
+		results := make([]adapters.Result, len(messages))
+		for i, msg := range messages {
+			results[i] = adapters.Result{
+				Message: msg,
+				Error:   fmt.Errorf("sink is closed"),
+				Success: false,
+			}
+		}
+		return results
 	}
 	ks.mu.Unlock()
 
 	if len(messages) == 0 {
-		return nil
+		return []adapters.Result{}
 	}
 
 	// Convert dim messages to Kafka messages
 	kafkaMessages := make([]kafka.Message, len(messages))
+	results := make([]adapters.Result, len(messages))
+
 	for i, msg := range messages {
 		kmsg, err := ks.dimMessageToKafkaMessage(msg)
 		if err != nil {
 			ks.recordError(err)
-			return fmt.Errorf("failed to convert message %d: %w", i, err)
+			results[i] = adapters.Result{
+				Message: msg,
+				Error:   err,
+				Success: false,
+			}
+			continue
 		}
 		kafkaMessages[i] = kmsg
+		results[i] = adapters.Result{
+			Message: msg,
+			Error:   nil,
+			Success: true,
+		}
 	}
 
 	// Write to Kafka
 	err := ks.writer.WriteMessages(ctx, kafkaMessages...)
 	if err != nil {
 		ks.recordError(err)
-		return fmt.Errorf("failed to write messages to Kafka: %w", err)
+		for i := range results {
+			if results[i].Success {
+				results[i].Success = false
+				results[i].Error = err
+			}
+		}
+		return results
 	}
 
 	// Update metrics
@@ -144,7 +170,7 @@ func (ks *KafkaSink) Write(ctx context.Context, messages ...*engine.Message) err
 	}
 	ks.mu.Unlock()
 
-	return nil
+	return results
 }
 
 // dimMessageToKafkaMessage converts a dim message to a Kafka message
@@ -244,4 +270,16 @@ func (ks *KafkaSink) GetMetrics() map[string]interface{} {
 		"bytes_written":    ks.metrics.bytes,
 		"last_error":       ks.metrics.lastError,
 	}
+}
+
+// HealthCheck verifies the Kafka sink connection is alive
+func (ks *KafkaSink) HealthCheck(ctx context.Context) error {
+	if ks.writer == nil {
+		return fmt.Errorf("kafka writer not initialized")
+	}
+	brokers := ks.writer.Config().Brokers
+	if len(brokers) == 0 {
+		return fmt.Errorf("no brokers configured")
+	}
+	return nil
 }

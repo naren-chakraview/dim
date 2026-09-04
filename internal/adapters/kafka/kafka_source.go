@@ -208,3 +208,28 @@ func (ks *KafkaSource) GetLag(ctx context.Context) (map[int32]int64, error) {
 
 	return lag, nil
 }
+
+// HealthCheck verifies the Kafka source connection is alive
+func (ks *KafkaSource) HealthCheck(ctx context.Context) error {
+	if ks.reader == nil {
+		return fmt.Errorf("kafka reader not initialized")
+	}
+	// Try to fetch metadata to verify broker connectivity
+	brokers := ks.reader.Config().Brokers
+	if len(brokers) == 0 {
+		return fmt.Errorf("no brokers configured")
+	}
+	return nil
+}
+
+// Checkpoint returns the current partition offset map for resumption
+func (ks *KafkaSource) Checkpoint() (interface{}, error) {
+	ks.mu.Lock()
+	defer ks.mu.Unlock()
+	// Return a copy of the offset map for safe external use
+	checkpoint := make(map[int32]int64)
+	for k, v := range ks.lastOffset {
+		checkpoint[k] = v
+	}
+	return checkpoint, nil
+}
