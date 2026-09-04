@@ -6,15 +6,15 @@ This document is for developers and coding agents working on dim. It covers the 
 
 | Task | Command |
 |---|---|
-| **Build** | `go build ./cmd/midctl -o midctl` |
+| **Build** | `go build ./cmd/dimctl -o midctl` |
 | **Test** | `go test ./...` (120/121 passing) |
 | **Test with race detector** | `go test -race ./...` |
 | **Lint** | `go vet ./...` |
 | **Understand architecture** | Read `graphify-out/GRAPH_REPORT.md` or open `graphify-out/graph.html` |
 | **Update knowledge graph** | `graphify update .` |
 | **Find where X is defined** | `grep -r "type X " internal/` or `graphify query "X"` |
-| **Run a route** | `./midctl run examples/test-route.yaml` |
-| **Validate a route** | `./midctl validate examples/test-route.yaml` |
+| **Run a route** | `./dimctl run examples/test-route.yaml` |
+| **Validate a route** | `./dimctl validate examples/test-route.yaml` |
 
 ## For coding agents: understand before coding
 
@@ -176,7 +176,7 @@ Test individual step logic, expression evaluation, retry classification. Fast, d
 
 ### Route fixture tests
 ```bash
-./midctl test test/fixtures/
+./dimctl test test/fixtures/
 ```
 Test whole routes against golden input/output pairs. Fixtures are YAML files defining: input message, expected output per sink, expected error handling. This is the primary regression net for JSONata and step interactions.
 
@@ -221,11 +221,11 @@ Example: HTTP adapter is in `internal/adapters/http/`. It listens on a port, acc
 
 Use `midctl` tooling:
 ```bash
-./midctl explain examples/hello.yaml          # See the compiled DAG
-./midctl test examples/hello_test.yaml        # Run fixtures
-./midctl validate examples/hello.yaml         # Check schema
-./midctl trace tail hello                     # Live span stream (Phase 1)
-./midctl provenance <correlation-id>         # Reconstruct journey (Phase 1)
+./dimctl explain examples/hello.yaml          # See the compiled DAG
+./dimctl test examples/hello_test.yaml        # Run fixtures
+./dimctl validate examples/hello.yaml         # Check schema
+./dimctl trace tail hello                     # Live span stream (Phase 1)
+./dimctl provenance <correlation-id>         # Reconstruct journey (Phase 1)
 ```
 
 Or inspect in code: add print statements or use a debugger. Go test `t.Logf()` is your friend.
@@ -272,7 +272,7 @@ Before shipping code:
 
 Phase 0 produces two binaries:
 - `dimd` — the engine daemon
-- `midctl` — the CLI tool
+- `dimctl` — the CLI tool
 
 Both are compiled with `go build` and produce static executables. No runtime dependencies (SQLite and WASM runtime are built in).
 

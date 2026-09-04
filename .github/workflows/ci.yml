@@ -37,6 +37,6 @@ jobs:
       - name: Cross-compile
         run: |
           GOOS=linux GOARCH=amd64 go build -o dim-linux-amd64 ./cmd/dimd
-          GOOS=linux GOARCH=amd64 go build -o dimctl-linux-amd64 ./cmd/midctl
+          GOOS=linux GOARCH=amd64 go build -o dimctl-linux-amd64 ./cmd/dimctl
           GOOS=darwin GOARCH=arm64 go build -o dim-darwin-arm64 ./cmd/dimd
-          GOOS=darwin GOARCH=arm64 go build -o dimctl-darwin-arm64 ./cmd/midctl
+          GOOS=darwin GOARCH=arm64 go build -o dimctl-darwin-arm64 ./cmd/dimctl

@@ -9,7 +9,7 @@
 ```bash
 git clone https://github.com/naren-chakraview/dim.git
 cd dim
-go build ./cmd/midctl -o midctl
+go build ./cmd/dimctl -o dimctl
 ```
 
 ### Your first route
@@ -42,12 +42,12 @@ routes:
 
 2. Validate:
 ```bash
-./midctl validate examples/hello.yaml
+./dimctl validate examples/hello.yaml
 ```
 
 3. Run:
 ```bash
-./midctl run examples/hello.yaml
+./dimctl run examples/hello.yaml
 # In another terminal:
 curl -X POST http://localhost:8080/ingest \
   -H "Content-Type: application/json" \
@@ -63,7 +63,7 @@ tail -f output/errors.jsonl
 
 | Directory | Purpose |
 |---|---|
-| `cmd/midctl` | CLI tool — validate, run routes |
+| `cmd/dimctl` | CLI tool — validate, run routes |
 | `internal/config` | YAML parsing and JSON Schema validation |
 | `internal/engine` | Executor, message envelope, bounded channels, dead-letter queue |
 | `internal/steps` | Step implementations: filter, translate |
@@ -99,7 +99,7 @@ go test -race ./...
 
 ### Route fixture tests (M0.2+)
 ```bash
-./midctl test examples/
+./dimctl test examples/
 ```
 
 ### Test coverage by package
@@ -110,7 +110,7 @@ go test -race ./...
 - internal/config: 15/15 ✅
 - internal/steps: 26/26 ✅
 - internal/factory: 7/7 ✅
-- cmd/midctl: 8/8 ✅
+- cmd/dimctl: 8/8 ✅
 
 ## Phase 0 Features
 
@@ -212,22 +212,22 @@ Routes reload when their config changes; in-flight messages complete on the old 
 
 ### Explain a route's DAG
 ```bash
-./midctl explain examples/hello.yaml
+./dimctl explain examples/hello.yaml
 ```
 
 ### Tail live spans for a route
 ```bash
-./midctl trace tail hello
+./dimctl trace tail hello
 ```
 
 ### Reconstruct a message's journey
 ```bash
-./midctl provenance <correlation-id>
+./dimctl provenance <correlation-id>
 ```
 
 ### Export lineage for audit
 ```bash
-./midctl lineage export --route payment-processing --since 2026-08-01 --format csv
+./dimctl lineage export --route payment-processing --since 2026-08-01 --format csv
 ```
 
 ## Configuration reference

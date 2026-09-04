@@ -37,7 +37,7 @@ dim is a **configuration-driven integration middleware** that routes, transforms
 ```bash
 git clone https://github.com/naren-chakraview/dim.git
 cd dim
-go build ./cmd/midctl -o midctl
+go build ./cmd/dimctl -o dimctl
 ```
 
 ### 2. Create Route Config
@@ -63,7 +63,7 @@ routes:
 
 ```bash
 # In terminal 1
-./midctl run config.yaml
+./dimctl run config.yaml
 
 # In terminal 2
 curl -X POST http://localhost:8080/message \
@@ -114,7 +114,7 @@ Features:
 ## Building
 
 ```bash
-go build ./cmd/midctl -o midctl  # CLI tool
+go build ./cmd/dimctl -o dimctl  # CLI tool
 go build ./cmd/dimd -o dimd      # Daemon (optional)
 ```
 
@@ -140,21 +140,21 @@ go test ./... -cover
 
 | Task | Command | Status |
 |---|---|---|
-| Validate a route | `./midctl validate config.yaml` | ✅ M0.1 |
-| Run a route | `./midctl run config.yaml` | ✅ M0.1 |
+| Validate a route | `./dimctl validate config.yaml` | ✅ M0.1 |
+| Run a route | `./dimctl run config.yaml` | ✅ M0.1 |
 | Send a test message | `curl -X POST http://localhost:8080/message -H "Authorization: Bearer <token>" -d '{...}'` | ✅ M0.1 |
 | View live stats | `curl http://localhost:8081/debug/routes` | ✅ M0.5 |
-| Stream traces | `./midctl trace tail --route example` | ✅ M0.5 |
-| Query lineage | `./midctl lineage query --message-id msg-123` | ✅ M0.4 |
-| Export audit trail | `./midctl lineage export --format csv --since 2026-09-01` | ✅ M0.4 |
-| Purge old records | `./midctl lineage purge --before 2026-06-01 --reason "compliance"` | ✅ M0.4 |
+| Stream traces | `./dimctl trace tail --route example` | ✅ M0.5 |
+| Query lineage | `./dimctl lineage query --message-id msg-123` | ✅ M0.4 |
+| Export audit trail | `./dimctl lineage export --format csv --since 2026-09-01` | ✅ M0.4 |
+| Purge old records | `./dimctl lineage purge --before 2026-06-01 --reason "compliance"` | ✅ M0.4 |
 
 ## Project structure
 
 ```
 dim/
 ├── cmd/
-│   └── midctl/            # CLI tool (validate, run)
+│   └── dimctl/            # CLI tool (validate, run)
 ├── internal/
 │   ├── config/            # YAML + schema validation
 │   ├── engine/            # executor, channels, messages, DLQ
@@ -281,10 +281,10 @@ All design and planning docs are in `design/`:
 ```bash
 git clone https://github.com/naren-chakraview/dim.git
 cd dim
-go build ./cmd/midctl -o midctl
+go build ./cmd/dimctl -o dimctl
 
 # Try example route
-./midctl run examples/fragments/simple.yaml
+./dimctl run examples/fragments/simple.yaml
 ```
 
 ### 3. Send Test Message
@@ -301,7 +301,7 @@ curl http://localhost:8081/debug/routes | jq
 
 ### 5. Stream Traces
 ```bash
-./midctl trace tail
+./dimctl trace tail
 ```
 
 ### Next Steps
