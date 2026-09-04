@@ -98,7 +98,15 @@ func BuildStepsFromSpec(stepSpecs []config.StepSpec, contractStore *config.Contr
 		case spec.Idempotent != nil:
 			return nil, nil, fmt.Errorf("step %d: idempotent step not implemented in Phase 0", i)
 		case spec.Authorize != nil:
-			step, err = NewAuthorizeStep(spec.Authorize.Mode, spec.Authorize.RequireRoles, spec.Authorize.Expr)
+			pdpEndpoint := ""
+			pdpTimeout := 5000
+			if spec.Authorize.PDP != nil {
+				pdpEndpoint = spec.Authorize.PDP.Endpoint
+				if spec.Authorize.PDP.Timeout > 0 {
+					pdpTimeout = spec.Authorize.PDP.Timeout
+				}
+			}
+			step, err = NewAuthorizeStep(spec.Authorize.Mode, spec.Authorize.RequireRoles, spec.Authorize.Expr, pdpEndpoint, pdpTimeout)
 			if err != nil {
 				return nil, nil, fmt.Errorf("step %d (authorize): %w", i, err)
 			}
