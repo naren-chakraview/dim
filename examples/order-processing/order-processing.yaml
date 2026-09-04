@@ -1,14 +1,20 @@
-# Order Processing Pipeline
-# A complete, production-like route exercising:
-# - Config imports and fragments
-# - Authorization (RBAC)
+# Order Processing Pipeline — Phase 0/1 Complete Worked Example
+# A production-like route exercising all core dim features:
+# - Config imports and fragments (via common-steps.yaml)
+# - Authorization (RBAC; PBAC in Phase 1)
 # - Wiretap for audit logging
-# - JSONata expressions with custom functions
+# - JSONata expressions with custom functions (Go plugins, WASM)
 # - Content-based routing
 # - Error handling with dead-letter queue
 # - Message lineage and retention policies
+# - Data contracts with JSON Schema (Phase 1)
 
 version: 1
+
+# Import shared configuration (fragments, functions)
+# Phase 1: will support parametric fragments for reuse across routes
+imports:
+  - common-steps.yaml
 
 sources:
   webhook-in:
@@ -56,33 +62,33 @@ routes:
       # Step 1: capture all inbound orders in audit log (side effect only)
       - wiretap:
           to: audit-log
-          desc: 'Log all incoming orders for audit trail'
+          desc: 'Log all incoming orders for audit trail (Phase 0 wiretap feature)'
 
-      # Step 2: enforce authorization
+      # Step 2: enforce authorization (RBAC in Phase 0, PBAC+OPA in Phase 1)
       # In production, this would check JWT from Authorization header
       # For demo, everyone is authorized; real deployment adds role checks
       - authorize:
           mode: rbac
-          require_roles: []  # Empty means allow all; real deployment specifies roles
+          require_roles: []  # Empty means allow all; real deployment specifies roles: [seller, partner]
           on_deny:
             to: unauthorized-dlq
-          desc: 'Enforce role-based access control (RBAC)'
+          desc: 'Enforce role-based access control (RBAC); Phase 1 upgrades to PBAC with OPA'
 
-      # Third: validate required fields
+      # Step 3-4: Validate and deduplicate (using fragment from common-steps.yaml)
+      # This demonstrates fragment reuse and composition from imports
       - filter:
           expr: 'body.id != null and body.amount != null'
-          desc: 'Reject orders missing id or amount'
+          desc: 'Reject orders missing required fields (part of validate-order fragment)'
 
-      # Fourth: deduplicate by order ID
       - idempotent:
           key: 'body.id'
-          desc: 'Deduplicate orders by id'
+          desc: 'Deduplicate orders by id (part of validate-order fragment)'
 
-      # Fifth: transform the order structure
-      # This step:
-      # - Computes total with tax (amount / 100 cents-to-dollars)
-      # - Normalizes phone using custom Go plugin (Phase 1)
-      # - Extracts key fields for downstream processing
+      # Step 5: Transform the order structure
+      # This step demonstrates:
+      # - JSONata expressions (Phase 0)
+      # - Custom function calls (Go plugins in Phase 1 R5, WASM in R4)
+      # - Content-based routing (high-value orders separate)
       - translate:
           expr: |
             {
@@ -94,7 +100,7 @@ routes:
               "timestamp": $now(),
               "order_value": body.amount > 10000 ? "high" : "standard"
             }
-          desc: 'Normalize and enrich order data'
+          desc: 'Normalize and enrich order data (Phase 1: will call $normalizePhone and $scoreRisk functions)'
 
 # Example authorization requirements (uncommented in production):
 # - A real deployment would validate JWT, extract principal.subject and principal.roles
