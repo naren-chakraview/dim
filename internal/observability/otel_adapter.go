@@ -2,10 +2,9 @@ package observability
 
 import (
 	"context"
-	"fmt"
-	"log"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -94,7 +93,7 @@ func (a *OTelAdapter) AdaptRecordStepExecution(ctx context.Context, spanID strin
 
 	if stepErr != nil {
 		attrs = append(attrs, attribute.String("step.error", stepErr.Error()))
-		otelSpan.SetStatus(trace.Status{Code: trace.StatusCodeError})
+		otelSpan.SetStatus(codes.Error, "step execution error")
 		otelSpan.RecordError(stepErr)
 	}
 
@@ -110,7 +109,7 @@ func (a *OTelAdapter) AdaptEndSpan(spanID string, success bool, endErr error) {
 
 	if !success || endErr != nil {
 		if endErr != nil {
-			otelSpan.SetStatus(trace.Status{Code: trace.StatusCodeError})
+			otelSpan.SetStatus(codes.Error, "span processing failed")
 			otelSpan.RecordError(endErr)
 		}
 	}
