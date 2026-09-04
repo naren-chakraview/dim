@@ -30,9 +30,9 @@ func main() {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "midctl",
+	Use:   "dimctl",
 	Short: "dim middleware control CLI",
-	Long:  "midctl is the command-line control tool for the dim integration middleware engine",
+	Long:  "dimctl is the command-line control tool for the dim integration middleware engine",
 }
 
 var validateCmd = &cobra.Command{
