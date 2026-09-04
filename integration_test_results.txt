@@ -1,0 +1,390 @@
+=== RUN   TestPhase0FullPipelineWithAllFeatures
+2026/09/03 09:30:53 [DEBUG] tracing provider initialized: exporter=stdout, sample_rate=1.00
+2026/09/03 09:30:53 [DEBUG] Executor "full-pipeline" starting with 1 workers
+2026/09/03 09:30:53 [DEBUG] Executor "full-pipeline" worker 1 started
+2026/09/03 09:31:03 [DEBUG] Executor "full-pipeline" worker 1 recv error: context deadline exceeded
+    phase0_test.go:156: Recv from success sink failed: context deadline exceeded
+2026/09/03 09:31:03 [DEBUG] Executor "full-pipeline" worker 1 exiting
+2026/09/03 09:31:03 [DEBUG] Executor "full-pipeline" shutdown complete, all workers exited
+2026/09/03 09:31:03 [DEBUG] lineage store writer goroutine exiting
+--- FAIL: TestPhase0FullPipelineWithAllFeatures (10.05s)
+=== RUN   TestPhase0AuthorizationFlow
+=== RUN   TestPhase0AuthorizationFlow/ValidRBACWithCorrectRole
+2026/09/03 09:31:03 [DEBUG] Executor "auth-test" starting with 1 workers
+2026/09/03 09:31:03 [DEBUG] Executor "auth-test" worker 1 started
+    phase0_test.go:323: ✓ ValidRBACWithCorrectRole: Valid JWT with correct role should pass authorization
+2026/09/03 09:31:03 [DEBUG] Executor "auth-test" worker 1 recv error: context canceled
+2026/09/03 09:31:03 [DEBUG] Executor "auth-test" worker 1 exiting
+2026/09/03 09:31:03 [DEBUG] Executor "auth-test" shutdown complete, all workers exited
+=== RUN   TestPhase0AuthorizationFlow/ValidRBACWithMissingRole
+2026/09/03 09:31:03 [DEBUG] Executor "auth-test" starting with 1 workers
+2026/09/03 09:31:03 [DEBUG] Executor "auth-test" worker 1 started
+2026/09/03 09:31:05 [DEBUG] Executor "auth-test" worker 1 recv error: context deadline exceeded
+2026/09/03 09:31:05 [DEBUG] Executor "auth-test" worker 1 exiting
+2026/09/03 09:31:05 [DEBUG] Executor "auth-test" shutdown complete, all workers exited
+    phase0_test.go:323: ✓ ValidRBACWithMissingRole: Valid JWT but missing required role should fail
+=== RUN   TestPhase0AuthorizationFlow/NoRoles
+2026/09/03 09:31:05 [DEBUG] Executor "auth-test" starting with 1 workers
+2026/09/03 09:31:05 [DEBUG] Executor "auth-test" worker 1 started
+2026/09/03 09:31:07 [DEBUG] Executor "auth-test" worker 1 recv error: context deadline exceeded
+2026/09/03 09:31:07 [DEBUG] Executor "auth-test" worker 1 exiting
+    phase0_test.go:323: ✓ NoRoles: No roles should fail role-based authorization
+2026/09/03 09:31:07 [DEBUG] Executor "auth-test" shutdown complete, all workers exited
+=== RUN   TestPhase0AuthorizationFlow/MultipleRequiredRoles
+2026/09/03 09:31:07 [DEBUG] Executor "auth-test" starting with 1 workers
+2026/09/03 09:31:07 [DEBUG] Executor "auth-test" worker 1 started
+    phase0_test.go:323: ✓ MultipleRequiredRoles: Multiple roles, at least one matches should pass
+2026/09/03 09:31:07 [DEBUG] Executor "auth-test" worker 1 recv error: context canceled
+2026/09/03 09:31:07 [DEBUG] Executor "auth-test" worker 1 exiting
+2026/09/03 09:31:07 [DEBUG] Executor "auth-test" shutdown complete, all workers exited
+--- PASS: TestPhase0AuthorizationFlow (4.02s)
+    --- PASS: TestPhase0AuthorizationFlow/ValidRBACWithCorrectRole (0.00s)
+    --- PASS: TestPhase0AuthorizationFlow/ValidRBACWithMissingRole (2.01s)
+    --- PASS: TestPhase0AuthorizationFlow/NoRoles (2.01s)
+    --- PASS: TestPhase0AuthorizationFlow/MultipleRequiredRoles (0.00s)
+=== RUN   TestPhase0ContractValidation
+=== RUN   TestPhase0ContractValidation/ConformingMessage
+2026/09/03 09:31:07 [DEBUG] Executor "contract-test" starting with 1 workers
+2026/09/03 09:31:07 [DEBUG] Executor "contract-test" worker 1 started
+    phase0_test.go:420: ✓ ConformingMessage: Message conforming to contract schema should pass
+2026/09/03 09:31:07 [DEBUG] Executor "contract-test" worker 1 recv error: context canceled
+2026/09/03 09:31:07 [DEBUG] Executor "contract-test" worker 1 exiting
+2026/09/03 09:31:07 [DEBUG] Executor "contract-test" shutdown complete, all workers exited
+=== RUN   TestPhase0ContractValidation/MissingRequiredField
+2026/09/03 09:31:07 [DEBUG] Executor "contract-test" starting with 1 workers
+2026/09/03 09:31:07 [DEBUG] Executor "contract-test" worker 1 started
+2026/09/03 09:31:09 [DEBUG] Executor "contract-test" worker 1 recv error: context deadline exceeded
+2026/09/03 09:31:09 [DEBUG] Executor "contract-test" worker 1 exiting
+2026/09/03 09:31:09 [DEBUG] Executor "contract-test" shutdown complete, all workers exited
+    phase0_test.go:412: Expected message even with contract violation in non-strict mode
+    phase0_test.go:420: ✓ MissingRequiredField: Message missing required field should fail validation
+=== RUN   TestPhase0ContractValidation/WrongType
+2026/09/03 09:31:09 [DEBUG] Executor "contract-test" starting with 1 workers
+2026/09/03 09:31:09 [DEBUG] Executor "contract-test" worker 1 started
+    phase0_test.go:416: Note: Contract violation not marked (expected in non-strict mode)
+    phase0_test.go:420: ✓ WrongType: Message with wrong type should fail validation
+2026/09/03 09:31:09 [DEBUG] Executor "contract-test" worker 1 recv error: context canceled
+2026/09/03 09:31:09 [DEBUG] Executor "contract-test" worker 1 exiting
+2026/09/03 09:31:09 [DEBUG] Executor "contract-test" shutdown complete, all workers exited
+--- FAIL: TestPhase0ContractValidation (2.01s)
+    --- PASS: TestPhase0ContractValidation/ConformingMessage (0.00s)
+    --- FAIL: TestPhase0ContractValidation/MissingRequiredField (2.01s)
+    --- PASS: TestPhase0ContractValidation/WrongType (0.00s)
+=== RUN   TestPhase0LineageIntegration
+=== RUN   TestPhase0LineageIntegration/RecordLineage
+    phase0_test.go:461: Expected lineage records, got none
+    phase0_test.go:465: ✓ Lineage recorded and queried successfully
+=== RUN   TestPhase0LineageIntegration/RetentionPolicy
+    phase0_test.go:472: RecordLineage failed: constraint failed: UNIQUE constraint failed: lineage_records.id (1555)
+=== RUN   TestPhase0LineageIntegration/PurgeWithEvidence
+    phase0_test.go:497: RecordLineage failed: constraint failed: UNIQUE constraint failed: lineage_records.id (1555)
+=== NAME  TestPhase0LineageIntegration
+    phase0_test.go:512: ✓ Lineage integration tests completed
+2026/09/03 09:31:09 [DEBUG] lineage store writer goroutine exiting
+--- FAIL: TestPhase0LineageIntegration (0.03s)
+    --- FAIL: TestPhase0LineageIntegration/RecordLineage (0.00s)
+    --- FAIL: TestPhase0LineageIntegration/RetentionPolicy (0.00s)
+    --- FAIL: TestPhase0LineageIntegration/PurgeWithEvidence (0.00s)
+=== RUN   TestPhase0ObservabilityIntegration
+=== RUN   TestPhase0ObservabilityIntegration/TracingSpans
+2026/09/03 09:31:09 [DEBUG] tracing provider initialized: exporter=stdout, sample_rate=1.00
+2026/09/03 09:31:09 [TRACE] start_span trace_id=18d1dc9767968e3d18d1dc9767960d43 span_id=18d1dc9767960db3 name=message_processing correlation_id=corr-123 route=payment
+    phase0_test.go:543: ✓ Message processing span created: TraceID=18d1dc9767968e3d18d1dc9767960d43, SpanID=18d1dc9767960db3
+=== RUN   TestPhase0ObservabilityIntegration/MetricsCollection
+    phase0_test.go:561: ✓ Metrics recorded: 10 messages processed through payment route
+=== NAME  TestPhase0ObservabilityIntegration
+    phase0_test.go:565: ✓ Observability integration tests completed
+--- PASS: TestPhase0ObservabilityIntegration (0.00s)
+    --- PASS: TestPhase0ObservabilityIntegration/TracingSpans (0.00s)
+    --- PASS: TestPhase0ObservabilityIntegration/MetricsCollection (0.00s)
+=== RUN   TestPhase0HotReloadIntegration
+    phase0_test.go:661: ✓ Route version tracking: payment v1=a31e74fe vs v2=a31e74fe
+    phase0_test.go:665: ✓ Hot reload integration test completed: routes updated from 1 to 2
+--- PASS: TestPhase0HotReloadIntegration (0.01s)
+=== RUN   TestPhase0ErrorHandlingIntegration
+=== RUN   TestPhase0ErrorHandlingIntegration/RetryableError
+2026/09/03 09:31:09 [DEBUG] Executor "error-test" starting with 1 workers
+2026/09/03 09:31:09 [DEBUG] Executor "error-test" worker 1 started
+2026/09/03 09:31:12 [DEBUG] Executor "error-test" worker 1 recv error: context deadline exceeded
+2026/09/03 09:31:12 [DEBUG] Executor "error-test" worker 1 exiting
+2026/09/03 09:31:12 [DEBUG] Executor "error-test" shutdown complete, all workers exited
+==================
+WARNING: DATA RACE
+Read at 0x00c000388468 by goroutine 93:
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0ErrorHandlingIntegration.func1()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:733 +0x734
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Previous write at 0x00c000388468 by goroutine 95:
+  github.com/naren-chakraview/dim/internal/integration.(*mockFailingStep).Execute()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:1255 +0x52
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).executeStepWithRetry()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:425 +0x26a
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).processMessageWithErrorTracking()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:489 +0x164
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).worker()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:279 +0x5dc
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).Run.gowrap1()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:212 +0x64
+
+Goroutine 93 (running) created at:
+  testing.(*T).Run()
+      /snap/go/11262/src/testing/testing.go:2101 +0xb12
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0ErrorHandlingIntegration()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:701 +0x27d
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Goroutine 95 (running) created at:
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).Run()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:212 +0x22d
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0ErrorHandlingIntegration.func1.1()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:721 +0x4f
+==================
+    phase0_test.go:734: Note: Step should have been retried
+    phase0_test.go:742: ✓ RetryableError: Retryable error should be retried with backoff (attempts=1)
+    testing.go:1712: race detected during execution of test
+=== RUN   TestPhase0ErrorHandlingIntegration/NonRetryableError
+2026/09/03 09:31:12 [DEBUG] Executor "error-test" starting with 1 workers
+2026/09/03 09:31:12 [DEBUG] Executor "error-test" worker 1 started
+==================
+WARNING: DATA RACE
+Read at 0x00c000388578 by goroutine 98:
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0ErrorHandlingIntegration.func1()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:742 +0x8f0
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Previous write at 0x00c000388578 by goroutine 100:
+  github.com/naren-chakraview/dim/internal/integration.(*mockFailingStep).Execute()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:1255 +0x52
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).executeStepWithRetry()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:425 +0x26a
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).processMessageWithErrorTracking()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:489 +0x164
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).worker()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:279 +0x5dc
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).Run.gowrap1()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:212 +0x64
+
+Goroutine 98 (running) created at:
+  testing.(*T).Run()
+      /snap/go/11262/src/testing/testing.go:2101 +0xb12
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0ErrorHandlingIntegration()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:701 +0x27d
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Goroutine 100 (running) created at:
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).Run()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:212 +0x22d
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0ErrorHandlingIntegration.func1.1()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:721 +0x4f
+==================
+    phase0_test.go:742: ✓ NonRetryableError: Non-retryable error (e.g., 400) should skip to DLQ (attempts=1)
+2026/09/03 09:31:15 [DEBUG] Executor "error-test" worker 1 recv error: context deadline exceeded
+2026/09/03 09:31:15 [DEBUG] Executor "error-test" worker 1 exiting
+2026/09/03 09:31:15 [DEBUG] Executor "error-test" shutdown complete, all workers exited
+    testing.go:1712: race detected during execution of test
+=== RUN   TestPhase0ErrorHandlingIntegration/NoError
+2026/09/03 09:31:15 [DEBUG] Executor "error-test" starting with 1 workers
+2026/09/03 09:31:15 [DEBUG] Executor "error-test" worker 1 started
+    phase0_test.go:742: ✓ NoError: Successful processing with no error (attempts=1)
+2026/09/03 09:31:15 [DEBUG] Executor "error-test" worker 1 recv error: context canceled
+2026/09/03 09:31:15 [DEBUG] Executor "error-test" worker 1 exiting
+2026/09/03 09:31:15 [DEBUG] Executor "error-test" shutdown complete, all workers exited
+--- FAIL: TestPhase0ErrorHandlingIntegration (6.02s)
+    --- FAIL: TestPhase0ErrorHandlingIntegration/RetryableError (3.00s)
+    --- FAIL: TestPhase0ErrorHandlingIntegration/NonRetryableError (3.02s)
+    --- PASS: TestPhase0ErrorHandlingIntegration/NoError (0.00s)
+=== RUN   TestPhase0CLIEndToEnd
+=== RUN   TestPhase0CLIEndToEnd/ValidateCommand
+    phase0_test.go:797: ✓ validate: config is valid (1 route, 1 sources, 2 sinks)
+=== RUN   TestPhase0CLIEndToEnd/LineageCommands
+2026/09/03 09:31:15 [DEBUG] lineage store writer goroutine exiting
+=== NAME  TestPhase0CLIEndToEnd
+    phase0_test.go:831: ✓ CLI end-to-end tests completed
+--- PASS: TestPhase0CLIEndToEnd (0.04s)
+    --- PASS: TestPhase0CLIEndToEnd/ValidateCommand (0.01s)
+    --- PASS: TestPhase0CLIEndToEnd/LineageCommands (0.03s)
+=== RUN   TestPhase0MultiRouteConcurrency
+=== RUN   TestPhase0MultiRouteConcurrency/MultiRouteWithDifferentConcurrency
+2026/09/03 09:31:15 [DEBUG] Executor "route1" starting with 1 workers
+2026/09/03 09:31:15 [DEBUG] Executor "route1" worker 1 started
+2026/09/03 09:31:15 [DEBUG] Executor "route2" starting with 1 workers
+2026/09/03 09:31:15 [DEBUG] Executor "route2" worker 1 started
+==================
+WARNING: DATA RACE
+Read at 0x00c00019e8b0 by goroutine 114:
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0MultiRouteConcurrency.func1()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:918 +0xe72
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Previous write at 0x00c00019e8b0 by goroutine 118:
+  sync/atomic.AddInt64()
+      /snap/go/11262/src/runtime/race_amd64.s:289 +0xb
+  sync/atomic.AddInt64()
+      <autogenerated>:1 +0x15
+
+Goroutine 114 (running) created at:
+  testing.(*T).Run()
+      /snap/go/11262/src/testing/testing.go:2101 +0xb12
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0MultiRouteConcurrency()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:840 +0x11e
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Goroutine 118 (running) created at:
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0MultiRouteConcurrency.func1()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:894 +0xd3c
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+==================
+==================
+WARNING: DATA RACE
+Read at 0x00c00019e8b8 by goroutine 114:
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0MultiRouteConcurrency.func1()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:918 +0xec5
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Previous write at 0x00c00019e8b8 by goroutine 119:
+  sync/atomic.AddInt64()
+      /snap/go/11262/src/runtime/race_amd64.s:289 +0xb
+  sync/atomic.AddInt64()
+      <autogenerated>:1 +0x15
+
+Goroutine 114 (running) created at:
+  testing.(*T).Run()
+      /snap/go/11262/src/testing/testing.go:2101 +0xb12
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0MultiRouteConcurrency()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:840 +0x11e
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Goroutine 119 (finished) created at:
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0MultiRouteConcurrency.func1()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:904 +0xe4a
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+==================
+    phase0_test.go:917: ✓ Multi-route concurrency: route1 processed 20 messages, route2 processed 20 messages
+2026/09/03 09:31:17 [DEBUG] Executor "route2" worker 1 recv error: context canceled
+2026/09/03 09:31:17 [DEBUG] Executor "route2" worker 1 exiting
+2026/09/03 09:31:17 [DEBUG] Executor "route2" shutdown complete, all workers exited
+2026/09/03 09:31:17 [DEBUG] Executor "route1" worker 1 recv error: context canceled
+2026/09/03 09:31:17 [DEBUG] Executor "route1" worker 1 exiting
+2026/09/03 09:31:17 [DEBUG] Executor "route1" shutdown complete, all workers exited
+    testing.go:1712: race detected during execution of test
+=== RUN   TestPhase0MultiRouteConcurrency/InFlightTracking
+2026/09/03 09:31:17 [DEBUG] Executor "slow-route" starting with 1 workers
+2026/09/03 09:31:17 [DEBUG] Executor "slow-route" worker 1 started
+    phase0_test.go:955: ✓ In-flight message tracking test completed
+==================
+WARNING: DATA RACE
+Write at 0x00c0001e22b0 by goroutine 123:
+  runtime.closechan()
+      /snap/go/11262/src/runtime/chan.go:414 +0x0
+  github.com/naren-chakraview/dim/internal/engine.(*Channel).Close()
+      /home/gundu/portfolio/dim/internal/engine/channel.go:64 +0x44
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0MultiRouteConcurrency.func2.deferwrap2()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:931 +0xe
+  runtime.deferreturn()
+      /snap/go/11262/src/runtime/panic.go:668 +0x5d
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Previous read at 0x00c0001e22b0 by goroutine 125:
+  runtime.chansend()
+      /snap/go/11262/src/runtime/chan.go:176 +0x0
+  github.com/naren-chakraview/dim/internal/engine.(*Channel).Send()
+      /home/gundu/portfolio/dim/internal/engine/channel.go:37 +0xf8
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).worker()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:339 +0x6d5
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).Run.gowrap1()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:212 +0x64
+
+Goroutine 123 (running) created at:
+  testing.(*T).Run()
+      /snap/go/11262/src/testing/testing.go:2101 +0xb12
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0MultiRouteConcurrency()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:926 +0x13e
+  testing.tRunner()
+      /snap/go/11262/src/testing/testing.go:2036 +0x21c
+  testing.(*T).Run.gowrap1()
+      /snap/go/11262/src/testing/testing.go:2101 +0x38
+
+Goroutine 125 (running) created at:
+  github.com/naren-chakraview/dim/internal/engine.(*Executor).Run()
+      /home/gundu/portfolio/dim/internal/engine/executor.go:212 +0x22d
+  github.com/naren-chakraview/dim/internal/integration.TestPhase0MultiRouteConcurrency.func2.gowrap3()
+      /home/gundu/portfolio/dim/internal/integration/phase0_test.go:941 +0x46
+==================
+    testing.go:1712: race detected during execution of test
+2026/09/03 09:31:18 [DEBUG] Executor "slow-route" worker 1 recv error: context canceled
+2026/09/03 09:31:18 [DEBUG] Executor "slow-route" worker 1 exiting
+2026/09/03 09:31:18 [DEBUG] Executor "slow-route" shutdown complete, all workers exited
+--- FAIL: TestPhase0MultiRouteConcurrency (2.11s)
+    --- FAIL: TestPhase0MultiRouteConcurrency/MultiRouteWithDifferentConcurrency (2.01s)
+    --- FAIL: TestPhase0MultiRouteConcurrency/InFlightTracking (0.10s)
+=== RUN   TestPhase0FragmentComposition
+=== RUN   TestPhase0FragmentComposition/BasicConfig
+    phase0_test.go:1003: ✓ Basic config loaded: 1 route, 1 sources, 2 sinks
+=== RUN   TestPhase0FragmentComposition/CircularImportDetection
+    phase0_test.go:1011: ✓ Fragment composition tests completed
+--- PASS: TestPhase0FragmentComposition (0.01s)
+    --- PASS: TestPhase0FragmentComposition/BasicConfig (0.01s)
+    --- PASS: TestPhase0FragmentComposition/CircularImportDetection (0.00s)
+=== RUN   TestPhase0RouteVersioning
+=== RUN   TestPhase0RouteVersioning/DeterministicHashing
+    phase0_test.go:1063: ✓ Deterministic versioning: same config produces same hash
+=== RUN   TestPhase0RouteVersioning/VersionChangeOnConfigChange
+    phase0_test.go:1129: ✓ Route version changes on config change
+--- PASS: TestPhase0RouteVersioning (0.01s)
+    --- PASS: TestPhase0RouteVersioning/DeterministicHashing (0.01s)
+    --- PASS: TestPhase0RouteVersioning/VersionChangeOnConfigChange (0.01s)
+=== RUN   TestPhase0IdempotentDeduplication
+=== RUN   TestPhase0IdempotentDeduplication/DuplicateWithinTTL
+2026/09/03 09:31:18 [DEBUG] Executor "dedup-test" starting with 1 workers
+2026/09/03 09:31:18 [DEBUG] Executor "dedup-test" worker 1 started
+    phase0_test.go:1189: ✓ Duplicate message deduplicated (dropped)
+2026/09/03 09:31:18 [DEBUG] Executor "dedup-test" worker 1 recv error: context canceled
+2026/09/03 09:31:18 [DEBUG] Executor "dedup-test" worker 1 exiting
+2026/09/03 09:31:18 [DEBUG] Executor "dedup-test" shutdown complete, all workers exited
+=== RUN   TestPhase0IdempotentDeduplication/DuplicateAfterTTL
+2026/09/03 09:31:18 [DEBUG] Executor "dedup-ttl-test" starting with 1 workers
+2026/09/03 09:31:18 [DEBUG] Executor "dedup-ttl-test" worker 1 started
+    phase0_test.go:1237: ✓ Duplicate was deduplicated (not processed)
+2026/09/03 09:31:19 [DEBUG] Executor "dedup-ttl-test" worker 1 recv error: context canceled
+2026/09/03 09:31:19 [DEBUG] Executor "dedup-ttl-test" worker 1 exiting
+2026/09/03 09:31:19 [DEBUG] Executor "dedup-ttl-test" shutdown complete, all workers exited
+--- PASS: TestPhase0IdempotentDeduplication (1.00s)
+    --- PASS: TestPhase0IdempotentDeduplication/DuplicateWithinTTL (0.50s)
+    --- PASS: TestPhase0IdempotentDeduplication/DuplicateAfterTTL (0.50s)
+FAIL
+FAIL	github.com/naren-chakraview/dim/internal/integration	25.342s
+FAIL
