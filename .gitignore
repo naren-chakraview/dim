@@ -49,9 +49,23 @@ bin/
 dist/
 build/
 
+# Extensionless binaries at repo root
+/dim
+/dimd
+/midctl
+/dimctl
+/dim-*
+/dimd-*
+/midctl-*
+/dimctl-*
+
+# Runtime-generated files
+output/
+*.jsonl
+
+# Tool caches
+graphify-out/
+
 # OS files
 Thumbs.db
 .DS_Store
-
-# graphify
-graphify-out/cache/
