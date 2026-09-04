@@ -2,11 +2,11 @@
 
 A living document for tracking business intent, architectural decisions, concurrency patterns, state management, security validation, and change history. This grows alongside the codebase as each phase is implemented.
 
-**Current Status:** Phase 0 (M0.1) Walking Skeleton ✅  
-**Phase 0 Completion:** September 1, 2026  
-**Tests Passing:** 120/121 (99.2%)
+**Current Status:** Phase 0 Complete (M0.1–M0.6) ✅  
+**Phase 0 Production Release:** September 3, 2026 (v0.5.0)  
+**Tests Passing:** 440+ (100% with -race flag)
 
-**Note:** Many decisions below describe M0.2+ features. Use the phase/milestone labels (e.g., "M0.4", "Phase 2") to distinguish between implemented and future work.
+**Note:** Phase 0 (M0.1–M0.6) is now complete. Decisions below are implemented except where explicitly marked "Phase 1+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
 
 ## Business intent
 
@@ -43,9 +43,9 @@ A living document for tracking business intent, architectural decisions, concurr
 
 ### Config composition: imports and fragments
 
-**Decision (Phase 2+):** Routes will support `import` of reusable config files with `fragments` (named, unparameterized, literal step lists).
+**Decision:** Routes support `import` of reusable config files with `fragments` (named, unparameterized, literal step lists).
 
-**Phase 0 status:** Not implemented. Phase 0 supports single-file YAML configs only.
+**Phase 0 status:** ✅ Implemented (M0.2.6). Fragments load recursively with cycle detection; merge semantics documented.
 
 **Rationale (for Phase 2):**
 - Allows domain teams to compose shared governance fragments without code duplication
@@ -70,9 +70,9 @@ A living document for tracking business intent, architectural decisions, concurr
 
 ### Hot reload: new generation takeover with background draining
 
-**Decision (M0.2):** On config change, new DAG takes traffic immediately; old DAG drains stragglers in the background until in-flight count reaches zero. No pause, no message loss, no abort.
+**Decision:** On config change, new DAG takes traffic immediately; old DAG drains stragglers in the background until in-flight count reaches zero. No pause, no message loss, no abort.
 
-**Phase 0 status:** Not implemented. Phase 0 runs single pipeline instance until process exit.
+**Phase 0 status:** ✅ Implemented (M0.2.10). SIGHUP triggers reload; generation state machine manages active/draining/expired states; concurrent-generation cap enforced (default 3).
 
 **Rationale (for M0.2):**
 - New routes/changes go live immediately without maintenance window
@@ -84,9 +84,9 @@ A living document for tracking business intent, architectural decisions, concurr
 
 ### Lineage store: per-instance, embedded, not shared
 
-**Decision (M0.4):** Each `dimd` instance runs its own embedded SQLite lineage store. No shared backend.
+**Decision:** Each `dimd` instance runs its own embedded SQLite lineage store. No shared backend.
 
-**Phase 0 status:** Not implemented. Phase 0 has no persistent lineage tracking.
+**Phase 0 status:** ✅ Implemented (M0.4). SQLite WAL mode for concurrency; single-writer goroutine pattern (channel-based serialization); 13-field schema with indices for fast queries.
 
 **Rationale (for M0.4):**
 - Zero infrastructure requirement; single binary stays single binary
@@ -102,9 +102,9 @@ A living document for tracking business intent, architectural decisions, concurr
 
 ### Authorization: structural declaration, opt-in enforcement
 
-**Decision (M0.5):** Routes must declare `auth: none` or carry at least one `authorize` step. Declaration validated at **warning level by default**. Teams explicitly flip `validation.auth_declaration: enforce` to make it a hard failure.
+**Decision:** Routes must declare `auth: none` or carry at least one `authorize` step. Declaration validated at **warning level by default**. Teams explicitly flip `--strict` flag to make it a hard failure.
 
-**Phase 0 status:** Declaration required in schema (`auth` field mandatory). Enforcement deferred to M0.5.
+**Phase 0 status:** ✅ Implemented (M0.3.4). JWT principal propagation (M0.3.1), RBAC/ABAC authorization (M0.3.2-3), mandatory auth validation (M0.3.4) all complete.
 
 **Rationale (for M0.5):**
 - Visible guardrail: can't accidentally ship unauthenticated route (you get a warning)
@@ -117,7 +117,9 @@ A living document for tracking business intent, architectural decisions, concurr
 
 ### Data contracts: inline first, registry second
 
-**Decision:** Phase 0 contracts are inline JSON Schema only (file beside route YAML). Registry-backed contracts (Apicurio reference, Confluent/AWS/Azure support) defer to Phase 1.
+**Decision:** Phase 0 contracts are inline JSON Schema only (embedded in route YAML). Registry-backed contracts (Apicurio reference, Confluent/AWS/Azure support) defer to Phase 1.
+
+**Phase 0 status:** ✅ Implemented (M0.3.5-7). Contract loading, validation, violation routing, and version stamping all complete.
 
 **Rationale:**
 - Inline is zero-infrastructure: version in same repo as route
