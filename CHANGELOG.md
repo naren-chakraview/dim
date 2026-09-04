@@ -168,10 +168,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0-beta] - 2026-09-03 (Phase 1 Track A + Track B Adapters)
+
+### Added - Phase 1 Infrastructure & Ecosystem Adapters
+
+#### Track A: Governance & Infrastructure (Complete)
+- **R6:** File source adapter with polling, modification-time deduplication, optional archive
+- **R7:** Real OpenTelemetry SDK integration with OTLP gRPC export, sampler config
+- **R8:** Prometheus metrics with proper summary type (histogram → summary)
+- **R9:** dimd daemon engine with graceful shutdown, observability init, lifecycle
+- **R10:** CLI tool renamed from midctl to dimctl with full reference updates
+- **R11:** ORDERING_FEATURE.md documentation (keeping internal/ordering)
+- **R12:** CODE_REVIEW_WORKFLOW.md (3-tier review), REVIEWERS.md (expertise map)
+- **R13:** Build health verification and Phase 1 readiness testing
+- **R14:** dimctl CLI finalization with validate, run, test, lineage, trace, provenance
+
+#### Track B: Ecosystem Adapters (In Progress)
+- **Kafka adapter (PR #14, merged):**
+  - Consumer groups with offset tracking per partition
+  - Configurable compression and ACKs, metadata headers
+  - Integration tests with broker detection
+
+- **AMQP adapter (PR #15, merged):**
+  - Queue-based consumption with manual ack
+  - Configurable exchange types, metadata headers
+  - Integration tests with RabbitMQ
+
+- **S3 adapter (PR #16, merged):**
+  - Bucket polling with LastModified tracking
+  - JSON serialization, metadata headers
+  - Configurable bucket/region/prefix
+
+- **Adapter interface spec (PR #17, merged):**
+  - Source/Sink interfaces matching design spec §8
+  - HealthCheck(), Checkpoint(), Write() → []Result
+  - ADAPTER_SPEC.md with patterns and contract
+
+### Documentation
+- ADAPTER_SPEC.md: interface contract and implementation patterns
+- CODE_REVIEW_WORKFLOW.md: 3-tier governance process
+- REVIEWERS.md: subsystem expertise mapping
+- OKF.md: Phase 1 progress tracking
+- Updated CHANGELOG with Phase 0.5 and 0.6-beta entries
+
 ## Unreleased (Phase 1+)
 
 ### Planned Features
-- Kafka and AMQP adapters
+- Database adapters (CDC, JDBC)
+- Replay tooling
+- PBAC/OPA reference implementation
+- OBO token exchange
+- OpenLineage export with Marquez
 - Schema registry integration
 - Event sourcing patterns
 - Persistent idempotent store (RocksDB)

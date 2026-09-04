@@ -2,11 +2,13 @@
 
 A living document for tracking business intent, architectural decisions, concurrency patterns, state management, security validation, and change history. This grows alongside the codebase as each phase is implemented.
 
-**Current Status:** Phase 0 Complete (M0.1–M0.6) ✅  
+**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R14) ✅ | Phase 1 Track B In Progress  
 **Phase 0 Production Release:** September 3, 2026 (v0.5.0)  
-**Tests Passing:** 440+ (100% with -race flag)
+**Phase 1 Track A Delivered:** Governance, infrastructure, CLI, observability  
+**Phase 1 Track B Status:** Kafka, AMQP, S3 adapters complete with proper interfaces  
+**Tests Passing:** 440+ Phase 0, expanding Phase 1
 
-**Note:** Phase 0 (M0.1–M0.6) is now complete. Decisions below are implemented except where explicitly marked "Phase 1+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
+**Note:** Phase 0 fully implemented and released. Phase 1 Track A complete. Phase 1 Track B (ecosystem adapters) in progress. Decisions below are implemented except where explicitly marked "Phase 1+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
 
 ## Business intent
 
@@ -300,7 +302,60 @@ See phase-0-implementation-plan.md §9 for full risk register. Key items:
 - Is static contract conformance checking worth the partial-coverage risk? (design §18.3)
 - Rename schema-registry `subject` to avoid collision with privacy `subject_id`? (design §18.4)
 
+## Phase 1 Progress
+
+### Track A: Governance & Infrastructure (Complete ✅)
+
+**R1-R5:** Infrastructure and configuration foundations
+- R1: Hot reload verification for Phase 1 readiness
+- R2-R5: CLI tooling, environment configuration, validation stubs
+
+**R6-R7:** First adapters and observability
+- R6: File source adapter with polling and deduplication
+- R7: Real OpenTelemetry SDK integration with OTLP export
+
+**R8-R14:** Engine daemon, CLI, and governance
+- R8: Prometheus metrics collection (histogram→summary for accuracy)
+- R9: dimd daemon with graceful shutdown and lifecycle management
+- R10: midctl → dimctl CLI tool rename with full reference updates
+- R11: ORDERING_FEATURE.md documentation (keeping internal/ordering)
+- R12: CODE_REVIEW_WORKFLOW.md (3-tier review), REVIEWERS.md (expertise map)
+- R13: Build health verification and Phase 1 readiness
+- R14: dimctl CLI finalization (validate, run, test, lineage, trace, provenance)
+
+### Track B: Ecosystem Adapters (In Progress 🔄)
+
+**Kafka (PR #14, merged ✅)**
+- Consumer groups with offset tracking per partition
+- Configurable compression (gzip/snappy/lz4) and ACKs (none/leader/all)
+- Metadata headers for lineage preservation
+
+**AMQP (PR #15, merged ✅)**
+- Queue-based consumption with manual ack
+- Configurable exchange types (direct/fanout/topic/headers)
+- Routing key extraction from headers
+
+**S3 (PR #16, merged ✅)**
+- Bucket polling with LastModified deduplication
+- JSON serialization for writes
+- Configurable bucket/region/prefix
+
+**Adapter Interfaces (PR #17, merged ✅)**
+- Define Source/Sink interfaces matching design spec §8
+- HealthCheck() for connection validation
+- Checkpoint() for offset/cursor resumption
+- Write() returns []Result for per-message tracking
+- ADAPTER_SPEC.md documenting patterns and contract
+
+**Pending Track B Items:**
+- Database adapters (CDC, JDBC)
+- Replay tooling
+- PBAC/OPA reference implementation
+- OBO token exchange
+- OpenLineage export with Marquez
+- Schema Registry contract backing
+
 ---
 
-**Last updated:** 2026-09-01 (Phase 0 scaffold)
+**Last updated:** 2026-09-03 (Phase 1 Track A complete, Track B adapter interfaces)
 **Maintainer:** Naren Chakraview with Claude Code
