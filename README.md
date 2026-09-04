@@ -2,8 +2,10 @@
 
 A declarative, configuration-driven integration middleware for routing, transforming, and auditing messages between systems — without code, configuration-first.
 
-**Status:** ✅ **Phase 0 Production Ready (v0.5.0)**  
-Governance, observability, and audit complete. 440+ tests passing, security audit passed, performance benchmarked.
+**Status:** ✅ **Phase 0 Production Ready (v0.5.0)** | 🔄 **Phase 1 In Progress (v0.6.0-beta)**  
+Phase 0: Governance, observability, and audit complete. 440+ tests passing, security audit passed.  
+Phase 1 Track A: Governance framework, CLI (dimctl), daemon (dimd), OTel integration — complete.  
+Phase 1 Track B: Kafka, AMQP, S3 adapters with design-spec interfaces — complete.
 
 ## What is dim?
 
@@ -85,10 +87,21 @@ curl http://localhost:8081/debug/routes | jq
 
 ## Quick Links
 
+**Phase 0 (v0.5.0):**
 - **[RELEASE_NOTES_v0.5.0.md](RELEASE_NOTES_v0.5.0.md)** — Complete feature list, deployment checklist
-- **[User Guide](USER_GUIDE.md)** — Installation, concepts, project structure
 - **[Security Review](internal/security/SECURITY_REVIEW.md)** — Audit results (no critical issues)
 - **[Performance Results](examples/bench/RESULTS.md)** — Benchmarks and metrics
+
+**Phase 1 (v0.6.0-beta):**
+- **[ADAPTER_SPEC.md](ADAPTER_SPEC.md)** — Source/Sink interface contract, patterns, metadata headers
+- **[CODE_REVIEW_WORKFLOW.md](CODE_REVIEW_WORKFLOW.md)** — 3-tier review governance
+- **[REVIEWERS.md](REVIEWERS.md)** — Subsystem expertise mapping
+- **[KAFKA_ADAPTER.md](KAFKA_ADAPTER.md)** — Kafka consumer/producer configuration and examples
+- **[AMQP_ADAPTER.md](AMQP_ADAPTER.md)** — AMQP queue-based consumption and publishing
+- **[OKF.md](OKF.md)** — Operational knowledge framework (decisions, concurrency patterns, state)
+
+**General:**
+- **[User Guide](USER_GUIDE.md)** — Installation, concepts, project structure
 - **[Design Documents](design/)** — Architecture, EIP mapping, data mesh analysis
 - **[Configuration Examples](examples/fragments/)** — YAML patterns and templates
 
@@ -154,35 +167,38 @@ go test ./... -cover
 ```
 dim/
 ├── cmd/
-│   └── dimctl/            # CLI tool (validate, run)
+│   ├── dimctl/            # CLI tool (validate, run, lineage, trace, provenance)
+│   └── dimd/              # Engine daemon (Phase 1 R9, complete)
 ├── internal/
 │   ├── config/            # YAML + schema validation
 │   ├── engine/            # executor, channels, messages, DLQ
-│   ├── steps/             # EIP steps (filter, translate)
+│   ├── steps/             # EIP steps (filter, translate, authorize)
 │   ├── expr/              # JSONata expression evaluation
-│   ├── adapters/          # sources and sinks (HTTP, file)
+│   ├── adapters/          # Source/Sink interfaces (Phase 1 R17)
+│   │   ├── interfaces.go  # Source/Sink contracts, Result type
+│   │   ├── kafka/         # Consumer groups, offset tracking (Phase 1 R14)
+│   │   ├── amqp/          # Queue-based consumption (Phase 1 R15)
+│   │   ├── s3/            # Bucket polling (Phase 1 R16)
+│   │   ├── file/          # Directory polling, deduplication (Phase 0 R6)
+│   │   └── http/          # HTTP source (Phase 0 M0.1)
+│   ├── lineage/           # SQLite store, retention, purge (Phase 0 M0.4)
+│   ├── observability/     # OTel tracing, Prometheus (Phase 0 M0.5 + Phase 1 R7)
 │   └── factory/           # pipeline builder
 ├── pkg/sdk/               # public SPI (placeholder)
 ├── schemas/               # JSON Schema for routes
 ├── examples/              # sample configurations
 ├── test/fixtures/         # test fixtures
 ├── design/                # architecture docs
-├── graphify-out/          # knowledge graph (architecture AST)
-├── M0.1_COMPLETE.md       # M0.1 walking skeleton documentation
-├── M0.1_PROGRESS.md       # completion status
-├── M0.1_IMPLEMENTATION_ROADMAP.md
+├── graphify-out/          # knowledge graph (1130 nodes, 3352 edges)
+├── ADAPTER_SPEC.md        # Source/Sink interface specification
+├── CODE_REVIEW_WORKFLOW.md # 3-tier review governance
+├── REVIEWERS.md           # subsystem expertise
 ├── USER_GUIDE.md          # developer guide
 ├── DEVELOPMENT.md         # development patterns
 ├── OKF.md                 # operational knowledge framework
+├── CHANGELOG.md           # version history
 └── README.md              # this file
 ```
-
-**M0.2+ directories (deferred):**
-- `cmd/dimd/` — engine daemon
-- `internal/route/` — route model, DAG compilation
-- `internal/lineage/` — lineage store, retention, purge
-- `internal/authz/` — authorization (RBAC/ABAC)
-- `internal/observability/` — metrics, tracing, viewer
 
 See [User Guide — Project structure](USER_GUIDE.md#project-structure-overview) for details.
 
@@ -250,17 +266,34 @@ See [User Guide — Project structure](USER_GUIDE.md#project-structure-overview)
 - ✅ Release notes and deployment checklist
 - ✅ Updated README with quick start
 
-**Phase 1 and later:**
-- **Kafka, AMQP, S3 adapters**
-- **Schema registry integration**
-- **Persistent idempotent store**
-- **Built-in TLS listener**
-- **Distributed consensus for ordering**
-- **WASM expression sandbox**
-- **GraphQL API over lineage**
-- **Kubernetes operator**
+## Phase 1 (v0.6.0-beta) — In Progress 🔄
 
-See [RELEASE_NOTES_v0.5.0.md](RELEASE_NOTES_v0.5.0.md) for complete feature list.
+### Track A: Governance & Infrastructure ✅ Complete
+- ✅ File adapter (Phase 1 R6)
+- ✅ Real OTel SDK integration (Phase 1 R7)
+- ✅ Prometheus metrics (Phase 1 R8)
+- ✅ dimd daemon with graceful shutdown (Phase 1 R9)
+- ✅ dimctl CLI (Phase 1 R10, renamed from midctl)
+- ✅ ORDERING_FEATURE.md documentation (Phase 1 R11)
+- ✅ CODE_REVIEW_WORKFLOW.md + REVIEWERS.md (Phase 1 R12)
+- ✅ Build health verification (Phase 1 R13)
+- ✅ CLI finalization (Phase 1 R14)
+
+### Track B: Ecosystem Adapters ✅ Complete
+- ✅ **Kafka adapter** (consumer groups, offset tracking, compression/ACKs)
+- ✅ **AMQP adapter** (queue-based consumption, exchange routing)
+- ✅ **S3 adapter** (bucket polling, LastModified deduplication)
+- ✅ **Adapter interfaces** (Source/Sink contracts, HealthCheck, Checkpoint, Result types)
+
+### Track B: Remaining Items 🔄 Pending
+- **Database adapters** (CDC, JDBC)
+- **Replay tooling** (resend from lineage)
+- **PBAC/OPA** (policy decision point)
+- **OBO token exchange** (service auth)
+- **OpenLineage export** (Marquez integration)
+- **Schema Registry backing** (contract storage)
+
+See [RELEASE_NOTES_v0.5.0.md](RELEASE_NOTES_v0.5.0.md) for Phase 0 complete feature list. See [ADAPTER_SPEC.md](ADAPTER_SPEC.md) for Phase 1 adapter patterns.
 
 ## Documentation
 

@@ -1,6 +1,11 @@
 # dim — User Guide
 
-**Status:** Phase 0 (M0.1) Walking Skeleton. See [M0.1_COMPLETE.md](M0.1_COMPLETE.md) for full documentation.
+**Status:** Phase 0 (v0.5.0) Complete ✅ | Phase 1 (v0.6.0-beta) In Progress 🔄  
+Phase 0: Core pipeline, reliability, governance, lineage, observability all complete.  
+Phase 1 Track A: Governance framework, CLI, daemon, OTel integration — complete.  
+Phase 1 Track B: Kafka, AMQP, S3 adapters with proper interfaces — complete.
+
+For architecture overview, see [README.md](README.md). For design decisions, see [OKF.md](OKF.md).
 
 ## Quick start
 
@@ -59,35 +64,53 @@ tail -f output/errors.jsonl
 
 ## Project structure overview
 
-### Phase 0 (M0.1) — What's Implemented ✅
+### Phase 0 — Complete ✅
 
 | Directory | Purpose |
 |---|---|
-| `cmd/dimctl` | CLI tool — validate, run routes |
+| `cmd/dimctl` | CLI tool — validate, run, lineage, trace, provenance |
 | `internal/config` | YAML parsing and JSON Schema validation |
-| `internal/engine` | Executor, message envelope, bounded channels, dead-letter queue |
-| `internal/steps` | Step implementations: filter, translate |
-| `internal/expr` | JSONata expression evaluation |
-| `internal/adapters` | HTTP source, file sink adapters |
+| `internal/engine` | Executor, message envelope, bounded channels, DLQ |
+| `internal/steps` | Steps: filter, translate, authorize, idempotent, route |
+| `internal/expr` | JSONata expression evaluation with pluggable functions |
+| `internal/adapters/http` | HTTP source adapter (port 8080) |
+| `internal/adapters/file` | File source/sink adapters with polling |
+| `internal/lineage` | SQLite store, retention policies, purge evidence |
+| `internal/observability` | OTel tracing, Prometheus metrics |
 | `internal/factory` | Pipeline builder pattern |
 | `schemas` | JSON Schema for route validation |
-| `examples` | Sample route configurations |
+| `examples` | Sample route configurations and benchmarks |
 | `test/fixtures` | Test fixture definitions |
 
-### M0.2+ — Deferred
+### Phase 1 Track A — Complete ✅
 
-| Directory | Purpose | Phase |
+| Directory | Purpose |
+|---|---|
+| `cmd/dimd` | Engine daemon with graceful shutdown (R9) |
+| `internal/adapters/interfaces.go` | Source/Sink interface contracts (R17) |
+| `internal/observability/otel_*` | Real OTel SDK with OTLP export (R7) |
+
+### Phase 1 Track B — Complete ✅
+
+| Directory | Purpose |
+|---|---|
+| `internal/adapters/kafka` | Kafka consumer/producer with consumer groups (R14) |
+| `internal/adapters/amqp` | AMQP queue-based source/sink (R15) |
+| `internal/adapters/s3` | S3 bucket polling and write (R16) |
+
+### Phase 1+ — Deferred
+
+| Item | Purpose | Phase |
 |---|---|---|
-| `cmd/dimd` | Engine daemon | M0.2 |
-| `internal/route` | Route model, DAG compilation | M0.2 |
-| `internal/authz` | Authorization (RBAC/ABAC) | M0.5 |
-| `internal/lineage` | Lineage store, retention, purge | M0.4 |
-| `internal/observability` | Metrics, tracing, viewer | M0.3 |
-| `pkg/sdk` | Public SPI for extensions | M0.2+ |
+| `internal/adapters/database` | CDC, JDBC adapters | Phase 1 |
+| `internal/replay` | Replay tooling from lineage | Phase 1 |
+| `internal/pbac` | OPA/PBAC policy engine | Phase 1 |
+| `internal/obo` | OBO token exchange | Phase 1 |
+| `pkg/sdk` | Public SPI for extensions | Phase 2+ |
 
 ## Testing
 
-### Unit tests (Phase 0 — 120/121 passing)
+### Unit tests (Phase 0 — 440+ passing, Phase 1 expanding)
 ```bash
 go test ./...
 ```
@@ -97,7 +120,24 @@ go test ./...
 go test -race ./...
 ```
 
-### Route fixture tests (M0.2+)
+### Integration tests with broker detection
+```bash
+# Kafka (skips if broker unavailable)
+go test ./internal/adapters/kafka -race -v
+
+# AMQP (skips if broker unavailable)
+go test ./internal/adapters/amqp -race -v
+
+# S3 (skips if credentials unavailable)
+go test ./internal/adapters/s3 -race -v
+```
+
+### Benchmarks
+```bash
+go test ./examples/bench -bench=. -benchmem -benchtime=10s
+```
+
+### Route fixture tests (Phase 0+)
 ```bash
 ./dimctl test examples/
 ```
