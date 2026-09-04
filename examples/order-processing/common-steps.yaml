@@ -1,0 +1,33 @@
+# Shared steps and functions for order processing pipeline
+# This file demonstrates:
+# - Fragment reuse via imports
+# - Registered custom functions (Go plugins)
+# - Config composition for DRY route definitions
+
+functions:
+  # normalizePhone: a Go plugin function for normalizing phone numbers
+  # Phase 0 note: Full plugin integration coming in Phase 1.
+  # For now, this documents the intended function definition;
+  # in a real deployment, plugins/normalize_phone would be a compiled Go binary.
+  normalizePhone:
+    type: plugin
+    runtime: go
+    ref: plugins/normalize_phone
+
+  # scoreRisk: a WASM function for risk scoring
+  # Phase 0 note: WASM integration coming in Phase 1.
+  # Documented here for completeness; would be a .wasm binary at runtime.
+  scoreRisk:
+    type: wasm
+    ref: plugins/risk_score.wasm
+
+fragments:
+  # validate-order: common validation steps used by multiple routes
+  # Ensures required fields are present and deduplicates by order_id
+  validate-order:
+    - filter:
+        expr: 'body.id != null and body.amount != null'
+        desc: 'Reject orders missing id or amount'
+    - idempotent:
+        key: 'body.id'
+        desc: 'Deduplicate orders by order id'
