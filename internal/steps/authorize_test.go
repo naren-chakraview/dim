@@ -2,7 +2,12 @@ package steps
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
 )
@@ -571,5 +576,245 @@ func TestAuthorizeStepRBACExactMatch(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestPBACWithMockPDP_Allow verifies PBAC allow flow with mock PDP (M1.2.2)
+func TestPBACWithMockPDP_Allow(t *testing.T) {
+	// Create mock PDP that allows alice
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/data/dim/authorize", func(w http.ResponseWriter, r *http.Request) {
+		var req PDPDecisionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		// Allow if subject is "alice"
+		allowed := req.Principal.Subject == "alice"
+		resp := PDPDecisionResponse{
+			Decision: "allow",
+			Reason:   "alice is authorized",
+		}
+		if !allowed {
+			resp.Decision = "deny"
+			resp.Reason = "only alice is authorized"
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// Create PBAC step pointing to mock PDP
+	step, err := NewAuthorizeStep("pbac", nil, "", server.URL+"/v1/data/dim/authorize", 5000)
+	if err != nil {
+		t.Fatalf("NewAuthorizeStep failed: %v", err)
+	}
+
+	ctx := context.Background()
+	msg := engine.NewMessage(map[string]interface{}{"action": "process"}, "test-route", "v1")
+	msg.Metadata.Principal = &engine.Principal{
+		Subject: "alice",
+		Roles:   []string{"seller"},
+	}
+
+	result, err := step.Execute(ctx, msg)
+
+	if err != nil {
+		t.Fatalf("Expected allow for alice, got error: %v", err)
+	}
+	if result == nil {
+		t.Error("Expected message to pass through, got nil")
+	}
+}
+
+// TestPBACWithMockPDP_Deny verifies PBAC deny flow with mock PDP (M1.2.2)
+func TestPBACWithMockPDP_Deny(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/data/dim/authorize", func(w http.ResponseWriter, r *http.Request) {
+		var req PDPDecisionRequest
+		json.NewDecoder(r.Body).Decode(&req)
+
+		allowed := req.Principal.Subject == "alice"
+		resp := PDPDecisionResponse{
+			Decision: "allow",
+		}
+		if !allowed {
+			resp.Decision = "deny"
+			resp.Reason = "only alice is authorized"
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	step, err := NewAuthorizeStep("pbac", nil, "", server.URL+"/v1/data/dim/authorize", 5000)
+	if err != nil {
+		t.Fatalf("NewAuthorizeStep failed: %v", err)
+	}
+
+	ctx := context.Background()
+	msg := engine.NewMessage(map[string]interface{}{"action": "process"}, "test-route", "v1")
+	msg.Metadata.Principal = &engine.Principal{
+		Subject: "bob",
+		Roles:   []string{"viewer"},
+	}
+
+	result, err := step.Execute(ctx, msg)
+
+	if err == nil {
+		t.Error("Expected deny for bob, got no error")
+	}
+	if result != nil {
+		t.Error("Expected nil message for denied request")
+	}
+	if !strings.Contains(err.Error(), "authorization_denied") {
+		t.Errorf("Expected authorization_denied error, got: %v", err)
+	}
+}
+
+// TestPBACWithMockPDP_Timeout verifies PBAC timeout handling (M1.2.2)
+func TestPBACWithMockPDP_Timeout(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/data/dim/authorize", func(w http.ResponseWriter, r *http.Request) {
+		// Simulate slow PDP
+		time.Sleep(500 * time.Millisecond)
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(PDPDecisionResponse{Decision: "allow"})
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	// Short timeout: 100ms (PDP takes 500ms)
+	step, err := NewAuthorizeStep("pbac", nil, "", server.URL+"/v1/data/dim/authorize", 100)
+	if err != nil {
+		t.Fatalf("NewAuthorizeStep failed: %v", err)
+	}
+
+	ctx := context.Background()
+	msg := engine.NewMessage(map[string]interface{}{}, "test-route", "v1")
+	msg.Metadata.Principal = &engine.Principal{Subject: "alice"}
+
+	result, err := step.Execute(ctx, msg)
+
+	if err == nil {
+		t.Error("Expected timeout error, got none")
+	}
+	if result != nil {
+		t.Error("Expected nil message on timeout")
+	}
+	// Error should mention context deadline (timeout)
+	if !strings.Contains(err.Error(), "context deadline exceeded") &&
+		!strings.Contains(err.Error(), "deadline exceeded") {
+		t.Logf("Timeout error: %v", err)
+	}
+}
+
+// TestPBACWithMockPDP_PDPError verifies PBAC error handling for PDP connection failures (M1.2.2)
+func TestPBACWithMockPDP_PDPError(t *testing.T) {
+	// Point to non-existent PDP endpoint
+	step, err := NewAuthorizeStep("pbac", nil, "", "http://localhost:19999", 5000)
+	if err != nil {
+		t.Fatalf("NewAuthorizeStep failed: %v", err)
+	}
+
+	ctx := context.Background()
+	msg := engine.NewMessage(map[string]interface{}{}, "test-route", "v1")
+	msg.Metadata.Principal = &engine.Principal{Subject: "alice"}
+
+	result, err := step.Execute(ctx, msg)
+
+	if err == nil {
+		t.Error("Expected error for PDP connection failure, got none")
+	}
+	if result != nil {
+		t.Error("Expected nil message on PDP connection failure")
+	}
+	if !strings.Contains(err.Error(), "PDP request failed") {
+		t.Errorf("Expected 'PDP request failed' in error, got: %v", err)
+	}
+}
+
+// TestPBACWithMockPDP_MalformedResponse verifies PBAC error handling for malformed PDP responses (M1.2.2)
+func TestPBACWithMockPDP_MalformedResponse(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/data/dim/authorize", func(w http.ResponseWriter, r *http.Request) {
+		// Send invalid JSON
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte("not valid json"))
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	step, err := NewAuthorizeStep("pbac", nil, "", server.URL+"/v1/data/dim/authorize", 5000)
+	if err != nil {
+		t.Fatalf("NewAuthorizeStep failed: %v", err)
+	}
+
+	ctx := context.Background()
+	msg := engine.NewMessage(map[string]interface{}{}, "test-route", "v1")
+	msg.Metadata.Principal = &engine.Principal{Subject: "alice"}
+
+	result, err := step.Execute(ctx, msg)
+
+	if err == nil {
+		t.Error("Expected error for malformed response, got none")
+	}
+	if result != nil {
+		t.Error("Expected nil message on malformed response")
+	}
+	if !strings.Contains(err.Error(), "parse PDP response") {
+		t.Errorf("Expected 'parse PDP response' in error, got: %v", err)
+	}
+}
+
+// TestPBACWithMockPDP_ObligationsIncluded verifies PBAC processes obligations from PDP (M1.2.2)
+func TestPBACWithMockPDP_ObligationsIncluded(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/v1/data/dim/authorize", func(w http.ResponseWriter, r *http.Request) {
+		resp := PDPDecisionResponse{
+			Decision: "allow",
+			Obligations: []PDPObligation{
+				{
+					Type: "redact_fields",
+					Parameters: map[string]interface{}{
+						"fields": []string{"ssn", "credit_card"},
+					},
+				},
+			},
+			Reason: "allowed with redaction",
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+	})
+
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	step, err := NewAuthorizeStep("pbac", nil, "", server.URL+"/v1/data/dim/authorize", 5000)
+	if err != nil {
+		t.Fatalf("NewAuthorizeStep failed: %v", err)
+	}
+
+	ctx := context.Background()
+	msg := engine.NewMessage(map[string]interface{}{}, "test-route", "v1")
+	msg.Metadata.Principal = &engine.Principal{Subject: "alice"}
+
+	result, err := step.Execute(ctx, msg)
+
+	// Should allow despite obligations (future M1.x: enforce obligations)
+	if err != nil {
+		t.Fatalf("Expected allow with obligations, got error: %v", err)
+	}
+	if result == nil {
+		t.Error("Expected message to pass through")
 	}
 }

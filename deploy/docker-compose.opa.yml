@@ -1,0 +1,28 @@
+# Docker Compose for local OPA deployment (M1.2.3)
+# Run with: docker-compose -f deploy/docker-compose.opa.yml up
+# OPA will be available at http://localhost:8181
+
+version: '3.8'
+
+services:
+  opa:
+    image: openpolicyagent/opa:latest
+    ports:
+      - "8181:8181"
+    command: run --server
+    volumes:
+      - ./examples/opa:/policies
+    environment:
+      # Load policies from /policies directory
+      OPA_ARGS: "--bundle=/policies"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8181/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dim
+
+networks:
+  dim:
+    name: dim-network

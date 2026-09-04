@@ -115,9 +115,23 @@ type IdempotentSpec struct {
 
 // AuthorizeSpec defines an authorization step
 type AuthorizeSpec struct {
-	Mode         string   `yaml:"mode" json:"mode"`                   // "rbac" or "abac"
-	RequireRoles []string `yaml:"require_roles,omitempty" json:"require_roles,omitempty"` // for RBAC mode
-	Expr         string   `yaml:"expr,omitempty" json:"expr,omitempty"`                   // for ABAC mode
+	Mode         string      `yaml:"mode" json:"mode"`                   // "rbac", "abac", or "pbac"
+	RequireRoles []string    `yaml:"require_roles,omitempty" json:"require_roles,omitempty"` // for RBAC mode
+	Expr         string      `yaml:"expr,omitempty" json:"expr,omitempty"`                   // for ABAC mode
+	PDP          *PDPConfig  `yaml:"pdp,omitempty" json:"pdp,omitempty"`                     // for PBAC mode (M1.2)
+	OnDeny       *OnDenySpec `yaml:"on_deny,omitempty" json:"on_deny,omitempty"`             // routing on authorization denial (M1.2)
+}
+
+// PDPConfig defines the Policy Decision Point configuration for PBAC mode (M1.2)
+type PDPConfig struct {
+	Endpoint string                 `yaml:"endpoint" json:"endpoint"`                     // PDP service endpoint (e.g., http://localhost:8181)
+	Timeout  int                    `yaml:"timeout,omitempty" json:"timeout,omitempty"`   // timeout in milliseconds (default: 5000)
+	Extra    map[string]interface{} `yaml:",inline" json:"-"`                             // extensibility for custom PDP implementations
+}
+
+// OnDenySpec defines routing for authorization denials (M1.2)
+type OnDenySpec struct {
+	Target string `yaml:"target" json:"target"` // sink name to route denied messages to
 }
 
 // ContractSpec defines a data contract with JSON Schema validation (M0.3.5-7)
