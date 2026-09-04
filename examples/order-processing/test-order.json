@@ -1,0 +1,8 @@
+{
+  "id": "order-12345",
+  "customer_name": "Alice Johnson",
+  "amount": 15000,
+  "currency": "USD",
+  "phone": "+1-415-555-1234",
+  "status": "active"
+}
