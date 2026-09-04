@@ -49,14 +49,9 @@ func TestAMQPSourceBasic(t *testing.T) {
 	}
 
 	// Consume message from source
-	timeout := time.After(3 * time.Second)
-	var receivedMsg *engine.Message
-
-	select {
-	case receivedMsg = <-outChan.Out:
-		// Success
-	case <-timeout:
-		t.Fatal("timeout waiting for message")
+	receivedMsg, err := outChan.Recv(ctx)
+	if err != nil {
+		t.Fatalf("failed to receive message: %v", err)
 	}
 
 	if receivedMsg == nil {

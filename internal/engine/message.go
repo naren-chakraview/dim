@@ -42,6 +42,15 @@ type Metadata struct {
 
 	// Principal is the authenticated caller (if available)
 	Principal *Principal `json:"principal,omitempty"`
+
+	// ReplayCount tracks how many times this message has been replayed (M1.8)
+	ReplayCount int `json:"replay_count,omitempty"`
+
+	// ReplayHistory records each replay operation (M1.8.3)
+	ReplayHistory []*ReplayEntry `json:"replay_history,omitempty"`
+
+	// ErrorType records the type of error that caused DLQ (M1.8)
+	ErrorType string `json:"error_type,omitempty"`
 }
 
 // Principal represents an authenticated identity
@@ -86,4 +95,11 @@ func (m *Message) Copy() *Message {
 func generateCorrelationID() string {
 	// Phase 0: simple timestamp-based ID. Phase 1+ can use UUIDv4
 	return time.Now().UTC().Format("20060102150405000000")
+}
+
+// ReplayEntry records a replay operation for audit trail (M1.8.3)
+type ReplayEntry struct {
+	Timestamp time.Time `json:"timestamp"`
+	Attempt   int       `json:"attempt"`
+	Initiator string    `json:"initiator"`
 }
