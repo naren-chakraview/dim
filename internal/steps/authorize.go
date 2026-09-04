@@ -163,6 +163,23 @@ func (as *AuthorizeStep) executeABAC(principal *engine.Principal, msg *engine.Me
 	return msg, nil
 }
 
+// isTruthy converts a value to boolean using JavaScript truthiness rules
+func isTruthy(val interface{}) bool {
+	if val == nil {
+		return false
+	}
+	if b, ok := val.(bool); ok {
+		return b
+	}
+	if s, ok := val.(string); ok {
+		return s != ""
+	}
+	if f, ok := val.(float64); ok {
+		return f != 0
+	}
+	return true
+}
+
 // executePBAC evaluates authorization against an external Policy Decision Point (M1.2)
 // Follows the neutral PDP contract defined in design/PDP_CONTRACT_SPEC.md
 func (as *AuthorizeStep) executePBAC(ctx context.Context, principal *engine.Principal, msg *engine.Message) (*engine.Message, error) {
