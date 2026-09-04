@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/naren-chakraview/dim/internal/adapters"
 	"github.com/naren-chakraview/dim/internal/engine"
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -106,21 +107,30 @@ func NewAMQPSinkWithConfig(config SinkConfig) (*AMQPSink, error) {
 	return sink, nil
 }
 
-// Write writes messages to AMQP
-// Implements the sink interface: Write(ctx context.Context, messages ...*engine.Message) error
-func (as *AMQPSink) Write(ctx context.Context, messages ...*engine.Message) error {
+// Write writes messages to AMQP and returns a result for each message
+func (as *AMQPSink) Write(ctx context.Context, messages ...*engine.Message) []adapters.Result {
 	as.mu.Lock()
 	if as.closed {
 		as.mu.Unlock()
-		return fmt.Errorf("sink is closed")
+		results := make([]adapters.Result, len(messages))
+		for i, msg := range messages {
+			results[i] = adapters.Result{
+				Message: msg,
+				Error:   fmt.Errorf("sink is closed"),
+				Success: false,
+			}
+		}
+		return results
 	}
 	as.mu.Unlock()
 
 	if len(messages) == 0 {
-		return nil
+		return []adapters.Result{}
 	}
 
-	for _, msg := range messages {
+	results := make([]adapters.Result, len(messages))
+
+	for i, msg := range messages {
 		// Serialize body to JSON
 		var body []byte
 		var err error
@@ -134,7 +144,12 @@ func (as *AMQPSink) Write(ctx context.Context, messages ...*engine.Message) erro
 			body, err = json.Marshal(msg.Body)
 			if err != nil {
 				as.recordError(err)
-				return fmt.Errorf("failed to marshal message: %w", err)
+				results[i] = adapters.Result{
+					Message: msg,
+					Error:   err,
+					Success: false,
+				}
+				continue
 			}
 		}
 
@@ -151,7 +166,7 @@ func (as *AMQPSink) Write(ctx context.Context, messages ...*engine.Message) erro
 		for headerKey, headerVal := range msg.Headers {
 			if headerKey == "amqp_routing_key" || headerKey == "amqp_exchange" ||
 			   headerKey == "amqp_delivery_tag" {
-				continue // Skip AMQP metadata
+				continue
 			}
 			headers[headerKey] = headerVal
 		}
@@ -177,7 +192,12 @@ func (as *AMQPSink) Write(ctx context.Context, messages ...*engine.Message) erro
 		)
 		if err != nil {
 			as.recordError(err)
-			return fmt.Errorf("failed to publish message: %w", err)
+			results[i] = adapters.Result{
+				Message: msg,
+				Error:   err,
+				Success: false,
+			}
+			continue
 		}
 
 		// Update metrics
@@ -185,9 +205,15 @@ func (as *AMQPSink) Write(ctx context.Context, messages ...*engine.Message) erro
 		as.metrics.published++
 		as.metrics.bytes += int64(len(body))
 		as.mu.Unlock()
+
+		results[i] = adapters.Result{
+			Message: msg,
+			Error:   nil,
+			Success: true,
+		}
 	}
 
-	return nil
+	return results
 }
 
 // Start is a no-op for sinks (they don't have an active listener)
@@ -228,4 +254,15 @@ func (as *AMQPSink) GetMetrics() map[string]interface{} {
 		"bytes_published":    as.metrics.bytes,
 		"last_error":         as.metrics.lastError,
 	}
+}
+
+// HealthCheck verifies the AMQP sink connection is alive
+func (as *AMQPSink) HealthCheck(ctx context.Context) error {
+	if as.conn == nil || as.channel == nil {
+		return fmt.Errorf("AMQP connection or channel not initialized")
+	}
+	if as.conn.IsClosed() {
+		return fmt.Errorf("AMQP connection is closed")
+	}
+	return nil
 }

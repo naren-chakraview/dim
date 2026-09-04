@@ -1,5 +1,5 @@
 package adapters
 
 // Sink adapter types and interfaces.
-// See engine package for actual interface definitions (SourceAdapter, SinkAdapter)
-// to avoid circular imports.
+// See interfaces.go for Sink interface definition and Result type.
+// Implementations: kafka.KafkaSink, amqp.AMQPSink, s3.S3Sink, file.FileSink
