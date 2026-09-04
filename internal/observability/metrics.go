@@ -211,10 +211,11 @@ func (mc *MetricsCollector) GetMetrics() string {
 		output += "\n"
 	}
 
-	// Write histograms: message_latency_ms with quantiles
+	// Write summaries: message_latency_ms with quantiles
+	// Fixed from histogram to summary (matches the quantile-based output format)
 	if len(mc.messageLatencies) > 0 {
 		output += "# HELP dim_message_latency_ms Message processing latency in milliseconds\n"
-		output += "# TYPE dim_message_latency_ms histogram\n"
+		output += "# TYPE dim_message_latency_ms summary\n"
 		for route, latencies := range mc.messageLatencies {
 			if len(latencies) > 0 {
 				p50 := getPercentile(latencies, 0.50)
