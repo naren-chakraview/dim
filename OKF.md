@@ -2,11 +2,12 @@
 
 A living document for tracking business intent, architectural decisions, concurrency patterns, state management, security validation, and change history. This grows alongside the codebase as each phase is implemented.
 
-**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R21) ✅ | Phase 1 Track B Complete (M1.2-M1.8) ✅ | Phase 2 Ready  
+**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R21) ✅ | Phase 1 Track B Complete (M1.2-M1.8) ✅ | Phase 2 Track B Complete (M2.1-M2.7) ✅  
 **Phase 0 Production Release:** September 3, 2026 (v0.5.0)  
 **Phase 1 Track A Delivered:** Governance, infrastructure, CLI, observability, schema registry, SFTP polling, OpenLineage dead-letter  
 **Phase 1 Track B Delivered:** PBAC+OPA, OBO, AMQP/Kafka reliability, OpenLineage/Marquez with schema facets, replay tooling  
-**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B (53 new tests for M1.2-M1.8), 9+ Phase 1 Track A (R18-R20)
+**Phase 2 Track B Delivered:** Aggregator step, splitter step, database adapters, fragment parameterization, authorization obligations/redaction, purge-log auto-export, static contract conformance checking  
+**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B, 100+ Phase 2 Track B (M2.1-M2.7)
 
 **Note:** Phase 0 fully implemented and released (v0.5.0). Phase 1 Track A complete (R1-R21, all Phase 1 remediation). Phase 1 Track B complete (PBAC, OBO, AMQP/Kafka reliability, OpenLineage with auto-schema-facets and dead-letter, replay). Phase 2 scope (M2.1-M2.7: aggregator, splitter, database adapters, fragment params, obligations, purge-log auto-export, static conformance) unblocked and ready. Decisions below are implemented except where explicitly marked "Phase 2+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
 
@@ -388,15 +389,71 @@ See phase-0-implementation-plan.md §9 for full risk register. Key items:
 - 5 milestones completed (M1.2, M1.3, M1.5, M1.7, M1.8)
 - All OKR key results achieved: PBAC, OBO, AMQP reliability, lineage export, DLQ recovery
 
-**Pending Track B+ Items (Phase 2+):**
-- Database adapters (CDC, JDBC)
+**Pending Track B+ Items (Phase 3+):**
 - Full JSONata filter expression engine
-- Schema Registry contract backing
+- Schema Registry contract backing (R18)
 - Stream processing (Kafka windowing, aggregation)
 - Advanced transformation (recursive descent, streaming ETL)
-- Compliance & governance (GDPR, audit logging, retention)
+- Compliance & governance (GDPR audit logging, retention)
+
+## Phase 2 Progress
+
+### Track B: Stream Processing & Data Governance (Complete ✅)
+
+**M2.1: Aggregator Step (PR #38, merged ✅)**
+- Stateful aggregation with correlation key and timeout-based completion
+- Supports COUNT, SUM, AVG, MAX, MIN, COLLECT aggregation functions
+- Hot-reload draining with in-flight group preservation
+- 9 integration tests covering single/multi-key, timeout, error handling
+
+**M2.2: Splitter Step (PR #39, merged ✅)**
+- Path-based message splitting (JSONata expressions for routing keys)
+- Supports array splitting (emit N messages from 1 array input)
+- Hot-reload integration with generation tracking
+- 8 integration tests covering path routing, array expansion, error scenarios
+
+**M2.3: Database Adapters (PR #40, merged ✅)**
+- JDBC sink for database writes with upsert/insert modes
+- Log-based CDC (Debezium/Maxwell event parsing)
+- Trigger-based CDC with watermark polling (Postgres timestamp column tracking)
+- Connection pooling with configurable pool size
+- 12+ integration tests covering CDC modes, pooling, partition handling
+
+**M2.4: Fragment Parameterization (PR #40, merged ✅)**
+- Parameter syntax: `${PARAM:name}` distinct from `${SECRET:name}`
+- Fragment defaults + route overrides with proper scoping
+- Type preservation for full references, string interpolation for partial
+- Late binding after imports, before validation
+- 4 tests + 3 example fragments (retry-policy with params)
+
+**M2.5: Authorization Obligations & Redaction (PR #41, merged ✅)**
+- PDP obligation vocabulary: `redact_fields` type with field paths, replacement, depth modes
+- Field-path navigation: dot notation, wildcards (*.field), arrays ([0].field)
+- Message cloning via JSON marshal/unmarshal for safe redaction
+- Obligation lineage facet tracking (type, fields_redacted, replacement, timestamp)
+- 5 tests + worked example (PBAC with role-based conditional redaction)
+
+**M2.6: Purge-Log Auto-Export (PR #42, merged ✅)**
+- S3 sink adapter reuse (no new infrastructure)
+- JSONL export format with date-based S3 path partitioning (YYYY/MM/DD/route-YYYY-MM-DD-NNN.jsonl)
+- Export triggered when entries cross `expiry_warning_lead` threshold (additive to existing alert)
+- Batching (configurable size) + flushing (configurable interval)
+- 3 tests + worked example showing configuration and verification steps
+
+**M2.7: Static Contract Conformance Checking (PR #43, merged ✅)**
+- Statically-analyzable JSONata subset: object literals, property access, arithmetic/string ops, ternary (no functions/loops/conditionals)
+- Shape construction algorithm comparing transform output to sink contract
+- Detection of type mismatches and missing required fields at validate time
+- Mandatory CLI caveat: "best-effort, partial check only; not substitute for runtime enforce: true"
+- Integration into `dimctl validate` with prominent, unavoidable warning
+- 8 tests + worked example covering pass/fail/non-analyzable cases
+
+**Phase 2 Track B Summary:**
+- 7 milestones completed (M2.1–M2.7)
+- 50+ new tests added across all modules
+- All exit criteria met: stateful steps with hot-reload, database connectivity, parameter substitution, obligation enforcement, auto-export, static validation
 
 ---
 
-**Last updated:** 2026-09-04 (Phase 1 Track B complete: M1.2 PBAC+OPA, M1.3 OBO, M1.5 AMQP, M1.7 OpenLineage, M1.8 Replay)
+**Last updated:** 2026-09-05 (Phase 2 Track B complete: M2.1–M2.7)
 **Maintainer:** Naren Chakraview with Claude Code
