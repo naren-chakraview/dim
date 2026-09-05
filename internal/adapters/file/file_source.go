@@ -3,13 +3,22 @@ package file
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
+	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
 )
+
+// resolveSecret resolves ${SECRET:name} references from environment variables.
+// Returns the environment variable value, or empty string if not found.
+func resolveSecret(ref string) string {
+	return os.Getenv(ref)
+}
 
 // FileSource is a file polling source adapter that monitors a directory for new files
 // and converts them into messages sent to an output channel.
@@ -182,23 +191,117 @@ func (fs *FileSource) pollLocal(ctx context.Context) error {
 	return nil
 }
 
-// pollSFTP polls an SFTP server for new files
-// Phase 1 implementation: basic SFTP connection and file listing
-// Full RPC and credential handling deferred to R5 (plugin runtime)
+// pollSFTP polls an SFTP server for new files (R21.2).
+// Supports both password and private-key authentication.
+// Credentials are resolved from environment variables via resolveSecret.
 func (fs *FileSource) pollSFTP(ctx context.Context) error {
-	// Phase 1 spike: document the interface contract
-	// For now, return a placeholder indicating SFTP polling is ready to integrate
-	// when the SFTP client library is added to go.mod
+	// Build SSH authentication config
+	config := &ssh.ClientConfig{
+		User:            fs.config.SFTPUser,
+		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: use known_hosts for production
+		Timeout:         10 * time.Second,
+	}
 
-	// Intended flow:
-	// 1. Connect to SFTP server (fs.config.SFTPHost:fs.config.SFTPPort)
-	// 2. Authenticate using fs.config.SFTPUser + password/key
-	// 3. List files in fs.config.Path
-	// 4. Compare mod times against fs.lastModTime to detect new/changed files
-	// 5. Download new files and send as messages
-	// 6. Track fs.lastModTime and optionally move processed files
+	// Try password auth first if password is set
+	if fs.config.SFTPPassword != "" {
+		password := resolveSecret(fs.config.SFTPPassword)
+		if password != "" {
+			config.Auth = []ssh.AuthMethod{ssh.Password(password)}
+		}
+	}
 
-	return fmt.Errorf("SFTP polling not yet implemented (phase 1 infrastructure); use local file source for now")
+	// Try key auth if key file is set
+	if fs.config.SFTPKeyFile != "" {
+		keyData, err := os.ReadFile(fs.config.SFTPKeyFile)
+		if err != nil {
+			return fmt.Errorf("failed to read SSH key file: %w", err)
+		}
+
+		// Try to parse as private key
+		signer, err := ssh.ParsePrivateKey(keyData)
+		if err != nil {
+			return fmt.Errorf("failed to parse SSH key: %w", err)
+		}
+
+		config.Auth = []ssh.AuthMethod{ssh.PublicKeys(signer)}
+	}
+
+	if len(config.Auth) == 0 {
+		return fmt.Errorf("no SFTP authentication method configured (password or key required)")
+	}
+
+	// Set default port if not specified
+	port := fs.config.SFTPPort
+	if port == 0 {
+		port = 22
+	}
+
+	// Connect to SSH server
+	addr := fmt.Sprintf("%s:%d", fs.config.SFTPHost, port)
+	conn, err := ssh.Dial("tcp", addr, config)
+	if err != nil {
+		return fmt.Errorf("failed to connect to SFTP server %s: %w", addr, err)
+	}
+	defer conn.Close()
+
+	// Create SFTP client
+	client, err := sftp.NewClient(conn)
+	if err != nil {
+		return fmt.Errorf("failed to create SFTP client: %w", err)
+	}
+	defer client.Close()
+
+	// List files in the remote directory
+	entries, err := client.ReadDir(fs.config.Path)
+	if err != nil {
+		return fmt.Errorf("failed to list SFTP directory %s: %w", fs.config.Path, err)
+	}
+
+	// Process each file
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		filename := entry.Name()
+		remotePath := filepath.Join(fs.config.Path, filename)
+
+		// Check if we've already processed this file
+		lastMod := entry.ModTime()
+		if lastModTime, exists := fs.lastModTime[remotePath]; exists && lastMod.Equal(lastModTime) {
+			// File hasn't been modified since last poll
+			continue
+		}
+
+		// Download file
+		remoteFile, err := client.Open(remotePath)
+		if err != nil {
+			log.Printf("[WARN] failed to open SFTP file %s: %v", remotePath, err)
+			continue
+		}
+
+		data, err := io.ReadAll(remoteFile)
+		remoteFile.Close()
+		if err != nil {
+			log.Printf("[WARN] failed to read SFTP file %s: %v", remotePath, err)
+			continue
+		}
+
+		// Create a message from the file content
+		msg := engine.NewMessage(string(data), "sftp-source", "")
+		msg.Headers["source_file"] = filename
+		msg.Headers["source_path"] = remotePath
+		msg.Headers["source_host"] = fs.config.SFTPHost
+
+		// Send to output channel
+		if err := fs.outChan.Send(ctx, msg); err != nil {
+			log.Printf("[WARN] failed to send SFTP file message: %v", err)
+			continue
+		}
+		fs.lastModTime[remotePath] = lastMod
+	}
+
+	return nil
 }
 
 // Close closes the file source and stops polling
