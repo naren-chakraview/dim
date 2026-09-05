@@ -1,0 +1,22 @@
+version: '3.8'
+
+services:
+  sftp:
+    image: atmoz/sftp:latest
+    container_name: sftp-test-server
+    ports:
+      - "2222:22"
+    volumes:
+      - sftp-data:/home/testuser/upload
+      - ./sftp-keys:/home/testuser/.ssh/keys:ro
+    environment:
+      - SFTP_USERS=testuser:testpass:1001
+    healthcheck:
+      test: ["CMD", "sftp", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5", "testuser@localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: testuser:testpass:1001
+
+volumes:
+  sftp-data:
