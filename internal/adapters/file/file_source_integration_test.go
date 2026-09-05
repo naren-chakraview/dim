@@ -45,12 +45,10 @@ func TestFileSourceLocalPolling(t *testing.T) {
 	}
 
 	// Wait for message to be sent
-	timeout := time.After(2 * time.Second)
-	var msg *engine.Message
-	select {
-	case msg = <-outChan.Out:
-		// Success
-	case <-timeout:
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer waitCancel()
+	msg, err := outChan.Recv(waitCtx)
+	if err != nil {
 		t.Fatal("timeout waiting for file message")
 	}
 
@@ -102,27 +100,26 @@ func TestFileSourceDeduplication(t *testing.T) {
 		errChan <- source.Start(ctx)
 	}()
 
-	// Wait for initial poll and message
-	timeout := time.After(2 * time.Second)
 	msgCount := 0
 
 	// First message should arrive (initial poll)
-	select {
-	case <-outChan.Out:
-		msgCount++
-	case <-timeout:
+	msgCtx, msgCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer msgCancel()
+	_, recvErr := outChan.Recv(msgCtx)
+	if recvErr != nil {
 		t.Fatal("timeout waiting for first message")
 	}
+	msgCount++
 
 	// Wait for two more poll cycles without new files
 	time.Sleep(300 * time.Millisecond)
 
 	// Collect any additional messages (should be none for unchanged file)
-	select {
-	case <-outChan.Out:
+	checkCtx, checkCancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer checkCancel()
+	_, err2 := outChan.Recv(checkCtx)
+	if err2 == nil {
 		msgCount++
-	case <-time.After(100 * time.Millisecond):
-		// No additional messages (expected)
 	}
 
 	if msgCount > 1 {
@@ -166,16 +163,16 @@ func TestFileSourceMultipleFiles(t *testing.T) {
 	}()
 
 	// Collect all messages
-	timeout := time.After(2 * time.Second)
 	messages := make([]*engine.Message, 0, len(files))
 
 	for i := 0; i < len(files); i++ {
-		select {
-		case msg := <-outChan.Out:
-			messages = append(messages, msg)
-		case <-timeout:
+		collectCtx, collectCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer collectCancel()
+		msg, err := outChan.Recv(collectCtx)
+		if err != nil {
 			t.Fatalf("timeout: only got %d/%d messages", len(messages), len(files))
 		}
+		messages = append(messages, msg)
 	}
 
 	// Verify all files were sent

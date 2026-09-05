@@ -1,0 +1,98 @@
+version: 1
+sources:
+  - name: sftp-source
+    type: sftp
+    config:
+      host: sftp.example.com
+      port: 22
+      user: sftp_user
+      password: ${SECRET:SFTP_PASSWORD}  # Resolved from environment variable
+      path: /remote/upload              # Remote directory to poll
+      schedule: "5m"                     # Poll every 5 minutes
+
+sinks:
+  - name: processed-files
+    type: file
+    config:
+      path: ./output/sftp-ingested       # Save ingested files locally
+
+  - name: error-sink
+    type: file
+    config:
+      path: ./output/sftp-errors         # Save failed messages
+
+routes:
+  - name: sftp-ingestion
+    sources:
+      - sftp-source
+    steps:
+      # Optional: Parse JSON if files are JSON documents
+      - id: parse-json
+        type: translate
+        config:
+          expression: "json_parse($)" # Parse if JSON, otherwise use as-is
+          error_handling: pass         # Don't fail on parse errors
+
+      # Add metadata about the source
+      - id: enrich-metadata
+        type: translate
+        config:
+          expression: "{
+            content: $,
+            ingested_at: now(),
+            source_file: $headers.source_file,
+            source_host: $headers.source_host,
+            source_path: $headers.source_path
+          }"
+
+    sinks:
+      - name: processed-files
+        description: "Successfully processed SFTP files"
+
+    error_path:
+      target: error-sink
+      description: "Files that failed processing"
+
+# Documentation
+description: |
+  SFTP File Ingestion Example (R21.4)
+
+  This route demonstrates real SFTP file polling. Files are:
+  1. Polled from a remote SFTP server every 5 minutes
+  2. Parsed as JSON if applicable (parse errors are passed through)
+  3. Enriched with metadata (ingestion timestamp, source info)
+  4. Written to local output directory
+
+  To run this example:
+
+  1. Set up SFTP credentials:
+     export SFTP_PASSWORD="your-password"
+
+  2. Start dim with this route:
+     dimctl run examples/sftp-ingestion.yaml
+
+  3. Monitor output:
+     ls -la output/sftp-ingested/  # Successfully ingested files
+     ls -la output/sftp-errors/    # Files that failed
+
+  Alternative: Use Docker SFTP for testing:
+
+  1. Start test SFTP server:
+     docker-compose -f deploy/docker-compose.sftp.yml up
+
+  2. Update config to point to localhost:
+     host: localhost
+     port: 2222
+     user: testuser
+     password: ${SECRET:SFTP_PASSWORD}
+
+  3. Set test password:
+     export SFTP_PASSWORD="testpass"
+
+  4. Upload test files to SFTP server:
+     sftp -o StrictHostKeyChecking=no testuser@localhost:2222
+     cd upload
+     put /path/to/file.json
+     exit
+
+  5. Run the example - files should appear in output/sftp-ingested/
