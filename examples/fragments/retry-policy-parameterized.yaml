@@ -1,0 +1,24 @@
+# Retry policy fragment with parameters (M2.4.3)
+# This fragment can be imported with different retry configurations per route
+#
+# Default parameters: maxRetries=3, backoffMultiplier=2.0, maxBackoffSec=300
+#
+# Usage:
+#   $import: retry-policy-parameterized.yaml
+#   $params:
+#     maxRetries: 5          # Override default 3
+#     backoffMultiplier: 1.5 # Override default 2.0
+
+$params:
+  maxRetries: 3           # Default: 3 retries
+  backoffMultiplier: 2.0  # Default: exponential backoff (2x)
+  maxBackoffSec: 300      # Default: max 5 minutes
+
+steps:
+  - name: retry-handler
+    type: idempotent
+    config:
+      max_retries: ${PARAM:maxRetries}
+      backoff_multiplier: ${PARAM:backoffMultiplier}
+      max_backoff_sec: ${PARAM:maxBackoffSec}
+      strategy: exponential_backoff

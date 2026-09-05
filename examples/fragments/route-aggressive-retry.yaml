@@ -1,0 +1,37 @@
+# Route using retry policy fragment with aggressive retry settings (M2.4.3)
+# Overrides retry parameters: 10 retries max, faster backoff
+
+$import: retry-policy-parameterized.yaml
+
+$params:
+  maxRetries: 10          # More aggressive: 10 retries
+  backoffMultiplier: 3.0  # Faster backoff growth: 3x instead of 2x
+  maxBackoffSec: 600      # Max 10 minutes (longer overall timeout)
+
+routes:
+  payments-aggressive:
+    description: "Payment processing with aggressive retry policy for critical transactions"
+    version: v1
+    from: kafka-payments
+    auth: required
+    steps:
+      # Retry step now uses overridden parameters:
+      # max_retries: 10, backoff_multiplier: 3.0, max_backoff_sec: 600
+      - $ref: retry-handler  # Reference fragment step
+      - filter:
+          expr: 'body.amount > 100'  # Only critical transactions
+      - translate:
+          expr: '{
+            payment_id: body.id,
+            customer_id: body.customer,
+            amount: body.amount,
+            retry_count: 0,
+            timestamp: $now()
+          }'
+    sinks:
+      - name: payment-processor
+        type: http
+        config:
+          url: "https://payment-api.example.com/process"
+          method: POST
+          timeout_sec: 30

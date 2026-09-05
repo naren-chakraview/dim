@@ -1,0 +1,30 @@
+# Route using retry policy fragment with conservative retry settings (M2.4.3)
+# Overrides retry parameters: 2 retries max, slower backoff
+
+$import: retry-policy-parameterized.yaml
+
+$params:
+  maxRetries: 2           # More conservative: only 2 retries
+  backoffMultiplier: 1.5  # Slower backoff: 1.5x instead of 2x
+  maxBackoffSec: 60       # Max 1 minute instead of 5 minutes
+
+routes:
+  orders-conservative:
+    description: "Order processing with conservative retry policy"
+    version: v1
+    from: kafka-orders
+    auth: none
+    steps:
+      # Retry step now uses overridden parameters:
+      # max_retries: 2, backoff_multiplier: 1.5, max_backoff_sec: 60
+      - $ref: retry-handler  # Reference fragment step
+      - filter:
+          expr: 'body.status = "new"'
+      - translate:
+          expr: '{ order_id: body.id, amount: body.total, timestamp: $now() }'
+    sinks:
+      - name: orders-db
+        type: database
+        config:
+          driver: postgres
+          table: orders_processed
