@@ -1,0 +1,129 @@
+# Order Line-Item Aggregation Example (M2.1.3)
+#
+# Demonstrates the Aggregator step collecting line items into orders.
+# Each line item is routed independently, but are aggregated by order_id
+# when count reaches 10 or timeout expires.
+
+version: 1
+
+# Import shared configuration (optional)
+imports: []
+
+sources:
+  line-items:
+    type: http
+    desc: 'HTTP webhook for order line items'
+
+sinks:
+  orders-batched:
+    type: file
+    path: ./output/orders-batched.jsonl
+    desc: 'Aggregated orders (10+ line items)'
+
+  errors:
+    type: file
+    path: ./output/aggregator-errors.jsonl
+    desc: 'Lines that failed processing'
+
+routes:
+  # Route 1: Aggregate line items by count
+  aggregate-by-count:
+    from: line-items
+    auth: none
+    desc: 'Batch line items into orders by count'
+
+    steps:
+      # Step 1: Validate line item structure
+      - filter:
+          expr: 'body.order_id != null and body.sku != null and body.qty != null'
+          desc: 'Require order_id, sku, qty'
+
+      # Step 2: Aggregate by order_id (collect 10 items or wait 30 seconds)
+      - aggregate:
+          correlation_key: body.order_id
+          completion_strategy: count
+          count: 10
+          timeout_ms: 30000
+          desc: 'Batch 10 line items per order (or 30s timeout)'
+
+      # Step 3: Transform aggregated output (optional)
+      - translate:
+          expr: |
+            {
+              "order_id": correlation_key,
+              "line_items": $map(messages, $ -> $.body),
+              "item_count": count,
+              "total_qty": $sum(messages, $ -> $.body.qty),
+              "aggregated_at": $now(),
+              "completion": completion_trigger
+            }
+          desc: 'Transform to order object with totals'
+
+      # Step 4: Route to output
+      - route_step:
+          output: orders-batched
+          desc: 'Output aggregated orders'
+
+# Alternative example: Time-window aggregation for event streaming
+routes:
+  # Route 2: Aggregate events by time window (for near-real-time batching)
+  aggregate-by-window:
+    from: line-items
+    auth: none
+    desc: 'Batch line items by time window (every 5 seconds)'
+
+    steps:
+      # Validate
+      - filter:
+          expr: 'body.order_id != null and body.sku != null'
+
+      # Aggregate by time window
+      - aggregate:
+          correlation_key: body.order_id
+          completion_strategy: time_window
+          window_ms: 5000
+          max_messages: 100
+          desc: 'Emit every 5 seconds or when 100 items collected'
+
+      # Transform
+      - translate:
+          expr: |
+            {
+              "order_id": correlation_key,
+              "items": messages[].body,
+              "count": count,
+              "window_seconds": 5
+            }
+
+      # Output
+      - route_step:
+          output: orders-batched
+
+# Example usage (bash):
+#
+# # Terminal 1: Start the route
+# ./dimctl run examples/aggregator-example.yaml
+#
+# # Terminal 2: Send 10 line items (triggers count-based completion)
+# for i in {1..10}; do
+#   curl -X POST http://localhost:8080/message \
+#     -H "Content-Type: application/json" \
+#     -d "{\"order_id\": \"ORD-001\", \"sku\": \"SKU-$i\", \"qty\": $((i+1))}"
+# done
+#
+# # Watch output (Terminal 3)
+# tail -f output/orders-batched.jsonl | jq .
+#
+# # Expected output after 10 messages:
+# {
+#   "order_id": "ORD-001",
+#   "line_items": [
+#     {"order_id": "ORD-001", "sku": "SKU-1", "qty": 2},
+#     {"order_id": "ORD-001", "sku": "SKU-2", "qty": 3},
+#     ...
+#   ],
+#   "item_count": 10,
+#   "total_qty": 65,
+#   "aggregated_at": "2026-09-04T12:34:56Z",
+#   "completion": "count_reached"
+# }
