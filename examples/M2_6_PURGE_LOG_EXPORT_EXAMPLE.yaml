@@ -1,0 +1,130 @@
+# M2.6: Purge-Log Auto-Export on Expiry Warning — Worked Example
+# Demonstrates automatic JSONL export to S3 when purge-log entries approach expiration
+
+# Configuration example showing purge-log with auto-export enabled
+
+purge_log:
+  retention_days: 365          # Keep purge evidence for 365 days
+  expiry_warning_lead_days: 7  # Warn 7 days before expiry
+  ticker_cadence_hours: 1      # Check for expiry every hour
+
+  # Auto-export configuration (M2.6.2)
+  auto_export:
+    enabled: true
+    target: s3
+    s3:
+      bucket: dim-audit-exports
+      path_prefix: dim-purge-log-exports/
+      batch_size: 1000
+      flush_interval_sec: 300   # Flush batch every 5 minutes
+
+---
+# WORKFLOW DEMONSTRATION
+#
+# 1. PURGE EVENT RECORDED
+#    When an entry is purged from lineage, a PurgeEvent is recorded with:
+#    - id: "purge-20260905-abc123"
+#    - event_type: "manual_purge" or "auto_reap"
+#    - subject_id: "user-789"
+#    - purged_count: 45
+#    - reason: "Manual purge via CLI: dimctl purge"
+#    - purged_at: 2026-01-05T10:30:00Z
+#    - expires_at: 2027-01-05T10:30:00Z (365 days later)
+#
+# 2. REAPER RUNS EVERY HOUR
+#    Ticker checks for events crossing expiry_warning_lead threshold
+#    - Current time: 2026-12-29T10:30:00Z
+#    - Warning threshold: 2027-01-05T10:30:00Z (7 days from now)
+#    - Event expires: 2027-01-05T10:30:00Z ← CROSSES THRESHOLD!
+#
+# 3. DUAL ACTION: ALERT + EXPORT
+#    When crossing threshold, BOTH happen:
+#
+#    a) ALERT (existing M2.4 behavior maintained):
+#       Log output:
+#       [WARN] Purge evidence for subject "user-789" expires in 7 days (purged_at=2026-01-05T10:30:00Z)
+#
+#       Metric emitted (for monitoring):
+#       dim_purge_log_expiring_soon{subject="user-789",days_left=7} = 1
+#
+#       CLI status query works:
+#       $ dimctl lineage purge-log status
+#       Subject user-789: expires 2027-01-05 (7 days)
+#
+#    b) EXPORT (new M2.6.2 behavior):
+#       Entry queued to exportCh
+#       Export worker batches (max 1000 entries)
+#       Writes to S3 in JSONL format:
+#
+# 4. S3 EXPORT OUTPUT
+#    Location: s3://dim-audit-exports/dim-purge-log-exports/2026/12/29/
+#    Filename: purge-event-2026-12-29-001.jsonl
+#
+#    Content (JSONL — one JSON object per line):
+#    {"id":"purge-20260905-abc123","route":"purge-event","ingested_at":"2026-01-05T10:30:00Z","expired_at":"2027-01-05T10:30:00Z","expiry_warning_triggered_at":"2026-12-29T10:30:00Z","data":{"id":"purge-20260905-abc123","subject_id":"user-789","event_type":"manual_purge","purged_count":45,"reason":"Manual purge via CLI: dimctl purge","purged_at":"2026-01-05T10:30:00Z","expires_at":"2027-01-05T10:30:00Z"}}
+#    {"id":"purge-20260906-def456","route":"purge-event","ingested_at":"2026-01-06T11:00:00Z","expired_at":"2027-01-06T11:00:00Z","expiry_warning_triggered_at":"2026-12-29T10:30:00Z","data":{"id":"purge-20260906-def456","subject_id":"user-790","event_type":"auto_reap","purged_count":12,"reason":"Auto-reap: retention policy 'standard'","purged_at":"2026-01-06T11:00:00Z","expires_at":"2027-01-06T11:00:00Z"}}
+#
+# 5. EXPORT RECORD VERIFICATION
+#    The exported JSONL record structure (M2.6.1 schema):
+#
+#    {
+#      "id": "purge-20260905-abc123",              # Purge event ID (unique)
+#      "route": "purge-event",                      # Always "purge-event" for purge entries
+#      "ingested_at": "2026-01-05T10:30:00Z",      # When entry was originally purged
+#      "expired_at": "2027-01-05T10:30:00Z",       # When it will be deleted from purge-log
+#      "expiry_warning_triggered_at": "2026-12-29T10:30:00Z",  # When export was triggered
+#      "data": {                                    # Original purge-log entry
+#        "id": "purge-20260905-abc123",
+#        "subject_id": "user-789",
+#        "event_type": "manual_purge",
+#        "purged_count": 45,
+#        "reason": "Manual purge via CLI: dimctl purge",
+#        "purged_at": "2026-01-05T10:30:00Z",
+#        "expires_at": "2027-01-05T10:30:00Z"
+#      }
+#    }
+#
+# 6. AUDIT & RECOVERY
+#    Exported records remain in S3 (separate retention policy if needed)
+#    Available for:
+#    - Compliance audits: prove what was purged and when
+#    - Recovery: restore purged records if needed
+#    - Analytics: analyze purge patterns over time
+#
+# 7. EXIT CRITERIA (M2.6) VERIFIED
+#    ✅ Entry approaching retention boundary triggers alert (existing)
+#    ✅ Entry approaching retention boundary triggers export to S3 (new)
+#    ✅ Both alert and export happen (additive, not replacement)
+#    ✅ Export format is JSONL with date partitioning
+#    ✅ Exported record independently verifiable against original
+#    ✅ S3 sink connection reused (no new infrastructure)
+
+---
+# TEST COMMAND (integration test)
+#
+# 1. Create test environment:
+#    - Database with purge events approaching expiry
+#    - S3 bucket ready (mock or real)
+#    - PurgeLogReaper configured with export
+#
+# 2. Verify alert is emitted:
+#    $ dimctl lineage purge-log status
+#    → Should show entries expiring in < 7 days
+#
+# 3. Verify export in S3:
+#    $ aws s3 ls s3://dim-audit-exports/dim-purge-log-exports/2026/12/29/
+#    → Should show *.jsonl files with exported entries
+#
+#    $ aws s3 cp s3://dim-audit-exports/dim-purge-log-exports/2026/12/29/purge-event-2026-12-29-001.jsonl - | head -2
+#    → Should show valid JSON objects, one per line
+#
+# 4. Verify record integrity:
+#    $ aws s3 cp s3://.../purge-event-2026-12-29-001.jsonl - | jq '.' | head -50
+#    → Verify all required fields present
+#    → Verify id, subject_id, event_type match originals
+#
+# 5. Verify batch and partition logic:
+#    - Multiple exports should land in dated directories (2026/12/29/, etc.)
+#    - Large exports should split across numbered files (001, 002, etc.)
+#    - Each file should contain up to batch_size entries
+
