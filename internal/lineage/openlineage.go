@@ -11,12 +11,14 @@ import (
 )
 
 // OpenLineageEmitter publishes lineage events to Marquez via OpenLineage API (M1.7.2)
+// Supports dead-letter routing for failed exports (M1.7.4, R20)
 type OpenLineageEmitter struct {
-	marquezURL string
-	httpClient *http.Client
-	eventCh    chan *OpenLineageEvent
-	batchSize  int
-	flushTicker *time.Ticker
+	marquezURL     string
+	httpClient     *http.Client
+	eventCh        chan *OpenLineageEvent
+	batchSize      int
+	flushTicker    *time.Ticker
+	deadLetterCh   chan interface{} // Channel for failed export messages (M1.7.4, R20)
 }
 
 // OpenLineageEvent represents a lineage event in OpenLineage format
@@ -65,6 +67,11 @@ type SchemaField struct {
 
 // NewOpenLineageEmitter creates a new emitter (M1.7.2)
 func NewOpenLineageEmitter(marquezURL string, batchSize int, flushIntervalMs int) *OpenLineageEmitter {
+	return NewOpenLineageEmitterWithDeadLetter(marquezURL, batchSize, flushIntervalMs, nil)
+}
+
+// NewOpenLineageEmitterWithDeadLetter creates a new emitter with optional dead-letter routing (M1.7.4, R20)
+func NewOpenLineageEmitterWithDeadLetter(marquezURL string, batchSize int, flushIntervalMs int, deadLetterCh chan interface{}) *OpenLineageEmitter {
 	if batchSize < 1 {
 		batchSize = 100
 	}
@@ -73,11 +80,12 @@ func NewOpenLineageEmitter(marquezURL string, batchSize int, flushIntervalMs int
 	}
 
 	return &OpenLineageEmitter{
-		marquezURL:  marquezURL,
-		httpClient:  &http.Client{Timeout: 10 * time.Second},
-		eventCh:     make(chan *OpenLineageEvent, batchSize*2),
-		batchSize:   batchSize,
-		flushTicker: time.NewTicker(time.Duration(flushIntervalMs) * time.Millisecond),
+		marquezURL:   marquezURL,
+		httpClient:   &http.Client{Timeout: 10 * time.Second},
+		eventCh:      make(chan *OpenLineageEvent, batchSize*2),
+		batchSize:    batchSize,
+		flushTicker:  time.NewTicker(time.Duration(flushIntervalMs) * time.Millisecond),
+		deadLetterCh: deadLetterCh,
 	}
 }
 
@@ -125,6 +133,7 @@ func (ole *OpenLineageEmitter) batchExportLoop(ctx context.Context) {
 }
 
 // flushBatch publishes accumulated events to Marquez
+// Routes permanently-failed events to dead-letter if configured (M1.7.4, R20)
 func (ole *OpenLineageEmitter) flushBatch(ctx context.Context, events []*OpenLineageEvent) error {
 	if len(events) == 0 {
 		return nil
@@ -135,12 +144,34 @@ func (ole *OpenLineageEmitter) flushBatch(ctx context.Context, events []*OpenLin
 		"events": events,
 	})
 	if err != nil {
+		// Malformed events are unrecoverable; route to dead-letter if configured
+		if ole.deadLetterCh != nil {
+			for _, evt := range events {
+				select {
+				case ole.deadLetterCh <- evt:
+				default:
+					// Dead-letter channel is full; log and continue
+					fmt.Printf("[WARN] dead-letter queue full, dropping failed event\n")
+				}
+			}
+		}
 		return fmt.Errorf("failed to marshal events: %w", err)
 	}
 
 	// POST to Marquez with retries
 	url := fmt.Sprintf("%s/api/v1/lineage", ole.marquezURL)
-	return ole.postWithRetry(ctx, url, payload)
+	err = ole.postWithRetry(ctx, url, payload)
+	if err != nil && ole.deadLetterCh != nil {
+		// Permanent export failure; route events to dead-letter for analysis (M1.7.4, R20)
+		for _, evt := range events {
+			select {
+			case ole.deadLetterCh <- evt:
+			default:
+				fmt.Printf("[WARN] dead-letter queue full, dropping failed event\n")
+			}
+		}
+	}
+	return err
 }
 
 // postWithRetry posts to Marquez with retry logic
