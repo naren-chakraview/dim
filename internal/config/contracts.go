@@ -1,9 +1,13 @@
 package config
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 
+	"github.com/naren-chakraview/dim/internal/schema"
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
@@ -24,18 +28,25 @@ func NewContractStore() *ContractStore {
 	}
 }
 
-// LoadContracts loads and validates contracts from a route configuration
-// Returns error if any contract has invalid JSON Schema or other issues
+// LoadContracts loads and validates contracts from a route configuration.
+// Resolves registry-backed contracts by fetching from the registry (R18.3).
+// Returns error if any contract has invalid JSON Schema or registry resolution fails.
 func (cs *ContractStore) LoadContracts(routeName string, contracts []ContractSpec) error {
+	return cs.LoadContractsWithContext(context.Background(), routeName, contracts)
+}
+
+// LoadContractsWithContext is like LoadContracts but accepts a context for registry operations (R18.3).
+func (cs *ContractStore) LoadContractsWithContext(ctx context.Context, routeName string, contracts []ContractSpec) error {
 	if len(contracts) == 0 {
 		return nil
 	}
 
-	// Store contracts for this route
+	// Store contracts for this route (will be updated with resolved contract_version)
 	cs.routeContracts[routeName] = contracts
 
 	// Validate and compile each contract
-	for i, contract := range contracts {
+	for i := range contracts {
+		contract := &contracts[i]
 		// Validate contract ID is not empty
 		if contract.ID == "" {
 			return fmt.Errorf("route %s: contract at index %d has empty ID", routeName, i)
@@ -46,19 +57,35 @@ func (cs *ContractStore) LoadContracts(routeName string, contracts []ContractSpe
 			return fmt.Errorf("route %s: contract %q has empty version", routeName, contract.ID)
 		}
 
-		// Validate schema
-		if contract.Schema == nil {
-			return fmt.Errorf("route %s: contract %q has nil schema", routeName, contract.ID)
-		}
+		// Resolve schema and contract_version based on whether it's inline or registry-backed
+		var schemaJSON string
+		var err error
 
-		// Convert schema to JSON if needed
-		schemaJSON, err := cs.normalizeSchema(contract.Schema)
-		if err != nil {
-			return fmt.Errorf("route %s: contract %q: %w", routeName, contract.ID, err)
+		if contract.Registry != nil {
+			// Registry-backed contract (R18.3)
+			schemaJSON, err = cs.resolveRegistrySchema(ctx, contract.Registry)
+			if err != nil {
+				return fmt.Errorf("route %s: contract %q: failed to resolve registry schema: %w", routeName, contract.ID, err)
+			}
+
+			// Compute contract_version for registry-backed contract
+			contract.ContractVersion = computeRegistryContractVersion(contract.Registry)
+		} else {
+			// Inline contract
+			if contract.Schema == nil {
+				return fmt.Errorf("route %s: contract %q has nil schema", routeName, contract.ID)
+			}
+
+			schemaJSON, err = cs.normalizeSchema(contract.Schema)
+			if err != nil {
+				return fmt.Errorf("route %s: contract %q: %w", routeName, contract.ID, err)
+			}
+
+			// Compute contract_version for inline contract
+			contract.ContractVersion = computeInlineContractVersion(schemaJSON)
 		}
 
 		// Compile the schema
-		// URL can be empty for inline schemas
 		schema, err := jsonschema.CompileString("", schemaJSON)
 		if err != nil {
 			return fmt.Errorf("route %s: contract %q: invalid JSON Schema: %w", routeName, contract.ID, err)
@@ -150,4 +177,41 @@ func (cs *ContractStore) ValidateMessage(routeName, contractID string, body inte
 	}
 
 	return schema.Validate(body)
+}
+
+// resolveRegistrySchema resolves a registry-backed schema (R18.3).
+func (cs *ContractStore) resolveRegistrySchema(ctx context.Context, ref *RegistryRefSpec) (string, error) {
+	client, err := schema.NewRegistryClient(ctx, &schema.SchemaReference{
+		Type:    ref.Type,
+		URL:     ref.URL,
+		Group:   ref.Group,
+		Subject: ref.Subject,
+		Version: ref.Version,
+	})
+	if err != nil {
+		return "", err
+	}
+
+	schemaBytes, _, err := client.GetSchema(ctx, ref.Group, ref.Subject, ref.Version)
+	if err != nil {
+		return "", err
+	}
+
+	return string(schemaBytes), nil
+}
+
+// computeInlineContractVersion computes a version tag for an inline contract (R18.3).
+// Format: "sha256:<hex-digest>"
+func computeInlineContractVersion(schemaJSON string) string {
+	hash := sha256.Sum256([]byte(schemaJSON))
+	return "sha256:" + hex.EncodeToString(hash[:])
+}
+
+// computeRegistryContractVersion computes a version tag for a registry-backed contract (R18.3).
+// Format: "<type>:<group>:<subject>:<version>"
+func computeRegistryContractVersion(ref *RegistryRefSpec) string {
+	// Note: In a real implementation, this would also fetch the resolved version ID
+	// from the registry if version is "latest". For now, we use "latest" as-is.
+	// This should be improved in a follow-up to use the actual resolved version ID.
+	return fmt.Sprintf("%s:%s:%s:%s", ref.Type, ref.Group, ref.Subject, ref.Version)
 }
