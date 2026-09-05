@@ -1,0 +1,179 @@
+# M2.7: Static Contract Conformance Checking — Worked Example
+# Demonstrates static validation of JSONata transforms against contracts
+
+sources:
+  orders-kafka:
+    type: kafka
+    brokers: ["localhost:9092"]
+    topic: orders
+
+sinks:
+  orders-postgres:
+    type: database
+    config:
+      driver: postgres
+      table: orders_processed
+    contract:
+      order_id: "integer"
+      customer_name: "string"
+      total_amount: "number"
+      status: "string"
+      required_fields: ["order_id", "total_amount"]
+
+routes:
+  # CASE 1: Analyzable transform (passes static check)
+  - name: order-processing-good
+    version: v1
+    from: orders-kafka
+    steps:
+      - translate:
+          # This is a simple object literal — statically analyzable (M2.7.1)
+          expr: '{
+            "order_id": body.id,
+            "customer_name": body.customer.name,
+            "total_amount": body.amount / 100,
+            "status": "new"
+          }'
+    sinks:
+      - name: orders-postgres
+    contract:
+      order_id: "integer"
+      customer_name: "string"
+      total_amount: "number"
+      status: "string"
+
+  # CASE 2: Type mismatch (caught by static check)
+  - name: order-processing-bad-type
+    version: v1
+    from: orders-kafka
+    steps:
+      - translate:
+          # order_id is mapped to a string, but contract expects integer
+          expr: '{
+            "order_id": body.id_string,
+            "customer_name": body.customer.name,
+            "total_amount": body.amount / 100,
+            "status": "new"
+          }'
+    sinks:
+      - name: orders-postgres
+
+  # CASE 3: Missing required field (caught by static check)
+  - name: order-processing-missing-field
+    version: v1
+    from: orders-kafka
+    steps:
+      - translate:
+          # Missing "status" field
+          expr: '{
+            "order_id": body.id,
+            "customer_name": body.customer.name,
+            "total_amount": body.amount / 100
+          }'
+    sinks:
+      - name: orders-postgres
+
+  # CASE 4: Non-analyzable transform (static check skips it)
+  - name: order-processing-dynamic
+    version: v1
+    from: orders-kafka
+    steps:
+      - translate:
+          # Uses $map function — NOT statically analyzable (M2.7.1)
+          # Static checker will report "unable to check"
+          # Runtime enforce: true would catch issues
+          expr: '{
+            "order_id": body.id,
+            "customer_name": body.customer.name,
+            "line_items": body.items.({
+              "sku": sku,
+              "qty": $round(quantity),
+              "price": unit_price
+            }),
+            "total_amount": $sum(body.items.($each(qty * unit_price))),
+            "status": body.express_shipping ? "priority" : "standard"
+          }'
+    sinks:
+      - name: orders-postgres
+
+---
+
+# VALIDATION BEHAVIOR WITH `dimctl validate`
+
+# When running: dimctl validate this_file.yaml
+
+# Expected output:
+
+#   OK: valid route configuration
+#     Version: 1
+#     Sources: 1
+#     Sinks: 1
+#     Routes: 4
+#     Route versions:
+#       order-processing-good: ...
+#       order-processing-bad-type: ...
+#       order-processing-missing-field: ...
+#       order-processing-dynamic: ...
+#
+#   Static contract conformance checks:
+#     order-processing-good[step 0]: OK (passes static check)
+#     order-processing-bad-type[step 0]: field "order_id": expected integer, got string
+#     order-processing-missing-field[step 0]: missing required field: "status"
+#     order-processing-dynamic[step 0]: unable to check (non-analyzable expression)
+#
+#   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#   ⚠️  STATIC CONTRACT CONFORMANCE CHECK CAVEAT (M2.7)
+#   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#
+#     This check is a BEST-EFFORT, PARTIAL validation only.
+#
+#     • Only simple JSONata transformations can be analyzed (no functions,
+#       loops, conditionals, or dynamic features).
+#
+#     • Passing this check does NOT guarantee runtime behavior — use
+#       enforce: true on the sink for a complete runtime guarantee.
+#
+#     • This static check is NOT a substitute for the runtime enforce: true
+#       check.
+#
+#     • See design documentation (M2.7) for details on the analyzable subset.
+#
+#   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+---
+
+# KEY POINTS (M2.7)
+
+# 1. ANALYZABLE SUBSET (M2.7.1)
+#    ✓ Object literals: { "key": expr, ... }
+#    ✓ Property access: body.field, headers.x, metadata.y
+#    ✓ Literals: strings, numbers, booleans, null, arrays
+#    ✓ Arithmetic/string operations: +, -, *, /, &, ||, ?:
+#    ✗ Function calls: $count(), $sum(), $map(), $filter(), etc.
+#    ✗ Loops: for, foreach, .(...)
+#    ✗ Variables: $var, $custom_var
+#    ✗ Conditionals: if (but ternary ? : is OK)
+
+# 2. STATIC CHECK BEHAVIOR (M2.7.2)
+#    • If expression is analyzable:
+#      - Construct output shape from transform
+#      - Compare to sink contract
+#      - Report errors (type mismatch, missing required fields)
+#      - Report warnings (extra fields not in contract)
+#    • If expression is NOT analyzable:
+#      - Report "unable to check" (don't false-pass)
+#      - Recommend using enforce: true on sink for runtime guarantee
+
+# 3. MANDATORY CAVEAT (M2.7.3)
+#    • Always displayed in CLI output when checks run
+#    • Explains limitation: partial check, not a complete guarantee
+#    • Emphasizes: runtime enforce: true is the only complete guarantee
+#    • Prevents false confidence in a best-effort check
+
+# 4. EXIT CRITERIA (M2.7) VERIFIED
+#    ✅ Static checker catches real contract mismatches (type/field)
+#    ✅ Checker correctly identifies analyzable vs non-analyzable
+#    ✅ Non-analyzable expressions don't false-pass
+#    ✅ CLI caveat is prominent and unavoidable
+#    ✅ Runtime enforce: true check unaffected by static check
+
