@@ -46,7 +46,7 @@ var replayCmd = &cobra.Command{
 		// engine.NewEngine and related APIs were refactored in the current version
 		_ = args // Avoid unused variable
 		fmt.Fprintf(os.Stderr, "replay command: not yet updated for current engine API\n")
-		return fmt.Errorf("replay command requires API update")
+		return fmt.Errorf("replay command requires API update") (Fix: Comprehensive compilation error fixes enabling M3.5 release pipeline)
 	},
 }
 
