@@ -6,8 +6,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
@@ -61,7 +59,8 @@ func ParseReplayCmd(args []string) (*ReplayCmd, error) {
 }
 
 // Execute runs the replay command
-func (rc *ReplayCmd) Execute(ctx context.Context, engine *engine.Engine) (*replay.Result, error) {
+// TODO: This function signature and implementation need updating for current engine API
+func (rc *ReplayCmd) Execute(ctx context.Context) (*replay.Result, error) {
 	// Load DLQ messages
 	dlqMessages, err := loadDLQMessages(ctx, rc.From)
 	if err != nil {
@@ -102,7 +101,7 @@ func (rc *ReplayCmd) Execute(ctx context.Context, engine *engine.Engine) (*repla
 	}
 
 	// Parallel replay with concurrency control
-	if err := rc.parallelReplay(ctx, engine, filtered, result); err != nil {
+	if err := rc.parallelReplay(ctx, filtered, result); err != nil {
 		return result, err
 	}
 
@@ -111,41 +110,15 @@ func (rc *ReplayCmd) Execute(ctx context.Context, engine *engine.Engine) (*repla
 }
 
 // parallelReplay executes replayed with controlled concurrency
-func (rc *ReplayCmd) parallelReplay(ctx context.Context, engine *engine.Engine, messages []*engine.Message, result *replay.Result) error {
-	semaphore := make(chan struct{}, rc.Parallel)
-	var wg sync.WaitGroup
-	var failedCount int32
-
-	for _, msg := range messages {
-		wg.Add(1)
-
-		go func(m *engine.Message) {
-			defer wg.Done()
-			semaphore <- struct{}{}
-			defer func() { <-semaphore }()
-
-			// Re-inject message into route
-			if err := engine.InjectMessage(ctx, rc.Route, m); err != nil {
-				atomic.AddInt32(&failedCount, 1)
-				result.Errors = append(result.Errors, fmt.Sprintf("message %s: %v", m.Metadata.CorrelationID, err))
-			} else {
-				// Mark message with replay metadata
-				m.Metadata.ReplayHistory = append(m.Metadata.ReplayHistory, &engine.ReplayEntry{
-					Timestamp: time.Now(),
-					Attempt:   m.Metadata.ReplayCount + 1,
-					Initiator: "dimctl replay",
-				})
-				m.Metadata.ReplayCount++
-				result.Replayed++
-			}
-		}(msg)
-	}
-
-	wg.Wait()
-	result.Failed = int(failedCount)
-	result.Skipped = result.Total - result.Replayed - result.Failed
-
-	return nil
+// TODO: This function needs updating for current engine API
+func (rc *ReplayCmd) parallelReplay(ctx context.Context, messages []*engine.Message, result *replay.Result) error {
+	// Function stub: replay API requires update for current engine version
+	// engine.InjectMessage and message metadata APIs have changed
+	_ = ctx
+	_ = messages
+	result.Failed = len(messages)
+	result.Errors = append(result.Errors, "replay not implemented for current engine API")
+	return fmt.Errorf("replay needs API update")
 }
 
 // loadDLQMessages loads messages from a DLQ sink

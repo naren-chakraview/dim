@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -46,7 +45,7 @@ func NewKafkaSource(brokers []string, topic string, groupID string, outChan *eng
 		Brokers:     brokers,
 		Topic:       topic,
 		GroupID:     groupID,
-		StartOffset: kafka.NewOffset().AtOffset(-1), // Start from newest
+		StartOffset: -1, // Start from newest (-1 = latest, -2 = earliest)
 		MaxBytes:    1024 * 1024,                      // 1MB default
 		CommitInterval: 1 * time.Second,
 		SessionTimeout: 10 * time.Second,
@@ -93,7 +92,7 @@ func NewKafkaSourceWithConfig(config SourceConfig, outChan *engine.Channel) (*Ka
 		drainCaps: make(chan struct{}, 10), // Max 10 concurrent drains (R17)
 	}
 
-	log.Printf("[INFO] Kafka source created: brokers=%v topic=%s group=%s", config.Brokers, config.Topic, config.GroupID)
+	fmt.Printf("[INFO] Kafka source created: brokers=%v topic=%s group=%s", config.Brokers, config.Topic, config.GroupID)
 
 	return ks, nil
 }
@@ -119,7 +118,7 @@ func (ks *KafkaSource) Start(ctx context.Context) error {
 					close(ks.closed)
 					return nil
 				}
-				log.Printf("[WARN] failed to read message from Kafka: %v", err)
+				fmt.Printf("[WARN] failed to read message from Kafka: %v", err)
 				continue
 			}
 
@@ -130,20 +129,20 @@ func (ks *KafkaSource) Start(ctx context.Context) error {
 			// Convert Kafka message to dim message
 			dimMsg, err := ks.kafkaMessageToDimMessage(msg)
 			if err != nil {
-				log.Printf("[WARN] failed to convert Kafka message: %v", err)
+				fmt.Printf("[WARN] failed to convert Kafka message: %v", err)
 				continue
 			}
 
 			// Send to output channel
 			if err := ks.outChan.Send(ctx, dimMsg); err != nil {
-				log.Printf("[WARN] failed to send message to output channel: %v", err)
+				fmt.Printf("[WARN] failed to send message to output channel: %v", err)
 				// Don't break; continue consuming
 				continue
 			}
 
 			// Track offset for this partition
 			ks.mu.Lock()
-			ks.lastOffset[msg.Partition] = msg.Offset
+			ks.lastOffset[int32(msg.Partition)] = msg.Offset
 			ks.mu.Unlock()
 		}
 	}
@@ -187,7 +186,7 @@ func (ks *KafkaSource) CommitOffsets() error {
 
 	// Offsets are automatically committed based on CommitInterval
 	// This is a no-op for segmentio/kafka-go which uses auto-commit
-	log.Printf("[DEBUG] Offsets tracked for %d partitions", len(ks.lastOffset))
+	fmt.Printf("[DEBUG] Offsets tracked for %d partitions", len(ks.lastOffset))
 	return nil
 }
 
@@ -238,22 +237,16 @@ func (ks *KafkaSource) GetInFlightCount() int32 {
 	return atomic.LoadInt32(&ks.inFlight)
 }
 
-// GetLag returns the consumer lag (difference between committed and latest offset)
-// Useful for monitoring
+// GetLag returns the current committed offsets per partition
+// (Full lag calculation not available in kafka-go v0.4.51)
 func (ks *KafkaSource) GetLag(ctx context.Context) (map[int32]int64, error) {
 	ks.mu.Lock()
 	defer ks.mu.Unlock()
-
+	// Return a copy of last known offsets
 	lag := make(map[int32]int64)
-	for partition := range ks.lastOffset {
-		// Get latest offset for partition
-		offset, err := ks.reader.ReadOffsetFromPartition(partition)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get offset for partition %d: %w", partition, err)
-		}
-		lag[partition] = offset - ks.lastOffset[partition]
+	for partition, offset := range ks.lastOffset {
+		lag[partition] = offset
 	}
-
 	return lag, nil
 }
 

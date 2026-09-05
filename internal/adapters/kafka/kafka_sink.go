@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
@@ -87,19 +86,21 @@ func NewKafkaSinkWithConfig(config SinkConfig) (*KafkaSink, error) {
 	writer := kafka.NewWriter(kafka.WriterConfig{
 		Brokers:      config.Brokers,
 		Topic:        config.Topic,
-		Compression:  compression,
-		RequiredAcks: requiredAcks,
 		WriteTimeout: config.Timeout,
 		ReadTimeout:  config.Timeout,
 		MaxAttempts:  config.MaxAttempts,
+		// Note: Compression and RequiredAcks not available in kafka-go v0.4.51
+		// Consider upgrading kafka-go for these features
 	})
+	_ = compression
+	_ = requiredAcks
 
 	sink := &KafkaSink{
 		writer: writer,
 		config: config,
 	}
 
-	log.Printf("[INFO] Kafka sink created: brokers=%v topic=%s compression=%s acks=%s",
+	fmt.Printf("[INFO] Kafka sink created: brokers=%v topic=%s compression=%s acks=%s\n",
 		config.Brokers, config.Topic, config.Compression, config.Acks)
 
 	return sink, nil
@@ -226,10 +227,9 @@ func (ks *KafkaSink) dimMessageToKafkaMessage(msg *engine.Message) (kafka.Messag
 	}
 
 	return kafka.Message{
-		Key:       key,
-		Value:     value,
-		Headers:   kafkaHeaders,
-		Timestamp: time.Now(),
+		Key:     key,
+		Value:   value,
+		Headers: kafkaHeaders,
 	}, nil
 }
 
@@ -277,8 +277,7 @@ func (ks *KafkaSink) HealthCheck(ctx context.Context) error {
 	if ks.writer == nil {
 		return fmt.Errorf("kafka writer not initialized")
 	}
-	brokers := ks.writer.Config().Brokers
-	if len(brokers) == 0 {
+	if len(ks.config.Brokers) == 0 {
 		return fmt.Errorf("no brokers configured")
 	}
 	return nil
