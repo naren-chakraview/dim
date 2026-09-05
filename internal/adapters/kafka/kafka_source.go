@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
@@ -14,14 +15,17 @@ import (
 
 // KafkaSource is a Kafka consumer source adapter that reads messages from a Kafka topic
 // and sends them to an output channel. Uses consumer groups for distributed consumption.
+// Supports hot-reload with graceful in-flight message draining (R17).
 type KafkaSource struct {
-	reader      *kafka.Reader
-	outChan     *engine.Channel
-	closed      chan struct{}
-	wg          sync.WaitGroup
-	config      SourceConfig
-	lastOffset  map[int32]int64 // Track last committed offset per partition
-	mu          sync.Mutex
+	reader       *kafka.Reader
+	outChan      *engine.Channel
+	closed       chan struct{}
+	wg           sync.WaitGroup
+	config       SourceConfig
+	lastOffset   map[int32]int64 // Track last committed offset per partition
+	inFlight     int32            // Tracks messages currently being processed (R17)
+	drainCaps    chan struct{}    // Concurrent drain cap (max 10 concurrent drains) (R17)
+	mu           sync.Mutex
 }
 
 // SourceConfig defines configuration for a Kafka consumer source
@@ -81,11 +85,12 @@ func NewKafkaSourceWithConfig(config SourceConfig, outChan *engine.Channel) (*Ka
 	})
 
 	ks := &KafkaSource{
-		reader:     reader,
-		outChan:    outChan,
-		closed:     make(chan struct{}),
-		config:     config,
+		reader:    reader,
+		outChan:   outChan,
+		closed:    make(chan struct{}),
+		config:    config,
 		lastOffset: make(map[int32]int64),
+		drainCaps: make(chan struct{}, 10), // Max 10 concurrent drains (R17)
 	}
 
 	log.Printf("[INFO] Kafka source created: brokers=%v topic=%s group=%s", config.Brokers, config.Topic, config.GroupID)
@@ -117,6 +122,10 @@ func (ks *KafkaSource) Start(ctx context.Context) error {
 				log.Printf("[WARN] failed to read message from Kafka: %v", err)
 				continue
 			}
+
+			// Track in-flight message (R17: hot-reload support)
+			atomic.AddInt32(&ks.inFlight, 1)
+			defer atomic.AddInt32(&ks.inFlight, -1)
 
 			// Convert Kafka message to dim message
 			dimMsg, err := ks.kafkaMessageToDimMessage(msg)
@@ -188,6 +197,45 @@ func (ks *KafkaSource) Close() error {
 	<-ks.closed
 	ks.wg.Wait()
 	return nil
+}
+
+// Drain waits for all in-flight messages to complete before returning.
+// Used during hot-reload to gracefully shut down the current generation.
+// Respects the concurrent-draining-cap pattern (max 10 concurrent drains) (R17).
+func (ks *KafkaSource) Drain(ctx context.Context, timeout time.Duration) error {
+	// Acquire drain cap (max 10 concurrent drains)
+	select {
+	case ks.drainCaps <- struct{}{}:
+		defer func() { <-ks.drainCaps }()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if atomic.LoadInt32(&ks.inFlight) == 0 {
+			// All in-flight messages are complete
+			return nil
+		}
+
+		select {
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				remaining := atomic.LoadInt32(&ks.inFlight)
+				return fmt.Errorf("drain timeout exceeded with %d in-flight messages", remaining)
+			}
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
+
+// GetInFlightCount returns the current number of in-flight messages (R17).
+func (ks *KafkaSource) GetInFlightCount() int32 {
+	return atomic.LoadInt32(&ks.inFlight)
 }
 
 // GetLag returns the consumer lag (difference between committed and latest offset)
