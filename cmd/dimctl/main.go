@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -20,6 +21,7 @@ import (
 	"github.com/naren-chakraview/dim/internal/ordering"
 	"github.com/naren-chakraview/dim/internal/steps"
 	"github.com/naren-chakraview/dim/internal/testing"
+	"github.com/naren-chakraview/dim/internal/validation"
 	"github.com/spf13/cobra"
 )
 
@@ -94,6 +96,9 @@ var validateCmd = &cobra.Command{
 			return err
 		}
 
+		// Perform static contract conformance checks (M2.7.3)
+		staticCheckWarnings := performStaticContractChecks(cfg)
+
 		// Success message
 		fmt.Fprintf(os.Stdout, "OK: valid route configuration\n")
 		fmt.Fprintf(os.Stdout, "  Version: %d\n", cfg.Version)
@@ -109,6 +114,16 @@ var validateCmd = &cobra.Command{
 					fmt.Fprintf(os.Stdout, "    %s: %s\n", name, route.RouteVersion)
 				}
 			}
+		}
+
+		// Print static contract conformance check results (M2.7.3)
+		if len(staticCheckWarnings) > 0 {
+			fmt.Fprintf(os.Stdout, "\nStatic contract conformance checks:\n")
+			for _, warning := range staticCheckWarnings {
+				fmt.Fprintf(os.Stdout, "  %s\n", warning)
+			}
+			// Print mandatory caveat (M2.7.3)
+			printStaticCheckCaveat(os.Stdout)
 		}
 
 		return nil
@@ -894,6 +909,77 @@ var traceTailCmd = &cobra.Command{
 			}
 		}
 	},
+}
+
+// performStaticContractChecks runs static validation on translate steps (M2.7.2, M2.7.3)
+func performStaticContractChecks(cfg *config.RouteConfig) []string {
+	var warnings []string
+	checker := validation.NewContractChecker()
+
+	for routeName, route := range cfg.Routes {
+		if len(route.Steps) == 0 {
+			continue
+		}
+
+		// Look for translate steps followed by sinks with contracts
+		for i, step := range route.Steps {
+			if step.Translate == nil {
+				continue
+			}
+
+			// Find the sink this translate outputs to (simplified: use first sink)
+			if len(route.Sinks) == 0 {
+				continue
+			}
+			sink := route.Sinks[0]
+			if sink.Contract == nil {
+				continue
+			}
+
+			// Run the check (M2.7.2)
+			result := checker.Check(step.Translate.Expr, sink.Contract)
+			if !result.Analyzable {
+				warnings = append(warnings, fmt.Sprintf("  %s[step %d]: unable to check (non-analyzable expression)", routeName, i))
+				continue
+			}
+
+			if len(result.Errors) > 0 {
+				for _, err := range result.Errors {
+					warnings = append(warnings, fmt.Sprintf("  %s[step %d]: %s", routeName, i, err))
+				}
+			}
+			if len(result.Warnings) > 0 {
+				for _, w := range result.Warnings {
+					warnings = append(warnings, fmt.Sprintf("  %s[step %d]: %s (warning)", routeName, i, w))
+				}
+			}
+		}
+	}
+
+	return warnings
+}
+
+// printStaticCheckCaveat prints the mandatory disclaimer about static checks (M2.7.3)
+func printStaticCheckCaveat(w io.Writer) {
+	fmt.Fprintf(w, `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  STATIC CONTRACT CONFORMANCE CHECK CAVEAT (M2.7)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  This check is a BEST-EFFORT, PARTIAL validation only.
+
+  • Only simple JSONata transformations can be analyzed (no functions, loops,
+    conditionals, or dynamic features).
+
+  • Passing this check does NOT guarantee runtime behavior — use enforce: true
+    on the sink for a complete runtime guarantee.
+
+  • This static check is NOT a substitute for the runtime enforce: true check.
+
+  • See design documentation (M2.7) for details on the analyzable subset.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+`)
 }
 
 func init() {
