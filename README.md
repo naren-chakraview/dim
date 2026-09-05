@@ -88,23 +88,28 @@ curl http://localhost:8081/debug/routes | jq
 
 ## Quick Links
 
-**Phase 0 (v0.5.0):**
-- **[RELEASE_NOTES_v0.5.0.md](RELEASE_NOTES_v0.5.0.md)** — Complete feature list, deployment checklist
+**For Users — Getting Started:**
+- **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** — Quick start (5-minute tutorial)
+- **[docs/LANGUAGE_REFERENCE.md](docs/LANGUAGE_REFERENCE.md)** — Complete configuration reference
+- **[docs/USE_CASES.md](docs/USE_CASES.md)** — Real-world examples and patterns
+- **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)** — `dimctl` command reference
+
+**For Developers:**
+- **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** — Project structure, testing, adding features
+- **[OKF.md](OKF.md)** — Operational knowledge framework (architecture decisions, patterns)
+- **[Design Documents](design/)** — EIP mapping, implementation roadmaps, feasibility studies
+
+**Release & Operations:**
+- **[RELEASE_NOTES_v0.5.0.md](RELEASE_NOTES_v0.5.0.md)** — Phase 0 features and deployment checklist
 - **[Security Review](internal/security/SECURITY_REVIEW.md)** — Audit results (no critical issues)
 - **[Performance Results](examples/bench/RESULTS.md)** — Benchmarks and metrics
-
-**Phase 1 (v0.6.0-beta):**
-- **[ADAPTER_SPEC.md](ADAPTER_SPEC.md)** — Source/Sink interface contract, patterns, metadata headers
+- **[ADAPTER_SPEC.md](ADAPTER_SPEC.md)** — Source/Sink interface contract, patterns
 - **[CODE_REVIEW_WORKFLOW.md](CODE_REVIEW_WORKFLOW.md)** — 3-tier review governance
 - **[REVIEWERS.md](REVIEWERS.md)** — Subsystem expertise mapping
-- **[KAFKA_ADAPTER.md](KAFKA_ADAPTER.md)** — Kafka consumer/producer configuration and examples
-- **[AMQP_ADAPTER.md](AMQP_ADAPTER.md)** — AMQP queue-based consumption and publishing
-- **[OKF.md](OKF.md)** — Operational knowledge framework (decisions, concurrency patterns, state)
 
-**General:**
-- **[User Guide](USER_GUIDE.md)** — Installation, concepts, project structure
-- **[Design Documents](design/)** — Architecture, EIP mapping, data mesh analysis
-- **[Configuration Examples](examples/fragments/)** — YAML patterns and templates
+**Specifications:**
+- **[KAFKA_ADAPTER.md](KAFKA_ADAPTER.md)** — Kafka consumer/producer configuration
+- **[AMQP_ADAPTER.md](AMQP_ADAPTER.md)** — AMQP queue-based consumption and publishing
 
 ## Architecture overview
 
@@ -298,59 +303,50 @@ See [RELEASE_NOTES_v0.5.0.md](RELEASE_NOTES_v0.5.0.md) for Phase 0 complete feat
 
 ## Documentation
 
-All design and planning docs are in `design/`:
+**User-Facing Guides (in `docs/`):**
+- **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** — 5-minute quick start
+- **[docs/LANGUAGE_REFERENCE.md](docs/LANGUAGE_REFERENCE.md)** — Complete config reference (sources, sinks, steps, expressions)
+- **[docs/USE_CASES.md](docs/USE_CASES.md)** — 10 real-world patterns (e-commerce, compliance, CDC, notifications, etc.)
+- **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)** — `dimctl` and `dimd` command reference
 
-- **[eip-middleware-design.md](design/eip-middleware-design.md)** — Core architecture, EIP mapping, all features, design tenets, open questions (v8)
-- **[phase-0-implementation-plan.md](design/phase-0-implementation-plan.md)** — Engineering roadmap: 6 milestones, 50 subtasks, risk register, testing strategy (v5)
-- **[data-mesh-feasibility-analysis.md](design/data-mesh-feasibility-analysis.md)** — How well does this design fit data mesh principles?
-- **[data-mesh-reference-architecture.md](design/data-mesh-reference-architecture.md)** — Reference impl of a data mesh on top of dim; domain/namespace proposal
-- **[self-service-feasibility-study.md](design/self-service-feasibility-study.md)** — How feasible is self-service config/deploy? (very; GitOps + guardrails)
+**Design & Architecture (in `design/`):**
+- **[design/eip-middleware-design.md](design/eip-middleware-design.md)** — Core architecture, EIP mapping, all features, design tenets
+- **[design/phase-0-implementation-plan.md](design/phase-0-implementation-plan.md)** — Engineering roadmap: 6 milestones, 50 subtasks
+- **[design/phase-*-implementation-plan.md](design/)** — Implementation plans for Phases 1 and 2
+- **[design/data-mesh-feasibility-analysis.md](design/data-mesh-feasibility-analysis.md)** — Data mesh principles fit
+- **[design/data-mesh-reference-architecture.md](design/data-mesh-reference-architecture.md)** — Reference data mesh on dim
+- **[design/self-service-feasibility-study.md](design/self-service-feasibility-study.md)** — Self-service deployment patterns
 
-## Getting Started
+## Getting Started (5 Minutes)
 
-### 1. Read the Release Notes
-**[RELEASE_NOTES_v0.5.0.md](RELEASE_NOTES_v0.5.0.md)** — Complete feature list, performance metrics, production checklist
-
-### 2. Install and Run
+### 1. Quick Start
 ```bash
 git clone https://github.com/naren-chakraview/dim.git
 cd dim
 go build ./cmd/dimctl -o dimctl
-
-# Try example route
-./dimctl run examples/fragments/simple.yaml
 ```
 
-### 3. Send Test Message
-```bash
-curl -X POST http://localhost:8080/message \
-  -H "Content-Type: application/json" \
-  -d '{"id": "msg-1", "amount": 100}'
-```
+### 2. Create Your First Route
+See **[docs/GETTING_STARTED.md](docs/GETTING_STARTED.md)** for a complete 5-minute tutorial.
 
-### 4. View Live Stats
-```bash
-curl http://localhost:8081/debug/routes | jq
-```
-
-### 5. Stream Traces
-```bash
-./dimctl trace tail
-```
+### 3. Explore
+- **[docs/LANGUAGE_REFERENCE.md](docs/LANGUAGE_REFERENCE.md)** — All configuration options explained
+- **[docs/USE_CASES.md](docs/USE_CASES.md)** — Copy-paste real-world patterns (payments, CDC, multi-source ingestion, etc.)
+- **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)** — `dimctl` command reference
 
 ### Next Steps
 
-- **[Configuration Examples](examples/fragments/)** — YAML patterns for common scenarios
-- **[User Guide](USER_GUIDE.md)** — Detailed concepts and CLI reference
+- **[Configuration Examples](examples/fragments/)** — Working YAML examples in the repository
+- **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** — Contributing, testing, project structure
+- **[OKF.md](OKF.md)** — Architecture decisions and design patterns
 - **[Security Review](internal/security/SECURITY_REVIEW.md)** — Audit results
 - **[Performance Results](examples/bench/RESULTS.md)** — Benchmarks and metrics
-- **[Development Guide](DEVELOPMENT.md)** — Code patterns and contributing
 
-### Explore Architecture
+### Understanding the Codebase
 
 - **[graphify-out/GRAPH_REPORT.md](graphify-out/GRAPH_REPORT.md)** — Module overview and god nodes
 - **[design/eip-middleware-design.md](design/eip-middleware-design.md)** — Architecture and EIP mapping
-- **[design/phase-0-implementation-plan.md](design/phase-0-implementation-plan.md)** — Roadmap and design decisions
+- **[design/phase-0-implementation-plan.md](design/phase-0-implementation-plan.md)** — Implementation roadmap
 
 ## Contributing
 
