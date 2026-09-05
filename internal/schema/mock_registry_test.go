@@ -47,7 +47,7 @@ func TestMockRegistryDefaultGroup(t *testing.T) {
 		t.Fatalf("RegisterSchema with empty group failed: %v", err)
 	}
 
-	fetched, fetchedVersion, err := registry.GetSchema(ctx, "default", "DefaultGroupSubject", "latest")
+	_, fetchedVersion, err := registry.GetSchema(ctx, "default", "DefaultGroupSubject", "latest")
 	if err != nil {
 		t.Fatalf("GetSchema from default group failed: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestMockRegistryGetLatestVersion(t *testing.T) {
 	}
 
 	// Should be able to fetch previous version by version ID
-	prevFetched, prevVersion, err := registry.GetSchema(ctx, "test", "Subject", v1)
+	prevSchema, prevVersion, err := registry.GetSchema(ctx, "test", "Subject", v1)
 	if err != nil {
 		t.Fatalf("GetSchema with specific version failed: %v", err)
 	}
@@ -94,8 +94,8 @@ func TestMockRegistryGetLatestVersion(t *testing.T) {
 		t.Errorf("version mismatch: expected %s, got %s", v1, prevVersion)
 	}
 
-	if string(prevFetched) != string(schema1) {
-		t.Errorf("schema mismatch for v1: expected %s, got %s", schema1, prevFetched)
+	if string(prevSchema) != string(schema1) {
+		t.Errorf("schema mismatch for v1: expected %s, got %s", schema1, prevSchema)
 	}
 }
 

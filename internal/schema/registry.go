@@ -3,7 +3,6 @@ package schema
 import (
 	"context"
 	"fmt"
-	"io"
 )
 
 // RegistryBackend is a pluggable schema registry interface. A registry "subject"
@@ -42,6 +41,12 @@ func NewRegistryClient(ctx context.Context, ref *SchemaReference) (RegistryBacke
 	switch ref.Type {
 	case "apicurio":
 		return NewApicurioClient(ref.URL)
+	case "mock":
+		// Mock registry for testing (R18.4)
+		return NewMockRegistry(), nil
+	case "alternative":
+		// Alternative registry implementation for BYO testing (R18.4)
+		return NewAlternativeRegistry(), nil
 	default:
 		return nil, fmt.Errorf("unsupported registry type: %q", ref.Type)
 	}
