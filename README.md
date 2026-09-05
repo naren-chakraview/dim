@@ -2,10 +2,11 @@
 
 A declarative, configuration-driven integration middleware for routing, transforming, and auditing messages between systems — without code, configuration-first.
 
-**Status:** ✅ **Phase 0 Production Ready (v0.5.0)** | 🔄 **Phase 1 In Progress (v0.6.0-beta)**  
-Phase 0: Governance, observability, and audit complete. 440+ tests passing, security audit passed.  
-Phase 1 Track A: Governance framework, CLI (dimctl), daemon (dimd), OTel integration — complete.  
-Phase 1 Track B: Kafka, AMQP, S3 adapters with design-spec interfaces — complete.
+**Status:** ✅ **Phase 0 Production Ready (v0.5.0)** | ✅ **Phase 1 Complete (v0.6.0-beta)** | 🔄 **Phase 2 Ready**  
+Phase 0: Complete. 440+ tests, security audit passed.  
+Phase 1 Track A: Complete (R1-R21). Governance, CLI, daemon, observability, schema registry, SFTP, OpenLineage dead-letter.  
+Phase 1 Track B: Complete (M1.2-M1.8). PBAC+OPA, OBO, AMQP/Kafka reliability, OpenLineage/Marquez, replay tooling.  
+Phase 2: Ready (M2.1-M2.7). Aggregator, splitter, database adapters, fragment params, obligations, purge-log auto-export, static conformance.
 
 ## What is dim?
 
