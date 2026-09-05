@@ -818,3 +818,162 @@ func TestPBACWithMockPDP_ObligationsIncluded(t *testing.T) {
 		t.Error("Expected message to pass through")
 	}
 }
+
+// TestRedactionObligation verifies redact_fields obligation enforcement (M2.5.2)
+func TestRedactionObligation(t *testing.T) {
+	msg := engine.NewMessage(map[string]interface{}{
+		"order_id": 123,
+		"customer": map[string]interface{}{
+			"name": "Alice",
+			"ssn":  "123-45-6789",
+		},
+		"payment": map[string]interface{}{
+			"card": "4111-1111-1111-1111",
+		},
+	}, "test", "v1")
+
+	obligation := PDPObligation{
+		Type: "redact_fields",
+		Parameters: map[string]interface{}{
+			"fields":      []interface{}{"customer.ssn", "payment.card"},
+			"replacement": "[REDACTED]",
+		},
+	}
+
+	result, err := applyRedactionObligation(msg, obligation)
+	if err != nil {
+		t.Fatalf("Failed to apply redaction: %v", err)
+	}
+
+	// Verify redaction
+	body := result.Body.(map[string]interface{})
+	customer := body["customer"].(map[string]interface{})
+	payment := body["payment"].(map[string]interface{})
+
+	if customer["ssn"] != "[REDACTED]" {
+		t.Errorf("Expected customer.ssn=[REDACTED], got %v", customer["ssn"])
+	}
+	if payment["card"] != "[REDACTED]" {
+		t.Errorf("Expected payment.card=[REDACTED], got %v", payment["card"])
+	}
+	if customer["name"] != "Alice" {
+		t.Errorf("Expected customer.name=Alice (unchanged), got %v", customer["name"])
+	}
+
+	// Verify obligation facet in metadata
+	facet := result.Metadata.ObligationFacet.(map[string]interface{})
+	if facet["obligation_type"] != "redact_fields" {
+		t.Errorf("Expected obligation_type=redact_fields, got %v", facet["obligation_type"])
+	}
+}
+
+// TestUndefinedObligation verifies error on unknown obligation type (M2.5.2)
+func TestUndefinedObligation(t *testing.T) {
+	msg := engine.NewMessage(map[string]interface{}{"data": "value"}, "test", "v1")
+	obligations := []PDPObligation{
+		{Type: "unknown_obligation"},
+	}
+
+	_, err := applyObligations(msg, obligations)
+	if err == nil {
+		t.Errorf("Expected error for unknown obligation type")
+	}
+	if !strings.Contains(err.Error(), "unknown obligation type") {
+		t.Errorf("Expected 'unknown obligation type' error, got: %v", err)
+	}
+}
+
+// TestMultipleObligations verifies sequential obligation application (M2.5.2)
+func TestMultipleObligations(t *testing.T) {
+	msg := engine.NewMessage(map[string]interface{}{
+		"id":   1,
+		"ssn":  "123-45-6789",
+		"card": "4111-1111-1111-1111",
+	}, "test", "v1")
+
+	obligations := []PDPObligation{
+		{
+			Type: "redact_fields",
+			Parameters: map[string]interface{}{
+				"fields":      []interface{}{"ssn"},
+				"replacement": "***",
+			},
+		},
+		{
+			Type: "redact_fields",
+			Parameters: map[string]interface{}{
+				"fields":      []interface{}{"card"},
+				"replacement": "XXXX",
+			},
+		},
+	}
+
+	result, err := applyObligations(msg, obligations)
+	if err != nil {
+		t.Fatalf("Failed to apply obligations: %v", err)
+	}
+
+	body := result.Body.(map[string]interface{})
+	if body["ssn"] != "***" {
+		t.Errorf("Expected ssn=***, got %v", body["ssn"])
+	}
+	if body["card"] != "XXXX" {
+		t.Errorf("Expected card=XXXX, got %v", body["card"])
+	}
+	if body["id"] != float64(1) {
+		t.Errorf("Expected id=1 (unchanged), got %v", body["id"])
+	}
+}
+
+// TestRedactionMissingField verifies graceful handling of missing fields (M2.5.2)
+func TestRedactionMissingField(t *testing.T) {
+	msg := engine.NewMessage(map[string]interface{}{
+		"id": 1,
+		"name": "Alice",
+	}, "test", "v1")
+
+	obligation := PDPObligation{
+		Type: "redact_fields",
+		Parameters: map[string]interface{}{
+			"fields": []interface{}{"missing.field", "name"},
+		},
+	}
+
+	result, err := applyRedactionObligation(msg, obligation)
+	if err != nil {
+		t.Fatalf("Should not error on missing field: %v", err)
+	}
+
+	body := result.Body.(map[string]interface{})
+	if body["name"] != "[REDACTED]" {
+		t.Errorf("Expected name=[REDACTED], got %v", body["name"])
+	}
+	if body["id"] != float64(1) {
+		t.Errorf("Expected id=1 (unchanged), got %v", body["id"])
+	}
+}
+
+// TestDefaultReplacement verifies default replacement value (M2.5.2)
+func TestDefaultReplacement(t *testing.T) {
+	msg := engine.NewMessage(map[string]interface{}{
+		"secret": "confidential",
+	}, "test", "v1")
+
+	obligation := PDPObligation{
+		Type: "redact_fields",
+		Parameters: map[string]interface{}{
+			"fields": []interface{}{"secret"},
+			// No replacement specified; should use default
+		},
+	}
+
+	result, err := applyRedactionObligation(msg, obligation)
+	if err != nil {
+		t.Fatalf("Failed to apply redaction: %v", err)
+	}
+
+	body := result.Body.(map[string]interface{})
+	if body["secret"] != "***REDACTED***" {
+		t.Errorf("Expected secret=***REDACTED*** (default), got %v", body["secret"])
+	}
+}

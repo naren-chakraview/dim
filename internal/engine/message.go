@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -57,6 +58,9 @@ type Metadata struct {
 
 	// SplitterFacet tracks split metadata (M2.2.2)
 	SplitterFacet interface{} `json:"splitter_facet,omitempty"`
+
+	// ObligationFacet tracks authorization obligations applied (M2.5.2)
+	ObligationFacet interface{} `json:"obligation_facet,omitempty"`
 }
 
 // Principal represents an authenticated identity
@@ -95,6 +99,50 @@ func (m *Message) Copy() *Message {
 		Headers:  newHeaders,
 		Body:     m.Body, // Shallow copy; steps should replace this, not mutate
 		Metadata: m.Metadata,
+	}
+}
+
+// Clone creates a deep copy of the message, including Body structure (M2.5.2)
+// Used when modifying message body (e.g., for redaction) to avoid mutating original
+func (m *Message) Clone() *Message {
+	if m == nil {
+		return nil
+	}
+
+	// Deep clone Body via JSON marshaling
+	var clonedBody interface{}
+	if m.Body != nil {
+		data, _ := json.Marshal(m.Body)
+		json.Unmarshal(data, &clonedBody)
+	}
+
+	// Clone headers
+	newHeaders := make(map[string]interface{})
+	for k, v := range m.Headers {
+		newHeaders[k] = v
+	}
+
+	// Clone metadata (shallow is OK for metadata itself, but deep clone the facet maps)
+	clonedMetadata := m.Metadata
+	if aggFacet, ok := m.Metadata.AggregatorFacet.(map[string]interface{}); ok {
+		newFacet := make(map[string]interface{})
+		for k, v := range aggFacet {
+			newFacet[k] = v
+		}
+		clonedMetadata.AggregatorFacet = newFacet
+	}
+	if splitFacet, ok := m.Metadata.SplitterFacet.(map[string]interface{}); ok {
+		newFacet := make(map[string]interface{})
+		for k, v := range splitFacet {
+			newFacet[k] = v
+		}
+		clonedMetadata.SplitterFacet = newFacet
+	}
+
+	return &Message{
+		Headers:  newHeaders,
+		Body:     clonedBody,
+		Metadata: clonedMetadata,
 	}
 }
 

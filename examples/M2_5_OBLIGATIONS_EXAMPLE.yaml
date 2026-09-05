@@ -1,0 +1,76 @@
+# M2.5: Authorization Obligations Example
+# Demonstrates redaction obligations returned by PDP (M2.5.3)
+
+sources:
+  kafka-orders:
+    type: kafka
+    brokers: ["localhost:9092"]
+    topic: orders
+
+routes:
+  - name: order-processing-with-redaction
+    version: v1
+    from: kafka-orders
+    auth: pbac  # PBAC (Policy-Based Access Control)
+    pbac:
+      endpoint: "http://opa:8181/v1/data/dim/order/decide"
+      timeout_ms: 5000
+    steps:
+      - filter:
+          expr: 'body.status = "new"'
+      - translate:
+          expr: '{
+            order_id: body.id,
+            customer_id: body.customer_id,
+            amount: body.amount,
+            shipping_address: body.address,
+            credit_card: body.payment.card,
+            ssn: body.customer.ssn
+          }'
+    sinks:
+      - name: orders-db
+        type: database
+        config:
+          driver: postgres
+          table: orders_processed
+
+# Example OPA Policy (opa/policies.rego)
+#
+# package dim.order
+#
+# default allow = false
+#
+# allow {
+#   input.principal.roles[_] = "order_processor"
+# }
+#
+# # Redaction obligation for sensitive fields
+# redaction_obligation {
+#   input.principal.roles[_] = "order_processor"
+#   not input.principal.roles[_] = "admin"
+# }
+#
+# decide {
+#   "decision": "allow" if allow else "deny",
+#   "obligations": [
+#     {
+#       "type": "redact_fields",
+#       "parameters": {
+#         "fields": ["credit_card", "ssn"],
+#         "replacement": "[REDACTED]"
+#       }
+#     }
+#   ] if redaction_obligation else []
+# }
+#
+# **Result with Order Processor Role:**
+# - Input: {order_id: 1, credit_card: "4111...", ssn: "123-45-6789"}
+# - PDP Decision: allow with redaction obligation
+# - After Obligation: {order_id: 1, credit_card: "[REDACTED]", ssn: "[REDACTED]"}
+# - Stored in DB with sensitive fields masked
+#
+# **Result with Admin Role:**
+# - Input: {order_id: 1, credit_card: "4111...", ssn: "123-45-6789"}
+# - PDP Decision: allow without obligations
+# - After Obligation: No changes (all fields preserved)
+# - Stored in DB with full sensitive data visible

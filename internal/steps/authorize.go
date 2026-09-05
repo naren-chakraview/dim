@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
@@ -214,6 +215,11 @@ func (as *AuthorizeStep) executePBAC(ctx context.Context, principal *engine.Prin
 		}
 	}
 
+	// Apply any obligations from the decision (M2.5.2)
+	if len(decision.Obligations) > 0 {
+		return applyObligations(msg, decision.Obligations)
+	}
+
 	return msg, nil
 }
 
@@ -315,4 +321,172 @@ type PermanentError struct {
 
 func (e *PermanentError) Error() string {
 	return e.Msg
+}
+
+// applyObligations applies obligations from a PDP decision to the message (M2.5.2)
+// Currently supports: redact_fields
+// Returns modified message and any errors (e.g., unknown obligation type)
+func applyObligations(msg *engine.Message, obligations []PDPObligation) (*engine.Message, error) {
+	if len(obligations) == 0 {
+		return msg, nil
+	}
+
+	if msg == nil {
+		return msg, nil
+	}
+
+	// Apply each obligation in order
+	currentMsg := msg
+	for i, obligation := range obligations {
+		var err error
+		switch obligation.Type {
+		case "redact_fields":
+			currentMsg, err = applyRedactionObligation(currentMsg, obligation)
+		default:
+			return nil, &PermanentError{
+				Msg: fmt.Sprintf("unknown obligation type: %q", obligation.Type),
+			}
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("obligation %d (%s) failed: %w", i, obligation.Type, err)
+		}
+	}
+
+	return currentMsg, nil
+}
+
+// applyRedactionObligation handles redact_fields obligation (M2.5.2)
+// Parameters:
+// - fields (array of strings): Field paths to redact (required)
+// - replacement (string): Value to replace with (default: ***REDACTED***)
+// - depth (string): shallow, deep, or recursive (default: shallow)
+func applyRedactionObligation(msg *engine.Message, obligation PDPObligation) (*engine.Message, error) {
+	params := obligation.Parameters
+	if params == nil {
+		params = make(map[string]interface{})
+	}
+
+	// Extract fields to redact
+	fieldsInterface, ok := params["fields"]
+	if !ok {
+		return nil, fmt.Errorf("redact_fields obligation missing required parameter: fields")
+	}
+
+	var fields []string
+	fieldsArray, ok := fieldsInterface.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("redact_fields parameter 'fields' must be an array")
+	}
+
+	for _, f := range fieldsArray {
+		if fieldStr, ok := f.(string); ok {
+			fields = append(fields, fieldStr)
+		}
+	}
+
+	if len(fields) == 0 {
+		return nil, fmt.Errorf("redact_fields obligation 'fields' array is empty")
+	}
+
+	// Extract replacement value
+	replacement := "***REDACTED***"
+	if repl, ok := params["replacement"].(string); ok {
+		replacement = repl
+	}
+
+	// Extract depth strategy
+	depth := "shallow" // default
+	if d, ok := params["depth"].(string); ok {
+		depth = d
+	}
+
+	// Clone the message to avoid modifying the original
+	clonedMsg := msg.Clone()
+
+	// Apply redaction to message body
+	if bodyMap, ok := clonedMsg.Body.(map[string]interface{}); ok {
+		redactFields(bodyMap, fields, replacement, depth)
+	}
+
+	// Add obligation facet to metadata for lineage tracking
+	if clonedMsg.Metadata.ObligationFacet == nil {
+		clonedMsg.Metadata.ObligationFacet = make(map[string]interface{})
+	}
+
+	clonedMsg.Metadata.ObligationFacet.(map[string]interface{})["obligation_type"] = "redact_fields"
+	clonedMsg.Metadata.ObligationFacet.(map[string]interface{})["fields_redacted"] = fields
+	clonedMsg.Metadata.ObligationFacet.(map[string]interface{})["replacement"] = replacement
+	clonedMsg.Metadata.ObligationFacet.(map[string]interface{})["timestamp"] = time.Now().UTC().Format(time.RFC3339)
+
+	return clonedMsg, nil
+}
+
+// redactFields recursively redacts specified fields in a map structure (M2.5.2)
+func redactFields(obj map[string]interface{}, fields []string, replacement string, depth string) {
+	for _, fieldPath := range fields {
+		parts := strings.Split(fieldPath, ".")
+		redactPath(obj, parts, replacement, depth, 0)
+	}
+}
+
+// redactPath recursively navigates and redacts a field path (M2.5.2)
+func redactPath(obj interface{}, parts []string, replacement string, depth string, index int) {
+	if index >= len(parts) {
+		return
+	}
+
+	part := parts[index]
+	isLast := index == len(parts)-1
+
+	// Handle wildcard
+	if part == "*" {
+		if mapObj, ok := obj.(map[string]interface{}); ok {
+			for key := range mapObj {
+				if isLast {
+					mapObj[key] = replacement
+				} else if depth == "deep" || depth == "recursive" {
+					redactPath(mapObj[key], parts[index+1:], replacement, depth, 0)
+				}
+			}
+		}
+		return
+	}
+
+	// Navigate to next level
+	if mapObj, ok := obj.(map[string]interface{}); ok {
+		val, exists := mapObj[part]
+		if !exists {
+			return // Field doesn't exist, skip
+		}
+
+		if isLast {
+			// Redact this field
+			mapObj[part] = replacement
+		} else {
+			// Continue navigation
+			if nextMap, ok := val.(map[string]interface{}); ok {
+				redactPath(nextMap, parts, replacement, depth, index+1)
+			} else if depth == "deep" || depth == "recursive" {
+				// In deep mode, also recurse into nested structures
+				redactInNested(val, parts[index+1:], replacement, depth)
+			}
+		}
+	}
+}
+
+// redactInNested recursively searches for fields in nested structures (M2.5.2)
+func redactInNested(obj interface{}, remainingParts []string, replacement string, depth string) {
+	if len(remainingParts) == 0 {
+		return
+	}
+
+	switch v := obj.(type) {
+	case map[string]interface{}:
+		redactPath(v, remainingParts, replacement, depth, 0)
+	case []interface{}:
+		for _, item := range v {
+			redactInNested(item, remainingParts, replacement, depth)
+		}
+	}
 }
