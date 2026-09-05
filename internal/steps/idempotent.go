@@ -7,20 +7,24 @@ import (
 	"sync"
 	"time"
 
+	"github.com/naren-chakraview/dim/internal/cluster"
 	"github.com/naren-chakraview/dim/internal/engine"
 	"github.com/naren-chakraview/dim/internal/expr"
 )
 
-// IdempotentStep implements message deduplication using an in-memory key set with TTL-based eviction.
+// IdempotentStep implements message deduplication using a pluggable dedup store.
 // Messages with duplicate deduplication keys are dropped (return nil).
-// Keys are extracted via JSONata expression and remembered for the configured TTL.
+// Keys are extracted via JSONata expression and checked via the dedup store.
 type IdempotentStep struct {
-	evaluator *expr.Evaluator
+	evaluator  *expr.Evaluator
+	dedupStore cluster.DedupStore
+	// Legacy fields for backwards compatibility (when no dedupStore is provided)
 	keySet    map[string]time.Time // key -> expiry time
 	lock      sync.RWMutex         // protect keySet
 	ttl       time.Duration
 	stopCh    chan struct{}         // signal to stop eviction goroutine
 	wg        sync.WaitGroup        // wait for eviction goroutine
+	legacy    bool                  // true if using built-in dedup, false if using dedupStore
 }
 
 // NewIdempotentStep creates a new idempotent step from a JSONata key expression.
@@ -40,15 +44,34 @@ func NewIdempotentStep(keyExpr string, ttlMinutes int) (*IdempotentStep, error) 
 	}
 
 	step := &IdempotentStep{
-		evaluator: evaluator,
-		keySet:    make(map[string]time.Time),
-		ttl:       ttl,
-		stopCh:    make(chan struct{}),
+		evaluator:  evaluator,
+		keySet:     make(map[string]time.Time),
+		ttl:        ttl,
+		stopCh:     make(chan struct{}),
+		legacy:     true,
+		dedupStore: nil,
 	}
 
-	// Start background eviction goroutine
+	// Start background eviction goroutine for legacy mode
 	step.wg.Add(1)
 	go step.evictionLoop()
+
+	return step, nil
+}
+
+// NewIdempotentStepWithStore creates an idempotent step using an external dedup store (for cluster mode).
+func NewIdempotentStepWithStore(keyExpr string, dedupStore cluster.DedupStore) (*IdempotentStep, error) {
+	evaluator, err := expr.CompileExpression(keyExpr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile idempotent key expression: %w", err)
+	}
+
+	step := &IdempotentStep{
+		evaluator:  evaluator,
+		dedupStore: dedupStore,
+		keySet:     nil,
+		legacy:     false,
+	}
 
 	return step, nil
 }
@@ -79,6 +102,33 @@ func (is *IdempotentStep) Execute(ctx context.Context, msg *engine.Message) (*en
 	// Convert result to string (dedup key)
 	key := fmt.Sprintf("%v", result)
 
+	if is.legacy {
+		// Use legacy in-memory dedup store
+		return is.executeWithLegacyStore(ctx, msg, key)
+	} else {
+		// Use pluggable dedup store (cluster mode)
+		return is.executeWithDedupStore(ctx, msg, key)
+	}
+}
+
+// executeWithDedupStore checks dedup using the pluggable store.
+func (is *IdempotentStep) executeWithDedupStore(ctx context.Context, msg *engine.Message, key string) (*engine.Message, error) {
+	isDup, err := is.dedupStore.Check(ctx, key)
+	if err != nil {
+		return nil, fmt.Errorf("dedup store check failed: %w", err)
+	}
+
+	if isDup {
+		// Key found and not expired: duplicate message, drop it
+		return nil, nil
+	}
+
+	// Key is new or expired: pass through
+	return msg, nil
+}
+
+// executeWithLegacyStore checks dedup using the legacy in-memory store.
+func (is *IdempotentStep) executeWithLegacyStore(ctx context.Context, msg *engine.Message, key string) (*engine.Message, error) {
 	// Check if key exists and not expired
 	is.lock.RLock()
 	expiry, exists := is.keySet[key]
@@ -142,20 +192,26 @@ func (is *IdempotentStep) evictExpiredKeys() {
 	}
 }
 
-// Stop gracefully shuts down the eviction goroutine.
-// This should be called when the step is being cleaned up.
+// Stop gracefully shuts down the idempotent step.
+// For legacy mode, stops the eviction goroutine.
+// For dedup store mode, stops the underlying dedup store.
 func (is *IdempotentStep) Stop(ctx context.Context) error {
-	close(is.stopCh)
-	done := make(chan struct{})
-	go func() {
-		is.wg.Wait()
-		close(done)
-	}()
+	if is.legacy {
+		close(is.stopCh)
+		done := make(chan struct{})
+		go func() {
+			is.wg.Wait()
+			close(done)
+		}()
 
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return fmt.Errorf("idempotent step shutdown timeout: %w", ctx.Err())
+		select {
+		case <-done:
+			return nil
+		case <-ctx.Done():
+			return fmt.Errorf("idempotent step shutdown timeout: %w", ctx.Err())
+		}
+	} else {
+		// Stop the dedupStore
+		return is.dedupStore.Stop(ctx)
 	}
 }
