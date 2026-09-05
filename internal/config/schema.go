@@ -134,14 +134,25 @@ type OnDenySpec struct {
 	Target string `yaml:"target" json:"target"` // sink name to route denied messages to
 }
 
-// ContractSpec defines a data contract with JSON Schema validation (M0.3.5-7)
+// RegistryRefSpec defines a reference to a schema in a registry (R18.3)
+type RegistryRefSpec struct {
+	Type    string `yaml:"type" json:"type"`             // "apicurio", "confluent", "aws-glue", "azure", etc.
+	URL     string `yaml:"url" json:"url"`               // registry base URL
+	Group   string `yaml:"group" json:"group"`           // registry group (e.g., "order-schemas")
+	Subject string `yaml:"subject" json:"subject"`       // registry subject: a named schema group, NOT a data subject
+	Version string `yaml:"version" json:"version"`       // "latest" or specific version ID
+}
+
+// ContractSpec defines a data contract with JSON Schema validation (M0.3.5-7, R18.3)
 type ContractSpec struct {
-	ID          string                 `yaml:"id" json:"id"`                               // contract identifier
-	Version     string                 `yaml:"version" json:"version"`                     // semver: 1.0.0
-	Schema      interface{}            `yaml:"schema" json:"schema"`                       // JSON Schema (can be YAML object or JSON string)
-	OnViolation string                 `yaml:"on_violation" json:"on_violation"`           // sink name or route for violations
-	Strict      bool                   `yaml:"strict,omitempty" json:"strict,omitempty"` // fail pipeline on violation? (default: false)
-	Extra       map[string]interface{} `yaml:",inline" json:"-"`                           // extensibility
+	ID              string                 `yaml:"id" json:"id"`                               // contract identifier
+	Version         string                 `yaml:"version" json:"version"`                     // semver: 1.0.0
+	Schema          interface{}            `yaml:"schema" json:"schema"`                       // JSON Schema (can be YAML object or JSON string) — inline contract
+	Registry        *RegistryRefSpec       `yaml:"registry" json:"registry,omitempty"`        // registry-backed contract reference (R18.3)
+	ContractVersion string                 `yaml:"contract_version" json:"contract_version"` // resolved version tag (R18.3): "sha256:..." for inline, "apicurio:group:subject:version" for registry
+	OnViolation     string                 `yaml:"on_violation" json:"on_violation"`          // sink name or route for violations
+	Strict          bool                   `yaml:"strict,omitempty" json:"strict,omitempty"` // fail pipeline on violation? (default: false)
+	Extra           map[string]interface{} `yaml:",inline" json:"-"`                          // extensibility
 }
 
 // ObservabilityConfig defines observability settings for metrics and tracing
