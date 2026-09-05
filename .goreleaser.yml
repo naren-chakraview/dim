@@ -52,7 +52,7 @@ release:
     name: dim
   draft: false
   prerelease: auto
-  name_template: "v{{ .Version }}"}
+  name_template: "v{{ .Version }}"
 
 changelog:
   sort: asc
