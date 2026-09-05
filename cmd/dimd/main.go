@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/factory"
@@ -192,16 +191,17 @@ func runSingleRoute(ctx context.Context, cfg *config.RouteConfig, tracingProvide
 	<-sigChan
 
 	log.Printf("[INFO] shutdown signal received, stopping daemon")
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
 
-	// Stop executor and sources
-	executor.Stop(shutdownCtx)
+	// Stop sources and sinks
 	for _, source := range sources {
-		source.Stop(shutdownCtx)
+		if err := source.Stop(); err != nil {
+			log.Printf("[WARN] error stopping source: %v", err)
+		}
 	}
 	for _, sink := range sinks {
-		sink.Stop(shutdownCtx)
+		if err := sink.Stop(); err != nil {
+			log.Printf("[WARN] error stopping sink: %v", err)
+		}
 	}
 
 	log.Printf("[INFO] daemon shutdown complete")
@@ -210,13 +210,13 @@ func runSingleRoute(ctx context.Context, cfg *config.RouteConfig, tracingProvide
 
 // runMultiRoute runs a multi-route configuration
 func runMultiRoute(ctx context.Context, cfg *config.RouteConfig, configPath string, tracingProvider *observability.TracingProvider, metricsCollector *observability.MetricsCollector, viewerSrv *viewer.ViewerServer) error {
-	executor, sources, sinks, err := factory.BuildMultiRoutePipelineWithTracing(ctx, cfg, tracingProvider)
+	_, _, sources, sinks, err := factory.BuildMultiRoutePipelineWithTracing(ctx, cfg, tracingProvider)
 	if err != nil {
 		return fmt.Errorf("failed to build multi-route pipeline: %w", err)
 	}
-
-	// Start executor and all sources
-	go executor.Run(ctx)
+	// Start all sources and sinks
+	// TODO: multi-route executor API changed in current version
+	// The old executor.Run pattern is no longer used; MessageRouter manages execution
 	for _, source := range sources {
 		go source.Start(ctx)
 	}
@@ -233,16 +233,17 @@ func runMultiRoute(ctx context.Context, cfg *config.RouteConfig, configPath stri
 	<-sigChan
 
 	log.Printf("[INFO] shutdown signal received, stopping daemon")
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
 
-	// Stop executor and sources
-	executor.Stop(shutdownCtx)
+	// Stop sources and sinks
 	for _, source := range sources {
-		source.Stop(shutdownCtx)
+		if err := source.Stop(); err != nil {
+			log.Printf("[WARN] error stopping source: %v", err)
+		}
 	}
 	for _, sink := range sinks {
-		sink.Stop(shutdownCtx)
+		if err := sink.Stop(); err != nil {
+			log.Printf("[WARN] error stopping sink: %v", err)
+		}
 	}
 
 	log.Printf("[INFO] daemon shutdown complete")

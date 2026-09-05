@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"io"
 	"sync"
 	"time"
 
@@ -67,7 +67,7 @@ func (s *S3Source) poll(ctx context.Context) {
 		Prefix: aws.String(s.prefix),
 	})
 	if err != nil {
-		log.Printf("[WARN] S3 list failed: %v", err)
+		fmt.Printf("[WARN] S3 list failed: %v\n", err)
 		return
 	}
 
@@ -89,13 +89,20 @@ func (s *S3Source) poll(ctx context.Context) {
 			Key:    aws.String(key),
 		})
 		if err != nil {
-			log.Printf("[WARN] S3 get failed: %v", err)
+			fmt.Printf("[WARN] S3 get failed: %v\n", err)
+			continue
+		}
+
+		bodyBytes, err := io.ReadAll(getResult.Body)
+		defer getResult.Body.Close()
+		if err != nil {
+			fmt.Printf("[WARN] S3 read body failed: %v\n", err)
 			continue
 		}
 
 		var body interface{}
-		if err := json.Unmarshal(getResult.Body.([]byte), &body); err != nil {
-			body = string(getResult.Body.([]byte))
+		if err := json.Unmarshal(bodyBytes, &body); err != nil {
+			body = string(bodyBytes)
 		}
 
 		msg := engine.NewMessage(body, "s3-source", "")
@@ -108,9 +115,7 @@ func (s *S3Source) poll(ctx context.Context) {
 }
 
 func (s *S3Source) Close() error {
-	if s.client != nil {
-		s.client.Close()
-	}
+	// AWS SDK v2 S3 client doesn't require explicit close
 	return nil
 }
 
