@@ -1,6 +1,7 @@
 package replay
 
 import (
+	"strconv"
 	"time"
 )
 
@@ -19,9 +20,9 @@ type Result struct {
 func (r *Result) Summary() string {
 	return "" +
 		"Replay complete:\n" +
-		"  Total:    " + string(rune(r.Total)) + "\n" +
-		"  Replayed: " + string(rune(r.Replayed)) + "\n" +
-		"  Failed:   " + string(rune(r.Failed)) + "\n" +
-		"  Skipped:  " + string(rune(r.Skipped)) + "\n" +
+		"  Total:    " + strconv.Itoa(r.Total) + "\n" +
+		"  Replayed: " + strconv.Itoa(r.Replayed) + "\n" +
+		"  Failed:   " + strconv.Itoa(r.Failed) + "\n" +
+		"  Skipped:  " + strconv.Itoa(r.Skipped) + "\n" +
 		"  Duration: " + r.Duration.String()
 }

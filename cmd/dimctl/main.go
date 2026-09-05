@@ -35,6 +35,39 @@ var rootCmd = &cobra.Command{
 	Long:  "dimctl is the command-line control tool for the dim integration middleware engine",
 }
 
+var replayCmd = &cobra.Command{
+	Use:   "replay [options] <target-route>",
+	Short: "Replay messages from a DLQ",
+	Long:  "Recover and replay messages from a dead-letter queue back into a target route with optional filtering and rate limiting",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		rc, err := ParseReplayCmd(args)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			return err
+		}
+
+		ctx := context.Background()
+		eng := engine.NewEngine()
+
+		result, err := rc.Execute(ctx, eng)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "replay failed: %v\n", err)
+			return err
+		}
+
+		fmt.Fprintf(os.Stdout, "%s\n", result.Summary())
+
+		if result.Failed > 0 {
+			for _, errMsg := range result.Errors {
+				fmt.Fprintf(os.Stderr, "error: %s\n", errMsg)
+			}
+			return fmt.Errorf("replay encountered %d failures", result.Failed)
+		}
+
+		return nil
+	},
+}
+
 var validateCmd = &cobra.Command{
 	Use:   "validate <file>",
 	Short: "Validate a route configuration file",
@@ -867,6 +900,7 @@ func init() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(testCmd)
+	rootCmd.AddCommand(replayCmd)
 	rootCmd.AddCommand(lineageCmd)
 	rootCmd.AddCommand(traceCmd)
 
