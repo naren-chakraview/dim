@@ -11,6 +11,19 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v5"
 )
 
+// SchemaDatasetFacet represents the OpenLineage schema facet extracted from a contract (M1.7.3, R20)
+type SchemaDatasetFacet struct {
+	Fields []SchemaField `json:"fields"`
+}
+
+// SchemaField represents a single field in the schema facet (M1.7.3, R20)
+type SchemaField struct {
+	Name        string `json:"name"`
+	Type        string `json:"type"`
+	Description string `json:"description,omitempty"`
+	Nullable    bool   `json:"nullable"`
+}
+
 // ContractStore manages contract definitions indexed by route and contract ID
 type ContractStore struct {
 	// routeContracts maps route name -> contract list
@@ -214,4 +227,73 @@ func computeRegistryContractVersion(ref *RegistryRefSpec) string {
 	// from the registry if version is "latest". For now, we use "latest" as-is.
 	// This should be improved in a follow-up to use the actual resolved version ID.
 	return fmt.Sprintf("%s:%s:%s:%s", ref.Type, ref.Group, ref.Subject, ref.Version)
+}
+
+// ToSchemaDatasetFacet converts the contract's JSON Schema to an OpenLineage SchemaDatasetFacet (M1.7.3, R20).
+// This enables automatic schema facet generation for lineage without requiring manual configuration.
+func (cs *ContractSpec) ToSchemaDatasetFacet() (*SchemaDatasetFacet, error) {
+	if cs.Schema == nil {
+		return nil, fmt.Errorf("contract %q has no schema", cs.ID)
+	}
+
+	// Parse schema JSON
+	var schemaObj map[string]interface{}
+	switch v := cs.Schema.(type) {
+	case string:
+		if err := json.Unmarshal([]byte(v), &schemaObj); err != nil {
+			return nil, fmt.Errorf("contract %q: invalid schema JSON: %w", cs.ID, err)
+		}
+	case map[string]interface{}:
+		schemaObj = v
+	default:
+		schemaBytes, err := json.Marshal(v)
+		if err != nil {
+			return nil, fmt.Errorf("contract %q: failed to marshal schema: %w", cs.ID, err)
+		}
+		if err := json.Unmarshal(schemaBytes, &schemaObj); err != nil {
+			return nil, fmt.Errorf("contract %q: invalid schema JSON: %w", cs.ID, err)
+		}
+	}
+
+	facet := &SchemaDatasetFacet{Fields: make([]SchemaField, 0)}
+
+	// Extract fields from schema properties
+	if properties, ok := schemaObj["properties"].(map[string]interface{}); ok {
+		required := make(map[string]bool)
+		if reqList, ok := schemaObj["required"].([]interface{}); ok {
+			for _, r := range reqList {
+				if s, ok := r.(string); ok {
+					required[s] = true
+				}
+			}
+		}
+
+		for name, propVal := range properties {
+			if propObj, ok := propVal.(map[string]interface{}); ok {
+				field := SchemaField{
+					Name:     name,
+					Nullable: !required[name],
+				}
+
+				// Extract type
+				if t, ok := propObj["type"].(string); ok {
+					field.Type = t
+				} else if typeArray, ok := propObj["type"].([]interface{}); ok && len(typeArray) > 0 {
+					// Handle ["type", "null"] case
+					if ts, ok := typeArray[0].(string); ok {
+						field.Type = ts
+					}
+				}
+
+				// Extract description
+				if desc, ok := propObj["description"].(string); ok {
+					field.Description = desc
+				}
+
+				facet.Fields = append(facet.Fields, field)
+			}
+		}
+	}
+
+	return facet, nil
 }

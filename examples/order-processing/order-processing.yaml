@@ -1,18 +1,21 @@
-# Order Processing Pipeline — Phase 0/1 Complete Worked Example
-# A production-like route exercising all core dim features:
+# Order Processing Pipeline — Phase 1 Complete Worked Example (R19, R20)
+# A production-like route exercising Phase 1 capabilities:
 # - Config imports and fragments (via common-steps.yaml)
-# - Authorization (RBAC; PBAC in Phase 1)
+# - PBAC (Attribute-Based Authorization with OPA) - M1.2 (R19)
+# - OBO (On-Behalf-Of token exchange) - M1.3 (R19)
+# - OpenLineage/Marquez export with schema facets - M1.7 (R19, R20)
+# - Data contracts with automatic schema facet generation - M1.7.3 (R20)
+# - Lineage export dead-letter path for failed exports - M1.7.4 (R20)
+# - SFTP file ingestion - R21
 # - Wiretap for audit logging
-# - JSONata expressions with custom functions (Go plugins, WASM)
+# - JSONata expressions with custom functions
 # - Content-based routing
-# - Error handling with dead-letter queue
-# - Message lineage and retention policies
-# - Data contracts with JSON Schema (Phase 1)
+# - Error handling with dead-letter queues
+# - Message lineage with retention policies
 
 version: 1
 
 # Import shared configuration (fragments, functions)
-# Phase 1: will support parametric fragments for reuse across routes
 imports:
   - common-steps.yaml
 
@@ -20,6 +23,17 @@ sources:
   webhook-in:
     type: http
     desc: 'HTTP webhook for order ingestion'
+
+  sftp-orders:
+    type: sftp
+    config:
+      host: sftp.example.com
+      port: 22
+      user: orders_user
+      password: ${SECRET:SFTP_PASSWORD}
+      path: /incoming/orders
+      schedule: "1h"
+    desc: 'SFTP polling for batch order files (R21)'
 
 sinks:
   orders-valid:
@@ -35,7 +49,12 @@ sinks:
   unauthorized-dlq:
     type: file
     path: ./output/orders-unauthorized.jsonl
-    desc: 'Orders rejected due to authorization denial'
+    desc: 'Orders rejected due to authorization denial (PBAC)'
+
+  lineage-export-dlq:
+    type: file
+    path: ./output/lineage-export-dlq.jsonl
+    desc: 'Orders that failed OpenLineage export (M1.7.4, R20)'
 
   audit-log:
     type: file
@@ -45,12 +64,34 @@ sinks:
 routes:
   ingest-orders:
     from: webhook-in
-    auth: none
-    desc: 'Main order ingestion and processing route'
+    auth: pbac
+    desc: 'Main order ingestion with PBAC authorization (M1.2, R19)'
 
+    # Data contract with automatic schema facet generation (M1.7.3, R20)
+    contracts:
+      - id: order-contract
+        version: "1.0.0"
+        schema: |
+          {
+            "type": "object",
+            "properties": {
+              "order_id": {"type": "string"},
+              "customer_name": {"type": "string"},
+              "total": {"type": "number"},
+              "currency": {"type": "string"},
+              "timestamp": {"type": "string"}
+            },
+            "required": ["order_id", "customer_name", "total"]
+          }
+
+    # OpenLineage/Marquez configuration with dead-letter path (M1.7, R20)
     lineage:
       retention_policy: default
-      desc: 'Keep order lineage for 90 days (default policy)'
+      desc: 'Keep order lineage for 90 days'
+      openlineage:
+        enabled: true
+        marquez_url: http://localhost:5000
+        on_export_failure: lineage-export-dlq  # Dead-letter for failed exports (M1.7.4, R20)
 
     error_path:
       target: orders-dlq
@@ -62,33 +103,52 @@ routes:
       # Step 1: capture all inbound orders in audit log (side effect only)
       - wiretap:
           to: audit-log
-          desc: 'Log all incoming orders for audit trail (Phase 0 wiretap feature)'
+          desc: 'Log all incoming orders for audit trail'
 
-      # Step 2: enforce authorization (RBAC in Phase 0, PBAC+OPA in Phase 1)
-      # In production, this would check JWT from Authorization header
-      # For demo, everyone is authorized; real deployment adds role checks
+      # Step 2: PBAC authorization with OPA (M1.2, R19)
+      # OPA checks attributes from JWT: subject_id, department, role
+      # Policies defined in OPA enforce: sellers can only process their own orders
       - authorize:
-          mode: rbac
-          require_roles: []  # Empty means allow all; real deployment specifies roles: [seller, partner]
+          mode: pbac
+          opa_policy: order_processing.rego
+          opa_subject: ${JWT:subject_id}
+          opa_attributes:
+            department: ${JWT:department}
+            role: ${JWT:role}
+            order_customer: body.customer_id
           on_deny:
             to: unauthorized-dlq
-          desc: 'Enforce role-based access control (RBAC); Phase 1 upgrades to PBAC with OPA'
+          desc: 'Enforce attribute-based access control with OPA (PBAC, M1.2)'
 
-      # Step 3-4: Validate and deduplicate (using fragment from common-steps.yaml)
-      # This demonstrates fragment reuse and composition from imports
+      # Step 2.5: OBO token exchange for downstream services (M1.3, R19)
+      # Exchange user's JWT for access token scoped to order-service
+      - translate:
+          expr: |
+            {
+              "subject_token": $headers.authorization,
+              "subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+              "resource": "order-service",
+              "requested_token_type": "urn:ietf:params:oauth:token-type:access_token"
+            }
+          desc: 'Prepare OBO token exchange request (M1.3)'
+
+      - factory:
+          target_service: https://auth-service/token
+          method: POST
+          body_from_message: true
+          desc: 'Exchange token on-behalf-of user for order-service scope (OBO, M1.3)'
+
+      # Step 3-4: Validate and deduplicate
       - filter:
           expr: 'body.id != null and body.amount != null'
-          desc: 'Reject orders missing required fields (part of validate-order fragment)'
+          desc: 'Reject orders missing required fields'
 
       - idempotent:
           key: 'body.id'
-          desc: 'Deduplicate orders by id (part of validate-order fragment)'
+          desc: 'Deduplicate orders by id'
 
       # Step 5: Transform the order structure
-      # This step demonstrates:
-      # - JSONata expressions (Phase 0)
-      # - Custom function calls (Go plugins in Phase 1 R5, WASM in R4)
-      # - Content-based routing (high-value orders separate)
+      # Schema facet is automatically generated from contract (M1.7.3, R20)
       - translate:
           expr: |
             {
@@ -100,14 +160,80 @@ routes:
               "timestamp": $now(),
               "order_value": body.amount > 10000 ? "high" : "standard"
             }
-          desc: 'Normalize and enrich order data (Phase 1: will call $normalizePhone and $scoreRisk functions)'
+          desc: 'Normalize and enrich order data'
 
-# Example authorization requirements (uncommented in production):
-# - A real deployment would validate JWT, extract principal.subject and principal.roles
-# - The authorize step would enforce minimum role requirements (e.g., require_roles: [partner, seller])
-# - Denials route to unauthorized-dlq for audit and replay
+      # Step 6: Route to output (lineage and schema facet auto-tracked)
+      - route_step:
+          output: orders-valid
+          desc: 'Output successfully processed orders (lineage with schema facet - M1.7.3, M1.7.4)'
 
-# Example function usage (Phase 1):
-# When normalizePhone plugin is available, the translate step would call:
-#   "phone": $normalizePhone(body.phone)
-# That would invoke the Go plugin, normalizing the number to a standard format
+  ingest-sftp-orders:
+    from: sftp-orders
+    auth: none
+    desc: 'Batch order ingestion from SFTP (R21)'
+
+    contracts:
+      - id: order-contract
+        version: "1.0.0"
+        schema: |
+          {
+            "type": "object",
+            "properties": {
+              "order_id": {"type": "string"},
+              "customer_name": {"type": "string"},
+              "total": {"type": "number"},
+              "currency": {"type": "string"},
+              "timestamp": {"type": "string"}
+            },
+            "required": ["order_id", "customer_name", "total"]
+          }
+
+    lineage:
+      retention_policy: default
+      openlineage:
+        enabled: true
+        marquez_url: http://localhost:5000
+        on_export_failure: lineage-export-dlq
+
+    steps:
+      - filter:
+          expr: 'body.id != null and body.amount != null'
+          desc: 'Filter valid orders from SFTP batch'
+
+      - translate:
+          expr: |
+            {
+              "order_id": body.id,
+              "customer_name": body.customer_name,
+              "total": body.amount / 100,
+              "currency": body.currency ? body.currency : "USD",
+              "timestamp": $now(),
+              "source": "sftp"
+            }
+          desc: 'Transform SFTP batch orders'
+
+      - route_step:
+          output: orders-valid
+          desc: 'Output SFTP orders with lineage tracking'
+
+# References
+# M1.2 (PBAC): Attribute-based authorization with OPA policy engine
+#   - attributes extracted from JWT headers
+#   - policies defined in OPA Rego language
+#   - denials route to unauthorized-dlq for audit
+#
+# M1.3 (OBO): On-behalf-of token exchange
+#   - User's JWT exchanged for service-scoped access token
+#   - Allows delegated access to downstream services
+#   - Scope limits token to specific resource
+#
+# M1.7 (OpenLineage/Marquez): Message lineage export
+#   - Lineage automatically tracked at each step
+#   - M1.7.3 (R20): Schema facets auto-generated from contracts
+#   - M1.7.4 (R20): Failed exports route to lineage-export-dlq
+#   - Enables data governance and provenance tracking
+#
+# R21 (SFTP): File ingestion with credentials via ${SECRET:name}
+#   - Password and key authentication supported
+#   - Schedule-based polling
+#   - Integrated with lineage tracking
