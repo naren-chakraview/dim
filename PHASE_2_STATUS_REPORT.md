@@ -338,13 +338,20 @@ All Phase 2 exit criteria met (per phase-2-implementation-plan.md §3):
 
 ---
 
-## Next Phase (Phase 3 - Planned, Not Scoped)
+## Next Phase (Phase 3 & 4 - Roadmap)
 
-- Advanced authorization (attribute-based delegation, time-limited scopes)
-- Schema registry integration (Apicurio reference, Confluent/AWS/Azure BYO)
-- Distributed lineage store (cross-instance queries)
-- Complex event processing (windowing, pattern matching)
-- Advanced transformation (recursive descent, streaming aggregates)
+### Phase 3 — Scale-Out
+- **Distributed/clustered mode** — Multiple `dimd` instances cooperating on shared routes, with coordinated lineage, dedup, and config reload
+- **Claim check** — Store large payloads externally; replace with lightweight references in-flight
+- **Formal third-party plugin SDK** — Versioned public contract for native and WASM plugins
+- **Multi-tenant policy isolation** — Resource quotas and blast-radius containment per domain/tenant on a shared instance
+
+### Phase 4 — Self-Service and Visual Tooling
+- **GitOps deployment pipeline** — Guardrail-wrapped automation for route deployment
+- **`midctl scaffold` command** — Starter data-product layout generator
+- **Pre-deployment discovery surface** — Query the existing registry/catalog before deploy
+- **Domain-scoped secrets** — Segregate secret namespaces by domain
+- **Local visual route-authoring interface** — File-based editor generating/reparsing YAML, reusing `midctl validate`/`midctl test`
 
 ---
 
