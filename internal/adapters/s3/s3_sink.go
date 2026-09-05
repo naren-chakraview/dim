@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -122,9 +121,6 @@ func (s *S3Sink) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.closed = true
-	if s.client != nil {
-		s.client.Close()
-	}
 	return nil
 }
 

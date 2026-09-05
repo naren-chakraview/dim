@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/naren-chakraview/dim/internal/adapters"
 	"github.com/naren-chakraview/dim/internal/engine"
 	"github.com/naren-chakraview/dim/internal/obo"
 )
@@ -90,8 +91,8 @@ func (s *HTTPSink) SetRouteVersion(version string) {
 }
 
 // Write sends messages to the HTTP endpoint (M1.3.3 - with OBO support)
-func (s *HTTPSink) Write(ctx context.Context, msgs []*engine.Message) []engine.Result {
-	results := make([]engine.Result, len(msgs))
+func (s *HTTPSink) Write(ctx context.Context, msgs []*engine.Message) []adapters.Result {
+	results := make([]adapters.Result, len(msgs))
 
 	for i, msg := range msgs {
 		// Prepare authorization header
@@ -108,7 +109,7 @@ func (s *HTTPSink) Write(ctx context.Context, msgs []*engine.Message) []engine.R
 
 			exchangeResp, err := s.tokenExchanger.Exchange(ctx, exchangeReq)
 			if err != nil {
-				results[i] = engine.Result{
+				results[i] = adapters.Result{
 					Message: msg,
 					Error:   fmt.Errorf("OBO token exchange failed: %w", err),
 					Success: false,
@@ -125,7 +126,7 @@ func (s *HTTPSink) Write(ctx context.Context, msgs []*engine.Message) []engine.R
 		// Prepare request body (message body as JSON)
 		bodyBytes, err := json.Marshal(msg.Body)
 		if err != nil {
-			results[i] = engine.Result{
+			results[i] = adapters.Result{
 				Message: msg,
 				Error:   fmt.Errorf("failed to marshal message body: %w", err),
 				Success: false,
@@ -136,7 +137,7 @@ func (s *HTTPSink) Write(ctx context.Context, msgs []*engine.Message) []engine.R
 		// Create HTTP request
 		req, err := http.NewRequestWithContext(ctx, "POST", s.url, bytes.NewReader(bodyBytes))
 		if err != nil {
-			results[i] = engine.Result{
+			results[i] = adapters.Result{
 				Message: msg,
 				Error:   fmt.Errorf("failed to create HTTP request: %w", err),
 				Success: false,
@@ -158,7 +159,7 @@ func (s *HTTPSink) Write(ctx context.Context, msgs []*engine.Message) []engine.R
 		// Send request
 		resp, err := s.client.Do(req)
 		if err != nil {
-			results[i] = engine.Result{
+			results[i] = adapters.Result{
 				Message: msg,
 				Error:   fmt.Errorf("HTTP request failed: %w", err),
 				Success: false,
@@ -170,7 +171,7 @@ func (s *HTTPSink) Write(ctx context.Context, msgs []*engine.Message) []engine.R
 		if resp.StatusCode >= 400 {
 			bodyText, _ := io.ReadAll(resp.Body)
 			resp.Body.Close()
-			results[i] = engine.Result{
+			results[i] = adapters.Result{
 				Message: msg,
 				Error:   fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(bodyText)),
 				Success: false,
@@ -179,7 +180,7 @@ func (s *HTTPSink) Write(ctx context.Context, msgs []*engine.Message) []engine.R
 		}
 
 		resp.Body.Close()
-		results[i] = engine.Result{
+		results[i] = adapters.Result{
 			Message: msg,
 			Error:   nil,
 			Success: true,
