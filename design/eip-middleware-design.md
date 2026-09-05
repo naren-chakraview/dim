@@ -1,7 +1,7 @@
 # Declarative Integration Middleware — Design Document
 
-**Status:** Draft v8 — open for review
-**Date:** 2026-09-01
+**Status:** Draft v10 — open for review
+**Date:** 2026-09-05
 
 ## Revision history
 
@@ -13,6 +13,8 @@
 - **v6 (2026-09-01):** Resolved v5's four open questions. The CSV/NDJSON export pairing confirmed as-is. Retention-policy assignment supports both static and dynamic (per-message) selection. Purge gets both an automatic background reaper and a manual `midctl lineage purge` trigger, both writing to an append-only purge evidence log. The neutral PDP contract committed to a formal, independently versioned spec, moved up to Phase 1. Four new open questions posed.
 - **v7 (2026-09-01):** Resolved v6's four open questions. An unresolved dynamic retention policy fails open. The purge log stays a bounded long window, paired with a new expiry-warning mechanism. Subject-targeted purge confirmed, introducing `subject_id_expr` and a store-level subject index. Reaper cadence configurable per retention policy. Two new, narrower open questions posed. A standalone data mesh feasibility analysis was produced separately (not folded in), evaluating this design against the four data mesh principles — headline finding: strong operational fit, but no first-class **data contract** distinct from `route_version`, and no domain/namespace concept.
 - **v8 (2026-09-01):** Added **§11, Data contracts & schema conformance** — directly closing the feasibility analysis's largest gap. Contracts are provided inline (alongside config, no infrastructure required) or via a pluggable schema-registry contract, with **Apicurio Registry** (Apache 2.0) as the reference implementation and Confluent Schema Registry / commercial registries (AWS Glue, Azure, ...) supported as bring-your-own. Enforcement happens at source/sink boundaries with a new `contract_violation` failure classification. `contract_version` is tracked as an axis independent of `route_version` throughout lineage and dead-letter records. A new tenet 12 was added. Sections §11 onward renumbered accordingly. Four new open questions posed. The feasibility analysis's other two findings — the organizational/domain-namespace gap, and formalizing a data mesh reference use case — are addressed separately in a new companion document, `data-mesh-reference-architecture.md`, deliberately kept out of this core spec per how the request was scoped.
+- **v9 (2026-09-05):** Housekeeping fix, no open questions involved. §4's EIP mapping table still grouped Claim Check as "same phase as Splitter/Aggregator," left over from v2 when all three were deferred together as one undifferentiated bucket. §19's roadmap has since split them — Splitter and Aggregator went to Phase 2, Claim Check stayed in Phase 3 — and the table was never updated to match, an inconsistency the Phase 2→3 implementation review surfaced. The three rows now name their actual phase instead of cross-referencing each other's, matching §19 exactly.
+- **v10 (2026-09-05):** Added a **Phase 4 — self-service and visual tooling** entry to §19, folding in the not-yet-adopted proposals from `self-service-feasibility-study.md` (its GitOps pipeline, `midctl scaffold`, the pre-deployment discovery surface, domain-scoped secrets) alongside a local, file-based visual route-authoring interface per `visual-route-builder-feasibility-analysis.md`'s recommended scope — confirmed after review, not added speculatively. §1.1's non-goals bullet on UI-first authoring was clarified alongside it: the non-goal was always about config staying the source of truth and not becoming a separate system of record, not a blanket ban on any authoring tool whatsoever, and the original wording ("not a drag-and-drop route designer") read as the latter, which would have contradicted the new Phase 4 entry outright. No open questions posed; Phase 4 itself is not yet scoped to subtask grain — that's for whenever a round actually plans it, the same way Phase 0 through 3 each got their own implementation-plan document only once their turn came.
 
 ## 1. Purpose and scope
 
@@ -29,7 +31,7 @@ It sits in the same conceptual space as Apache Camel, Apache NiFi, Benthos/Redpa
 
 - Not a general-purpose workflow orchestrator (Airflow/Temporal territory).
 - Not a BPM/ESB suite with a process modeler.
-- Not UI-first for *authoring* — config stays the source of truth (§2). The visualization surfaces in §9 are read-only observability tools, not a drag-and-drop route designer.
+- Not UI-first for *authoring* — config stays the source of truth (§2), and any authoring tool must operate on that same config rather than become a separate system of record. The visualization surfaces in §9 are read-only observability tools. A local, file-based visual route-authoring tool — generating and re-parsing the same route YAML `midctl validate`/`midctl test` already operate on, not a parallel format — is Phase 4 scope (§19); a hosted, multi-user design surface that becomes its own system of record is not, since that would undermine tenet 1 rather than serve it.
 - No transactional/exactly-once delivery mode. At-least-once delivery plus optional idempotent-consumer dedup is the whole reliability promise (§7.4).
 - Not an identity provider, policy engine, data-catalog product, or schema registry. Authorization (§13), lineage (§10), and contract conformance (§11) are enforced/recorded by the middleware at defined points, but authentication, policy decisions, long-term cataloging, and schema storage/compatibility rules are delegated to external systems the middleware integrates with via standard, formally specified contracts (OIDC/OAuth for identity, a versioned neutral PDP spec, OpenLineage for catalogs, a neutral registry contract with Apicurio as the reference) — consistent with the "compose, don't build" approach already taken for observability.
 
@@ -81,11 +83,11 @@ It sits in the same conceptual space as Apache Camel, Apache NiFi, Benthos/Redpa
 | **Message Filter (contract-conformance variant)** | An implicit boundary check on a `source`/`sink` with `contract.enforce: true` (§11): the predicate is schema conformance rather than a JSONata predicate or a policy decision; a violation is its own failure classification (`contract_violation`), routed to `on_violation` or the route's normal dead-letter target. |
 | **Wire Tap** | A `wiretap` step: non-blocking copy to a secondary channel (audit, monitoring, or local debug, §9.4). |
 | **Recipient List / Fan-out** | A `route` case (or `fanout` step) listing more than one target. |
-| **Splitter** | A `split` step, one message → N. Deferred (§19). |
-| **Aggregator** | An `aggregate` step, N messages → one. Deferred, same as Splitter. |
+| **Splitter** | A `split` step, one message → N. Deferred to Phase 2 (§19). |
+| **Aggregator** | An `aggregate` step, N messages → one. Deferred to Phase 2 (§19), alongside Splitter. |
 | **Idempotent Consumer** | An `idempotent` step: dedups by key against a pluggable store. The entire reliability story for exactly-once-like behavior (§7.4). |
 | **Dead Letter Channel** | The `error_path.target` sink after retries are exhausted or on a non-retryable error. |
-| **Claim Check** | Deferred, same phase as Splitter/Aggregator. |
+| **Claim Check** | Deferred to Phase 3 (§19). |
 | **Adapter (with retry/replay)** | The concrete Source/Sink implementation, responsible for connection-level retry and offset/position exposure for replay. |
 
 ## 5. Runtime architecture
@@ -892,6 +894,7 @@ sequenceDiagram
 - **Phase 1 — ecosystem breadth.** Kafka and AMQP adapters, replay tooling, additional secret providers, additional idempotent-store backends, PBAC mode with the OPA reference adapter, the formally versioned PDP contract spec published alongside it (§13.3), OBO token exchange, OpenLineage export with Marquez as the validated first target including `SchemaDatasetFacet` publication (§10.5, §11.6), **and schema-registry-backed contracts with the Apicurio reference adapter, plus BYO support for Confluent/commercial registries (§11.3)**.
 - **Phase 2 — advanced EIPs and lineage refinement.** `aggregate` / `split`, database (JDBC, then CDC) adapters, fragment parameterization, auto-export-on-expiry-warning if §18.2 confirms it's needed, static contract conformance checking if §18.3 confirms it's worth shipping, authorization obligations/redaction.
 - **Phase 3 — scale-out.** Distributed/clustered mode, claim check, formal third-party plugin SDK, multi-tenant policy isolation.
+- **Phase 4 — self-service and visual tooling.** A GitOps deployment pipeline wiring the guardrails that already exist rather than building new ones (`self-service-feasibility-study.md`'s §4, that document's own highest-leverage recommendation); a `midctl scaffold` command for a starter data-product layout (`self-service-feasibility-study.md`'s §5.1); a pre-deployment discovery surface over the existing registry/catalog (`self-service-feasibility-study.md`'s §5.2); domain-scoped secrets (`self-service-feasibility-study.md`'s §5.3); and a local, file-based visual route-authoring interface that generates and re-parses the same route YAML, reusing `midctl validate`/`midctl test` rather than becoming a hosted or multi-user design surface (`visual-route-builder-feasibility-analysis.md`, confirmed after review — see §1.1). A control-plane API and multi-tenant runtime isolation remain explicitly out of this phase too: the former stays deferred past any named phase per `self-service-feasibility-study.md`'s own §6, and the latter is already Phase 3's to solve, not duplicated here.
 
 Language/runtime selection remains deferred until this design is settled.
 
