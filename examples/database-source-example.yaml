@@ -1,0 +1,71 @@
+routes:
+  - name: sync-users-from-postgres
+    description: "Incrementally poll user table with watermark-based tracking"
+    version: "v1"
+    sources:
+      - name: user-db-source
+        type: database
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/mydb"
+          query: |
+            SELECT id, username, email, created_at, updated_at
+            FROM users
+            WHERE updated_at > $1
+            ORDER BY updated_at ASC
+            LIMIT 100
+          watermark_column: updated_at
+          watermark_type: timestamp
+          initial_watermark: "2026-01-01T00:00:00Z"
+          schedule: "5m"
+          batch_size: 100
+          timeout_sec: 30
+    steps: []
+    sinks: []
+
+  - name: sync-orders-incremental
+    description: "Poll orders since last update with numeric watermark"
+    version: "v1"
+    sources:
+      - name: order-db-source
+        type: database
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/mydb"
+          query: |
+            SELECT id, customer_id, total, status, updated_at
+            FROM orders
+            WHERE id > $1
+            ORDER BY id ASC
+            LIMIT 1000
+          watermark_column: id
+          watermark_type: integer
+          initial_watermark: "0"
+          schedule: "1m"
+          batch_size: 1000
+          timeout_sec: 60
+    steps: []
+    sinks: []
+
+  - name: sync-transactions-high-frequency
+    description: "High-frequency polling for transaction updates"
+    version: "v1"
+    sources:
+      - name: transaction-db-source
+        type: database
+        config:
+          driver: mysql
+          dsn: "user:password@tcp(localhost:3306)/mydb"
+          query: |
+            SELECT id, transaction_id, amount, processed_at
+            FROM transactions
+            WHERE processed_at > ?
+            ORDER BY processed_at ASC
+          watermark_column: processed_at
+          watermark_type: timestamp
+          initial_watermark: "2026-09-01T00:00:00Z"
+          schedule: "10s"
+          batch_size: 500
+          timeout_sec: 15
+    steps: []
+    sinks: []

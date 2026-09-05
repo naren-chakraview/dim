@@ -1,0 +1,115 @@
+routes:
+  - name: consume-debezium-users
+    description: "Consume PostgreSQL CDC from Debezium Kafka topics (M2.3.4b)"
+    version: "v1"
+    sources:
+      - name: users-debezium
+        type: database-cdc
+        mode: log-based
+        config:
+          kafka:
+            brokers:
+              - kafka-broker-1:9092
+              - kafka-broker-2:9092
+              - kafka-broker-3:9092
+            topic: debezium.public.users
+            consumer_group: dim-users-cdc
+            start_offset: latest
+          cdc_format: debezium
+          batch_size: 100
+          timeout_sec: 30
+    steps: []
+    sinks: []
+
+  - name: consume-debezium-orders-mysql
+    description: "Consume MySQL CDC via Debezium into Kafka"
+    version: "v1"
+    sources:
+      - name: orders-debezium
+        type: database-cdc
+        mode: log-based
+        config:
+          kafka:
+            brokers:
+              - localhost:9092
+            topic: debezium.orders.orders
+            consumer_group: dim-orders-mysql-cdc
+            start_offset: earliest
+          cdc_format: debezium
+          batch_size: 500
+          timeout_sec: 30
+    steps: []
+    sinks:
+      - name: orders-real-time
+        type: database
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/realtime_db"
+          table: orders_cdc_events
+          insert_columns:
+            - table_name
+            - operation
+            - timestamp
+            - before_state
+            - after_state
+          batch_size: 100
+          timeout_sec: 10
+
+  - name: consume-maxwell-cdc
+    description: "Consume MySQL CDC via Maxwell middleware"
+    version: "v1"
+    sources:
+      - name: maxwell-topic
+        type: database-cdc
+        mode: log-based
+        config:
+          kafka:
+            brokers:
+              - localhost:9092
+            topic: maxwell
+            consumer_group: dim-maxwell-cdc
+            start_offset: latest
+          cdc_format: maxwell
+          batch_size: 200
+          timeout_sec: 15
+    steps: []
+    sinks: []
+
+  - name: multi-table-cdc-aggregation
+    description: "Consume multiple tables from single Debezium topic stream"
+    version: "v1"
+    sources:
+      - name: postgres-all-cdc
+        type: database-cdc
+        mode: log-based
+        config:
+          kafka:
+            brokers:
+              - kafka:9092
+            topic: debezium.public
+            consumer_group: dim-postgres-all
+            start_offset: latest
+          cdc_format: debezium
+          batch_size: 500
+          timeout_sec: 30
+    steps:
+      - name: split-by-table
+        type: split
+        config:
+          expr: "{ \"users\": $[?$.table='users'], \"orders\": $[?$.table='orders'], \"products\": $[?$.table='products'] }"
+    sinks:
+      - name: cdc-archive
+        type: database
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/archive"
+          table: cdc_events
+          insert_columns:
+            - table_name
+            - operation
+            - record_id
+            - timestamp
+            - before_state
+            - after_state
+          batch_size: 200
+          timeout_sec: 10

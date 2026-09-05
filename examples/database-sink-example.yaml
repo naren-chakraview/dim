@@ -1,0 +1,96 @@
+routes:
+  - name: write-users-insert
+    description: "Insert user events into analytics database"
+    version: "v1"
+    sources: []
+    steps: []
+    sinks:
+      - name: users-analytics
+        type: database
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/analytics"
+          table: user_events
+          insert_columns:
+            - user_id
+            - event_type
+            - event_data
+            - timestamp
+          upsert:
+            enabled: false
+          batch_size: 100
+          timeout_sec: 10
+          flush_interval_ms: 5000
+
+  - name: sync-customer-master
+    description: "Upsert customer master data by ID"
+    version: "v1"
+    sources: []
+    steps: []
+    sinks:
+      - name: customers-postgres
+        type: database
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/crm"
+          table: customers
+          insert_columns:
+            - customer_id
+            - name
+            - email
+            - phone
+            - address
+            - updated_at
+          upsert:
+            enabled: true
+            key_columns: [customer_id]
+          batch_size: 50
+          timeout_sec: 15
+          flush_interval_ms: 3000
+
+  - name: upsert-product-inventory
+    description: "Upsert product inventory levels (composite key)"
+    version: "v1"
+    sources: []
+    steps: []
+    sinks:
+      - name: inventory-mysql
+        type: database
+        config:
+          driver: mysql
+          dsn: "user:password@tcp(localhost:3306)/inventory"
+          table: product_inventory
+          insert_columns:
+            - warehouse_id
+            - product_id
+            - quantity
+            - last_updated
+          upsert:
+            enabled: true
+            key_columns: [warehouse_id, product_id]
+          batch_size: 200
+          timeout_sec: 20
+          flush_interval_ms: 2000
+
+  - name: sync-events-archive
+    description: "Archive events to historical table (INSERT only)"
+    version: "v1"
+    sources: []
+    steps: []
+    sinks:
+      - name: events-archive
+        type: database
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/archive"
+          table: events_archive
+          insert_columns:
+            - event_id
+            - event_source
+            - event_body
+            - archived_at
+          upsert:
+            enabled: false
+          batch_size: 500
+          timeout_sec: 30
+          flush_interval_ms: 10000
