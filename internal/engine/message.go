@@ -51,6 +51,9 @@ type Metadata struct {
 
 	// ErrorType records the type of error that caused DLQ (M1.8)
 	ErrorType string `json:"error_type,omitempty"`
+
+	// AggregatorFacet tracks aggregation metadata (M2.1.2)
+	AggregatorFacet interface{} `json:"aggregator_facet,omitempty"`
 }
 
 // Principal represents an authenticated identity
