@@ -2,13 +2,13 @@
 
 A living document for tracking business intent, architectural decisions, concurrency patterns, state management, security validation, and change history. This grows alongside the codebase as each phase is implemented.
 
-**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R14) ✅ | Phase 1 Track B Complete (M1.2-M1.8) ✅  
+**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R21) ✅ | Phase 1 Track B Complete (M1.2-M1.8) ✅ | Phase 2 Ready  
 **Phase 0 Production Release:** September 3, 2026 (v0.5.0)  
-**Phase 1 Track A Delivered:** Governance, infrastructure, CLI, observability  
-**Phase 1 Track B Delivered:** PBAC+OPA, OBO, AMQP reliability, OpenLineage/Marquez, replay tooling  
-**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B (53 new tests for M1.2-M1.8)
+**Phase 1 Track A Delivered:** Governance, infrastructure, CLI, observability, schema registry, SFTP polling, OpenLineage dead-letter  
+**Phase 1 Track B Delivered:** PBAC+OPA, OBO, AMQP/Kafka reliability, OpenLineage/Marquez with schema facets, replay tooling  
+**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B (53 new tests for M1.2-M1.8), 9+ Phase 1 Track A (R18-R20)
 
-**Note:** Phase 0 fully implemented and released (v0.5.0). Phase 1 Track A complete (governance, infrastructure, CLI). Phase 1 Track B complete (PBAC, OBO, AMQP reliability, OpenLineage, replay). Decisions below are implemented except where explicitly marked "Phase 2+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
+**Note:** Phase 0 fully implemented and released (v0.5.0). Phase 1 Track A complete (R1-R21, all Phase 1 remediation). Phase 1 Track B complete (PBAC, OBO, AMQP/Kafka reliability, OpenLineage with auto-schema-facets and dead-letter, replay). Phase 2 scope (M2.1-M2.7: aggregator, splitter, database adapters, fragment params, obligations, purge-log auto-export, static conformance) unblocked and ready. Decisions below are implemented except where explicitly marked "Phase 2+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
 
 ## Business intent
 

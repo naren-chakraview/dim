@@ -1,6 +1,6 @@
 # Development Guide
 
-This document is for developers and coding agents working on dim. It covers the project structure, testing strategies, common tasks, and how to work efficiently with the Phase 0 (M0.1) codebase.
+This document is for developers and coding agents working on dim. It covers the project structure, testing strategies, common tasks, and how to work efficiently with Phase 0 (complete) and Phase 1 (complete) codebase. Phase 2 is next.
 
 ## Quick reference
 

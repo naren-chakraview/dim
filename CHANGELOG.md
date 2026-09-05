@@ -5,6 +5,101 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-09-04
+
+### Added - Phase 1 Complete (Track A & B)
+
+#### Phase 1 Track A: Remediation & Loose Ends (R15-R21)
+
+**CLI & Replay (R15-R16)**
+- Wire `dimctl replay` into CLI dispatcher (was dead code)
+- Fix `replay.Result.Summary()` formatting bug (now produces correct decimal output)
+- Add regression test for formatting
+
+**Kafka Reliability (R17)**
+- Atomic in-flight message counter for hot-reload tracking
+- Drain timeout and polling with concurrent drain cap (max 10, mirrors AMQP)
+- Full parity with AMQP hot-reload behavior
+- 6 integration tests covering graceful reload, drain timeout, concurrent cap
+
+**Schema Registry Integration (R18)**
+- RegistryBackend interface for pluggable registry implementations
+- Apicurio HTTP client (register, fetch, list versions)
+- Contract model extension: inline schemas vs. registry-backed references
+- BYO-registry conformance tests with mock and alternative implementations
+- Docker Compose for local Apicurio development/testing
+- Automatic contract_version computation (sha256 for inline, type:group:subject:version for registry)
+
+**Order-Processing Example (R19)**
+- Updated flagship example showcasing all Phase 1 Track B capabilities
+- Demonstrates PBAC with OPA policy engine
+- Demonstrates OBO token exchange (RFC 8693)
+- Demonstrates OpenLineage/Marquez export with schema facets
+- Demonstrates SFTP ingestion (separate route)
+- OPA Rego policy for order processing (seller, admin, customer_service roles)
+
+**OpenLineage Enhancements (R20)**
+- Automatic SchemaDatasetFacet generation from JSON Schema contracts
+- SchemaDatasetFacet and SchemaField types (mirrors OpenLineage wire format)
+- ContractSpec.ToSchemaDatasetFacet() method for extraction
+- Lineage export dead-letter path for permanently-failed exports
+- NewOpenLineageEmitterWithDeadLetter() constructor with optional DLQ channel
+- Non-blocking dead-letter writes with graceful buffer saturation handling
+
+**SFTP Polling (R21)**
+- Real SSH/SFTP client implementation (no longer placeholder)
+- Password and private-key authentication
+- Credentials routed through ${SECRET:name} resolver
+- File modification-time tracking for new/changed detection
+- Docker-based test SFTP server (atmoz/sftp)
+- End-to-end example with step-by-step integration guide
+
+#### Phase 1 Track B: Enterprise Middleware Features (M1.2-M1.8)
+
+**Policy-Based Access Control (M1.2)**
+- Neutral PDP contract (engine-agnostic)
+- OPA adapter (Rego ↔ neutral format translation)
+- HTTP-based PBAC authorization
+- Obligation support for authorization-driven data transformation
+
+**On-Behalf-Of Token Exchange (M1.3)**
+- OAuth 2.0 RFC 8693 token exchange
+- Subject token → access token conversion
+- Scope subset validation (privilege escalation prevention)
+- HTTP sink automatic token refresh
+
+**AMQP Reliability & Hot-Reload (M1.5)**
+- Hot-reload with generation tracking
+- In-flight message draining (zero-loss deployments)
+- Concurrent generation cap (resource safety)
+- At-least-once delivery semantics
+
+**OpenLineage/Marquez Integration (M1.7)**
+- Event emission to Marquez via OpenLineage API
+- SchemaDatasetFacet with field metadata
+- Dead-letter path for export failures
+- Automatic schema facet generation from contracts
+
+**Replay Tooling (M1.8)**
+- Message replay with filtering and dry-run modes
+- Configurable parallelism for replay
+- Replay count and history tracking in lineage
+
+### Testing
+
+- Phase 1 Track A: 30+ tests (R15-R21)
+- Phase 1 Track B: 53+ tests (M1.2-M1.8)
+- Total Phase 1: 83+ new tests, all passing
+- Cumulative: 440+ Phase 0 + 83+ Phase 1 = 523+ tests passing
+
+### Documentation
+
+- PHASE_1_TRACK_A_SUMMARY.md — Complete remediation status
+- PHASE_1_TRACK_B_SUMMARY.md — Enterprise features status
+- ADAPTER_SPEC.md — Source/sink interface contract
+- OKF.md — Operational knowledge framework (updated)
+- Examples with step-by-step integration guides
+
 ## [0.5.0] - 2026-09-03
 
 ### Added - Phase 0 Complete
