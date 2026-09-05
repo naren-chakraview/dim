@@ -792,3 +792,217 @@ $import: base_frag.yaml
 func yamlUnmarshal(data []byte, v interface{}) error {
 	return yaml.Unmarshal(data, v)
 }
+
+// TestParameterSubstitutionScalar verifies scalar parameter substitution (M2.4.2)
+func TestParameterSubstitutionScalar(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create fragment with parameters
+	fragmentYAML := `$params:
+  retries: 5
+  backoff: 2.0
+
+config:
+  max_retries: ${PARAM:retries}
+  backoff_multiplier: ${PARAM:backoff}
+`
+	fragmentPath := filepath.Join(tmpDir, "retry.yaml")
+	os.WriteFile(fragmentPath, []byte(fragmentYAML), 0644)
+
+	// Create route importing fragment with overrides
+	routeYAML := `$import: retry.yaml
+$params:
+  retries: 10
+
+routes:
+  test:
+    name: test
+`
+	routePath := filepath.Join(tmpDir, "route.yaml")
+	os.WriteFile(routePath, []byte(routeYAML), 0644)
+
+	fr := NewFragmentResolver(tmpDir)
+
+	var route map[string]interface{}
+	data, _ := os.ReadFile(routePath)
+	yaml.Unmarshal(data, &route)
+
+	resolved, err := fr.ResolveImports(route)
+	if err != nil {
+		t.Fatalf("Failed to resolve imports: %v", err)
+	}
+
+	// Verify parameters were substituted (as typed values: int 10, float64 2.0)
+	config := resolved["config"].(map[string]interface{})
+	maxRetries := config["max_retries"]
+	switch v := maxRetries.(type) {
+	case int:
+		if v != 10 {
+			t.Errorf("Expected max_retries=10 (overridden), got %d", v)
+		}
+	case float64:
+		if v != 10 {
+			t.Errorf("Expected max_retries=10 (overridden), got %v", v)
+		}
+	default:
+		t.Errorf("Expected max_retries to be numeric, got %T: %v", maxRetries, maxRetries)
+	}
+
+	backoff := config["backoff_multiplier"]
+	if backoffVal, ok := backoff.(float64); !ok || backoffVal != 2.0 {
+		t.Errorf("Expected backoff_multiplier=2.0 (from fragment), got %v (type: %T)", backoff, backoff)
+	}
+}
+
+// TestParameterUndefinedError verifies error on undefined parameter (M2.4.2)
+func TestParameterUndefinedError(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Fragment referencing undefined parameter
+	fragmentYAML := `config:
+  value: ${PARAM:undefined}
+`
+	fragmentPath := filepath.Join(tmpDir, "fragment.yaml")
+	os.WriteFile(fragmentPath, []byte(fragmentYAML), 0644)
+
+	// Route importing fragment
+	routeYAML := `$import: fragment.yaml
+
+routes:
+  test:
+    name: test
+`
+	routePath := filepath.Join(tmpDir, "route.yaml")
+	os.WriteFile(routePath, []byte(routeYAML), 0644)
+
+	fr := NewFragmentResolver(tmpDir)
+
+	var route map[string]interface{}
+	data, _ := os.ReadFile(routePath)
+	yaml.Unmarshal(data, &route)
+
+	_, err := fr.ResolveImports(route)
+	if err == nil {
+		t.Errorf("Expected error for undefined parameter, got none")
+	}
+	if err.Error() != "undefined parameter 'undefined'" {
+		t.Errorf("Expected undefined parameter error, got: %v", err)
+	}
+}
+
+// TestParameterOverride verifies route params override fragment defaults (M2.4.2)
+func TestParameterOverride(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Fragment with defaults
+	fragmentYAML := `$params:
+  maxRetries: 3
+  timeout: 30
+
+config:
+  retries: ${PARAM:maxRetries}
+  timeout_sec: ${PARAM:timeout}
+`
+	fragmentPath := filepath.Join(tmpDir, "policy.yaml")
+	os.WriteFile(fragmentPath, []byte(fragmentYAML), 0644)
+
+	// Route overriding parameters
+	routeYAML := `$import: policy.yaml
+$params:
+  maxRetries: 10
+
+routes:
+  test:
+    name: test
+`
+	routePath := filepath.Join(tmpDir, "route.yaml")
+	os.WriteFile(routePath, []byte(routeYAML), 0644)
+
+	fr := NewFragmentResolver(tmpDir)
+
+	var route map[string]interface{}
+	data, _ := os.ReadFile(routePath)
+	yaml.Unmarshal(data, &route)
+
+	resolved, err := fr.ResolveImports(route)
+	if err != nil {
+		t.Fatalf("Failed to resolve imports: %v", err)
+	}
+
+	config := resolved["config"].(map[string]interface{})
+	retries := config["retries"]
+	switch v := retries.(type) {
+	case int:
+		if v != 10 {
+			t.Errorf("Expected retries=10 (overridden), got %d", v)
+		}
+	case float64:
+		if v != 10 {
+			t.Errorf("Expected retries=10 (overridden), got %v", v)
+		}
+	default:
+		t.Errorf("Expected retries to be numeric, got %T: %v", retries, retries)
+	}
+
+	timeout := config["timeout_sec"]
+	switch v := timeout.(type) {
+	case int:
+		if v != 30 {
+			t.Errorf("Expected timeout_sec=30 (from fragment), got %d", v)
+		}
+	case float64:
+		if v != 30 {
+			t.Errorf("Expected timeout_sec=30 (from fragment), got %v", v)
+		}
+	default:
+		t.Errorf("Expected timeout_sec to be numeric, got %T: %v", timeout, timeout)
+	}
+}
+
+// TestParameterPartialSubstitution verifies partial string substitution (M2.4.2)
+func TestParameterPartialSubstitution(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Fragment with embedded parameters
+	fragmentYAML := `$params:
+  env: "production"
+  version: "v2"
+
+config:
+  topic: "orders-${PARAM:env}-${PARAM:version}"
+  description: "Processing ${PARAM:env} orders with ${PARAM:version}"
+`
+	fragmentPath := filepath.Join(tmpDir, "config.yaml")
+	os.WriteFile(fragmentPath, []byte(fragmentYAML), 0644)
+
+	// Route
+	routeYAML := `$import: config.yaml
+$params:
+  env: "staging"
+
+routes:
+  test:
+    name: test
+`
+	routePath := filepath.Join(tmpDir, "route.yaml")
+	os.WriteFile(routePath, []byte(routeYAML), 0644)
+
+	fr := NewFragmentResolver(tmpDir)
+
+	var route map[string]interface{}
+	data, _ := os.ReadFile(routePath)
+	yaml.Unmarshal(data, &route)
+
+	resolved, err := fr.ResolveImports(route)
+	if err != nil {
+		t.Fatalf("Failed to resolve imports: %v", err)
+	}
+
+	config := resolved["config"].(map[string]interface{})
+	if topic := config["topic"]; topic != "orders-staging-v2" {
+		t.Errorf("Expected topic='orders-staging-v2', got %v", topic)
+	}
+	if desc := config["description"]; desc != "Processing staging orders with v2" {
+		t.Errorf("Expected description='Processing staging orders with v2', got %v", desc)
+	}
+}
