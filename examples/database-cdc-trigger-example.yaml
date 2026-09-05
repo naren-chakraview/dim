@@ -1,0 +1,75 @@
+routes:
+  - name: capture-user-changes-triggers
+    description: "Capture user table changes via database triggers (M2.3.4a)"
+    version: "v1"
+    sources:
+      - name: users-changelog
+        type: database-cdc
+        mode: trigger-based
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/mydb"
+          changelog_table: dim_cdc_changelog
+          watermark_column: changed_at
+          watermark_type: timestamp
+          initial_watermark: "2026-01-01T00:00:00Z"
+          schedule: "30s"
+          batch_size: 100
+          timeout_sec: 30
+    steps: []
+    sinks: []
+
+  - name: capture-orders-trigger-cdc
+    description: "Trigger-based CDC with automatic cleanup and archival"
+    version: "v1"
+    sources:
+      - name: orders-cdc
+        type: database-cdc
+        mode: trigger-based
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/mydb"
+          changelog_table: dim_orders_changelog
+          watermark_column: changed_at
+          watermark_type: timestamp
+          initial_watermark: "2026-09-01T00:00:00Z"
+          schedule: "10s"
+          batch_size: 500
+          timeout_sec: 30
+    steps: []
+    sinks:
+      - name: orders-archive
+        type: database
+        config:
+          driver: postgres
+          dsn: "postgres://user:password@localhost:5432/archive"
+          table: orders_events
+          insert_columns:
+            - operation
+            - table_name
+            - record_id
+            - before_state
+            - after_state
+            - captured_at
+          batch_size: 100
+          timeout_sec: 10
+
+  - name: capture-inventory-mysql-triggers
+    description: "MySQL trigger-based CDC with high-frequency polling"
+    version: "v1"
+    sources:
+      - name: inventory-changelog
+        type: database-cdc
+        mode: trigger-based
+        config:
+          driver: mysql
+          dsn: "user:password@tcp(localhost:3306)/mydb"
+          changelog_table: dim_inventory_changes
+          watermark_column: changed_at
+          watermark_type: timestamp
+          initial_watermark: "2026-01-01T00:00:00Z"
+          schedule: "5s"
+          batch_size: 1000
+          timeout_sec: 20
+    steps: []
+    sinks: []
