@@ -63,8 +63,10 @@ build/
 output/
 *.jsonl
 
-# Tool caches
-graphify-out/
+# Tool caches - exclude generated artifacts and cache, but keep reports for documentation
+graphify-out/cache/
+graphify-out/*.json
+graphify-out/*.html
 
 # OS files
 Thumbs.db
