@@ -193,6 +193,101 @@ Then poll changelog table with watermark (similar to M2.3.1 but faster polling)
 - Phase 3+: CDC via triggers (opt-in for high-volume scenarios)
 - Easy migration: same route config, add trigger, faster polling
 
+## M2.3.4: CDC Implementation — Trigger-Based & Kafka-Fed Log-Based
+
+### Architecture Decision
+
+**Primary Approach: Trigger-Based CDC (Recommended)**
+- Database triggers write changes to changelog table
+- dim polls changelog table with watermark (same pattern as M2.3.1)
+- No external infrastructure required
+- Suitable for low-to-medium volume workloads
+
+**Secondary Approach: Log-Based CDC via Kafka (Optional)**
+- External CDC system (Debezium, pgoutput, MySQL binlog shipper) feeds Kafka topics
+- dim consumes CDC events from Kafka topics
+- Optional path for organizations with existing Debezium/Kafka setup
+- Suitable for high-volume, real-time capture scenarios
+
+**Decision:** Support both. Trigger-based as default, log-based as opt-in alternative.
+
+### M2.3.4a: Trigger-Based CDC Source
+
+Configuration:
+
+```yaml
+sources:
+  user_changes:
+    type: database-cdc
+    mode: trigger-based
+    config:
+      driver: postgres
+      dsn: postgres://user:pass@localhost/db
+      changelog_table: dim_cdc_changelog
+      watermark_column: changed_at
+      watermark_type: timestamp
+      initial_watermark: "2026-01-01T00:00:00Z"
+      schedule: "30s"
+      batch_size: 100
+      timeout_sec: 30
+```
+
+Implementation:
+- TriggerBasedCDCSource struct extending polling source pattern
+- Executes: `SELECT * FROM changelog_table WHERE changed_at > ? ORDER BY changed_at ASC`
+- Emits one message per changed row (includes before/after state)
+- Watermark tracks last-seen changed_at value
+- Automatic changelog cleanup (optional archival policy)
+
+### M2.3.4b: Log-Based CDC via Kafka
+
+Configuration:
+
+```yaml
+sources:
+  user_changes:
+    type: database-cdc
+    mode: log-based
+    config:
+      kafka:
+        brokers:
+          - localhost:9092
+        topic: debezium.public.users
+        consumer_group: dim-cdc-users
+        start_offset: latest  # or earliest, or timestamp
+      schema_registry: http://localhost:8081  # optional: for Avro/Protobuf
+      cdc_format: debezium  # debezium, maxwell, etc.
+      batch_size: 100
+      timeout_sec: 30
+```
+
+Implementation:
+- LogBasedCDCSource wraps Kafka consumer
+- Consumes CDC records from Debezium/Maxwell formatted topics
+- Parses operation (INSERT/UPDATE/DELETE) and before/after states
+- Emits one message per CDC event
+- Offset tracking for resumption (Kafka consumer group)
+
+### Exit Criteria (M2.3.4)
+
+**Trigger-Based:**
+✅ Changelog table polling works (watermark-based)  
+✅ Before/after states captured in message  
+✅ Tested against real Postgres with triggers  
+
+**Log-Based (Optional):**
+✅ Kafka CDC topic consumption works  
+✅ Debezium format parsing verified  
+✅ Tested with docker-compose Debezium + Kafka setup  
+
+### When to Use
+
+| Approach | Use When | Trade-Off |
+|----------|----------|-----------|
+| **Polling (M2.3.1)** | Low volume, any frequency OK | Higher DB load, eventual consistency |
+| **Trigger-Based (M2.3.4a)** | Medium volume, sub-minute latency desired | DB trigger overhead, simpler ops |
+| **Log-Based (M2.3.4b)** | High volume, minimal DB impact, real-time | Requires external infrastructure (Debezium) |
+
 ## Implementation Status
 
 | Subtask | Status | Details |
@@ -200,5 +295,6 @@ Then poll changelog table with watermark (similar to M2.3.1 but faster polling)
 | M2.3.1 | ✅ Complete | JDBC polling source implemented + tested |
 | M2.3.2 | ✅ Complete | Database sink (INSERT/UPSERT) implemented + tested |
 | M2.3.3 | ✅ Complete | Spike findings above; recommendation: trigger-based CDC |
-| M2.3.4 | ⏸️ Deferred | Pending M2.3.3 recommendation approval |
+| M2.3.4a | 🔄 In Progress | Trigger-based CDC implementation |
+| M2.3.4b | 🔄 In Progress | Log-based CDC via Kafka implementation (optional path) |
 
