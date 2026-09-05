@@ -1,0 +1,136 @@
+# Order Line-Item Splitting Example (M2.2.3)
+#
+# Demonstrates the Splitter step breaking orders into line items.
+# Inverse of the Aggregator example — shows split-then-aggregate round trip.
+
+version: 1
+
+sources:
+  orders:
+    type: http
+    desc: 'HTTP webhook for orders with line items'
+
+sinks:
+  line-items:
+    type: file
+    path: ./output/split-line-items.jsonl
+    desc: 'Individual line items after split'
+
+  split-errors:
+    type: file
+    path: ./output/split-errors.jsonl
+    desc: 'Orders that failed splitting'
+
+routes:
+  # Route 1: Split orders into line items
+  split-orders:
+    from: orders
+    auth: none
+    desc: 'Split orders into individual line items'
+
+    steps:
+      # Step 1: Validate order structure
+      - filter:
+          expr: 'body.order_id != null and body.line_items != null'
+          desc: 'Require order_id and line_items array'
+
+      # Step 2: Split order into line items
+      - split:
+          expr: body.line_items
+          output_expr: |
+            {
+              "order_id": $root.body.order_id,
+              "customer": $root.body.customer,
+              "sku": $.sku,
+              "qty": $.qty,
+              "unit_price": $.price,
+              "line_total": $.qty * $.price
+            }
+          desc: 'Split line_items array into individual items with context'
+
+      # Step 3: Enrich and route
+      - translate:
+          expr: |
+            {
+              "order_id": order_id,
+              "customer": customer,
+              "item": {
+                "sku": sku,
+                "qty": qty,
+                "unit_price": unit_price,
+                "line_total": line_total
+              },
+              "processed_at": $now()
+            }
+          desc: 'Restructure for downstream processing'
+
+      - route_step:
+          output: line-items
+          desc: 'Output split line items'
+
+# Example usage (bash):
+#
+# # Terminal 1: Start the route
+# ./dimctl run examples/splitter-example.yaml
+#
+# # Terminal 2: Send an order with 3 line items (triggers split)
+# curl -X POST http://localhost:8080/message \
+#   -H "Content-Type: application/json" \
+#   -d '{
+#     "order_id": "ORD-001",
+#     "customer": "Alice",
+#     "line_items": [
+#       {"sku": "PROD-A", "qty": 2, "price": 100},
+#       {"sku": "PROD-B", "qty": 1, "price": 50},
+#       {"sku": "PROD-C", "qty": 3, "price": 75}
+#     ]
+#   }'
+#
+# # Watch output (Terminal 3)
+# tail -f output/split-line-items.jsonl | jq .
+#
+# # Expected output: 3 messages (one per line item)
+# {
+#   "order_id": "ORD-001",
+#   "customer": "Alice",
+#   "item": {
+#     "sku": "PROD-A",
+#     "qty": 2,
+#     "unit_price": 100,
+#     "line_total": 200
+#   },
+#   "processed_at": "2026-09-05T12:34:56Z"
+# }
+# {
+#   "order_id": "ORD-001",
+#   "customer": "Alice",
+#   "item": {
+#     "sku": "PROD-B",
+#     "qty": 1,
+#     "unit_price": 50,
+#     "line_total": 50
+#   },
+#   "processed_at": "2026-09-05T12:34:56Z"
+# }
+# {
+#   "order_id": "ORD-001",
+#   "customer": "Alice",
+#   "item": {
+#     "sku": "PROD-C",
+#     "qty": 3,
+#     "unit_price": 75,
+#     "line_total": 225
+#   },
+#   "processed_at": "2026-09-05T12:34:56Z"
+# }
+
+# Split-Then-Aggregate Round Trip
+# ================================
+# To complete the round trip (split → process → aggregate):
+#
+# 1. Run this splitter route (splits order into 3 line items)
+# 2. Run the aggregator route (re-combines 3 line items into 1 order)
+# 3. Verify lineage: original order → 3 splits → 3 aggregates → final order
+#    All messages share correlation ID for tracing
+#
+# See aggregator-example.yaml for the re-aggregation step.
