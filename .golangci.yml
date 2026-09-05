@@ -1,0 +1,69 @@
+run:
+  timeout: 5m
+  tests: true
+  allow-parallel-runners: true
+
+# Enable these linters for additional quality checks
+linters:
+  enable:
+    - errcheck        # Check unchecked errors
+    - gosimple        # Suggest simplifications
+    - govet           # Go vet checks
+    - ineffassign     # Detect ineffectual assignments
+    - staticcheck     # Advanced go analysis
+    - typecheck       # Catch type errors early
+    - unused          # Find unused constants, variables, functions
+    - varcheck        # Find unused variables
+    - gocritic        # Opinionated Go code review
+    - gofmt           # Format check
+    - misspell        # Find misspelled words
+    - prealloc        # Pre-allocate slices
+    - unparam         # Report unused function params
+    - nolintlint      # Report incorrect nolint usage
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  gocritic:
+    enabled-checks:
+      - appendAssign
+      - argOrder
+      - assignOp
+      - badCond
+      - badLock
+      - badRegexp
+      - commentedOutCode
+      - complexArgsOrder
+      - deferInLoop
+      - duplicateCase
+      - emptyStringTest
+      - evalOrder
+      - exitAfterDefer
+      - hashWriteBytes
+      - httpNoBody
+      - iftElseChain
+      - methodExprCall
+      - mixedReceiverTypes
+      - nilValReturn
+      - offByOne
+      - rangeValCopy
+      - sloppyReassign
+      - sloppyTestFuncName
+      - stringXargsUnnested
+      - timeSleep
+      - tooManyResultsChecker
+      - truncateCmp
+      - uncheckedInlineErr
+      - unnecessaryBlock
+      - unslice
+      - valueName
+
+issues:
+  max-same-issues: 0
+  max-per-linter: 0
+  exclude-use-default: false
+  exclude:
+    # Allow error shadowing in defer blocks (common pattern)
+    - 'err is shadowed in the block'
