@@ -51,14 +51,12 @@ func TestKafkaSourceBasic(t *testing.T) {
 	}
 
 	// Consume message from source
-	timeout := time.After(3 * time.Second)
-	var receivedMsg *engine.Message
+	ctx2, cancel2 := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel2()
 
-	select {
-	case receivedMsg = <-outChan.Out:
-		// Success
-	case <-timeout:
-		t.Fatal("timeout waiting for message")
+	receivedMsg, err := outChan.Recv(ctx2)
+	if err != nil {
+		t.Fatalf("failed to receive message: %v", err)
 	}
 
 	if receivedMsg == nil {

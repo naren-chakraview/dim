@@ -112,7 +112,7 @@ func TestPhase0FullPipelineWithAllFeatures(t *testing.T) {
 	}
 
 	// Skip contract step for now - requires ContractStore initialization
-	authorizeStep, err := steps.NewAuthorizeStep("rbac", []string{"payment-processor"}, "")
+	authorizeStep, err := steps.NewAuthorizeStep("rbac", []string{"payment-processor"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("Failed to create authorize step: %v", err)
 	}
@@ -281,7 +281,7 @@ func TestPhase0AuthorizationFlow(t *testing.T) {
 			defer outputCh.Close()
 
 			// Create authorize step
-			authStep, err := steps.NewAuthorizeStep("rbac", tt.requireRoles, "")
+			authStep, err := steps.NewAuthorizeStep("rbac", tt.requireRoles, "", "", 30)
 			if err != nil {
 				t.Fatalf("Failed to create authorize step: %v", err)
 			}

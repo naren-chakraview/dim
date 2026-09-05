@@ -47,8 +47,6 @@ var replayCmd = &cobra.Command{
 		_ = args // Avoid unused variable
 		fmt.Fprintf(os.Stderr, "replay command: not yet updated for current engine API\n")
 		return fmt.Errorf("replay command requires API update")
-
-		return nil
 	},
 }
 

@@ -63,7 +63,6 @@ func TestAMQPHotReloadGraceful(t *testing.T) {
 // TestAMQPInFlightTracking verifies in-flight message counter (M1.5.4)
 func TestAMQPInFlightTracking(t *testing.T) {
 	var inFlightCount int32
-	var mu sync.Mutex
 
 	// Track in-flight messages
 	trackInFlight := func() {
@@ -97,9 +96,6 @@ func TestAMQPInFlightTracking(t *testing.T) {
 	if atomic.LoadInt32(&inFlightCount) != 0 {
 		t.Errorf("Expected in-flight count 0, got %d", atomic.LoadInt32(&inFlightCount))
 	}
-
-	// Verify we processed all messages
-	_ = mu
 }
 
 // TestAMQPDrainTimeout verifies drain timeout handling (M1.5.4)

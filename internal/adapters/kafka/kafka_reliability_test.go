@@ -1,7 +1,6 @@
 package kafka
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -65,7 +64,6 @@ func TestKafkaHotReloadGraceful(t *testing.T) {
 // Mirrors AMQP's in-flight tracking pattern.
 func TestKafkaInFlightTracking(t *testing.T) {
 	var inFlightCount int32
-	var mu sync.Mutex
 
 	// Track in-flight messages
 	trackInFlight := func() {
@@ -149,7 +147,7 @@ func TestKafkaDrainTimeout(t *testing.T) {
 func TestKafkaConcurrentDraining(t *testing.T) {
 	activeDrains := int32(0)
 	drainGeneration := func(id int, duration time.Duration) {
-		current := atomic.AddInt32(&activeDrains, 1)
+		_ = atomic.AddInt32(&activeDrains, 1)
 		time.Sleep(duration)
 		atomic.AddInt32(&activeDrains, -1)
 	}

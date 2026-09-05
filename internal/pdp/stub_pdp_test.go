@@ -69,7 +69,10 @@ func TestStubPDPConformance_Deny(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(req)
-	resp, _ := http.Post(server.URL, "application/json", bytes.NewReader(body))
+	resp, err := http.Post(server.URL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("Failed to call PDP: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var decisionResp steps.PDPDecisionResponse
@@ -92,7 +95,10 @@ func TestStubPDPConformance_ResponseSchema(t *testing.T) {
 	}
 
 	body, _ := json.Marshal(req)
-	resp, _ := http.Post(server.URL, "application/json", bytes.NewReader(body))
+	resp, err := http.Post(server.URL, "application/json", bytes.NewReader(body))
+	if err != nil {
+		t.Fatalf("Failed to call PDP: %v", err)
+	}
 	defer resp.Body.Close()
 
 	var decisionResp steps.PDPDecisionResponse

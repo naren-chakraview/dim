@@ -15,7 +15,7 @@ import (
 // TestAuthorizeStepNoPrincipal verifies that no principal results in denial
 func TestAuthorizeStepNoPrincipal(t *testing.T) {
 	// Create an RBAC step
-	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "")
+	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -42,7 +42,7 @@ func TestAuthorizeStepNoPrincipal(t *testing.T) {
 
 // TestAuthorizeStepRBACRoleMatch verifies RBAC with matching role
 func TestAuthorizeStepRBACRoleMatch(t *testing.T) {
-	step, err := NewAuthorizeStep("rbac", []string{"admin", "editor"}, "")
+	step, err := NewAuthorizeStep("rbac", []string{"admin", "editor"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -67,7 +67,7 @@ func TestAuthorizeStepRBACRoleMatch(t *testing.T) {
 
 // TestAuthorizeStepRBACRoleMissing verifies RBAC with no matching role
 func TestAuthorizeStepRBACRoleMissing(t *testing.T) {
-	step, err := NewAuthorizeStep("rbac", []string{"admin", "editor"}, "")
+	step, err := NewAuthorizeStep("rbac", []string{"admin", "editor"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestAuthorizeStepRBACRoleMissing(t *testing.T) {
 
 // TestAuthorizeStepRBACEmptyRoles verifies RBAC with principal having no roles
 func TestAuthorizeStepRBACEmptyRoles(t *testing.T) {
-	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "")
+	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -121,7 +121,7 @@ func TestAuthorizeStepRBACEmptyRoles(t *testing.T) {
 
 // TestAuthorizeStepABACExpressionTrue verifies ABAC with truthy expression
 func TestAuthorizeStepABACExpressionTrue(t *testing.T) {
-	step, err := NewAuthorizeStep("abac", nil, "principal.subject = 'admin-user'")
+	step, err := NewAuthorizeStep("abac", nil, "principal.subject = 'admin-user'", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -146,7 +146,7 @@ func TestAuthorizeStepABACExpressionTrue(t *testing.T) {
 
 // TestAuthorizeStepABACExpressionFalse verifies ABAC with falsy expression
 func TestAuthorizeStepABACExpressionFalse(t *testing.T) {
-	step, err := NewAuthorizeStep("abac", nil, "principal.subject = 'superadmin'")
+	step, err := NewAuthorizeStep("abac", nil, "principal.subject = 'superadmin'", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -176,7 +176,7 @@ func TestAuthorizeStepABACExpressionFalse(t *testing.T) {
 // TestAuthorizeStepABACComplexExpression verifies ABAC with complex expressions
 func TestAuthorizeStepABACComplexExpression(t *testing.T) {
 	// Expression checks for specific subject OR specific body condition
-	step, err := NewAuthorizeStep("abac", nil, `principal.subject = 'admin' or body.privileged = true`)
+	step, err := NewAuthorizeStep("abac", nil, `principal.subject = 'admin' or body.privileged = true`, "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -201,7 +201,7 @@ func TestAuthorizeStepABACComplexExpression(t *testing.T) {
 
 // TestAuthorizeStepNewAuthorizeStepInvalidMode verifies invalid mode rejected
 func TestAuthorizeStepNewAuthorizeStepInvalidMode(t *testing.T) {
-	_, err := NewAuthorizeStep("invalid", []string{"admin"}, "")
+	_, err := NewAuthorizeStep("invalid", []string{"admin"}, "", "", 30)
 	if err == nil {
 		t.Error("Expected error for invalid mode, but got none")
 	}
@@ -213,7 +213,7 @@ func TestAuthorizeStepNewAuthorizeStepInvalidMode(t *testing.T) {
 
 // TestAuthorizeStepNewAuthorizeStepRBACNoRoles verifies RBAC requires roles
 func TestAuthorizeStepNewAuthorizeStepRBACNoRoles(t *testing.T) {
-	_, err := NewAuthorizeStep("rbac", []string{}, "")
+	_, err := NewAuthorizeStep("rbac", []string{}, "", "", 30)
 	if err == nil {
 		t.Error("Expected error when RBAC has no require_roles, but got none")
 	}
@@ -225,7 +225,7 @@ func TestAuthorizeStepNewAuthorizeStepRBACNoRoles(t *testing.T) {
 
 // TestAuthorizeStepNewAuthorizeStepABACNoExpr verifies ABAC requires expression
 func TestAuthorizeStepNewAuthorizeStepABACNoExpr(t *testing.T) {
-	_, err := NewAuthorizeStep("abac", nil, "")
+	_, err := NewAuthorizeStep("abac", nil, "", "", 30)
 	if err == nil {
 		t.Error("Expected error when ABAC has no expression, but got none")
 	}
@@ -237,7 +237,7 @@ func TestAuthorizeStepNewAuthorizeStepABACNoExpr(t *testing.T) {
 
 // TestAuthorizeStepNewAuthorizeStepInvalidABACExpr verifies invalid ABAC expression rejected
 func TestAuthorizeStepNewAuthorizeStepInvalidABACExpr(t *testing.T) {
-	_, err := NewAuthorizeStep("abac", nil, "invalid syntax }{")
+	_, err := NewAuthorizeStep("abac", nil, "invalid syntax }{", "", 30)
 	if err == nil {
 		t.Error("Expected error for invalid ABAC expression, but got none")
 	}
@@ -245,7 +245,7 @@ func TestAuthorizeStepNewAuthorizeStepInvalidABACExpr(t *testing.T) {
 
 // TestAuthorizeStepNilMessage verifies nil messages are handled gracefully
 func TestAuthorizeStepNilMessage(t *testing.T) {
-	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "")
+	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -264,7 +264,7 @@ func TestAuthorizeStepNilMessage(t *testing.T) {
 
 // TestAuthorizeStepMetadataPreservation verifies metadata is preserved on authorization
 func TestAuthorizeStepMetadataPreservation(t *testing.T) {
-	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "")
+	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestAuthorizeStepMetadataPreservation(t *testing.T) {
 
 // TestAuthorizeStepRBACMultipleRoles verifies RBAC with multiple principal roles
 func TestAuthorizeStepRBACMultipleRoles(t *testing.T) {
-	step, err := NewAuthorizeStep("rbac", []string{"admin", "editor"}, "")
+	step, err := NewAuthorizeStep("rbac", []string{"admin", "editor"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -333,7 +333,7 @@ func TestAuthorizeStepRBACMultipleRoles(t *testing.T) {
 // TestAuthorizeStepABACWithSubject verifies ABAC can access principal subject
 func TestAuthorizeStepABACWithSubject(t *testing.T) {
 	// Use subject which is a simple string field
-	step, err := NewAuthorizeStep("abac", nil, `principal.subject = 'authorized-user'`)
+	step, err := NewAuthorizeStep("abac", nil, `principal.subject = 'authorized-user'`, "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -405,7 +405,7 @@ func TestAuthorizeStepABACTruthyFalsy(t *testing.T) {
 	ctx := context.Background()
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			step, err := NewAuthorizeStep("abac", nil, tt.expr)
+			step, err := NewAuthorizeStep("abac", nil, tt.expr, "", 30)
 			if err != nil {
 				t.Fatalf("NewAuthorizeStep failed: %v", err)
 			}
@@ -436,7 +436,7 @@ func TestAuthorizeStepABACTruthyFalsy(t *testing.T) {
 
 // TestAuthorizeStepABACBodyContextAvailable verifies body is available in ABAC expression
 func TestAuthorizeStepABACBodyContextAvailable(t *testing.T) {
-	step, err := NewAuthorizeStep("abac", nil, `body.amount > 100`)
+	step, err := NewAuthorizeStep("abac", nil, `body.amount > 100`, "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -460,7 +460,7 @@ func TestAuthorizeStepABACBodyContextAvailable(t *testing.T) {
 
 // TestAuthorizeStepABACBodyContextFail verifies body condition can fail in ABAC
 func TestAuthorizeStepABACBodyContextFail(t *testing.T) {
-	step, err := NewAuthorizeStep("abac", nil, `body.amount > 100`)
+	step, err := NewAuthorizeStep("abac", nil, `body.amount > 100`, "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -484,7 +484,7 @@ func TestAuthorizeStepABACBodyContextFail(t *testing.T) {
 
 // TestAuthorizeStepPermanentErrorType verifies authorization errors are permanent
 func TestAuthorizeStepPermanentErrorType(t *testing.T) {
-	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "")
+	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
@@ -517,7 +517,7 @@ func TestAuthorizeStepPermanentErrorType(t *testing.T) {
 
 // TestAuthorizeStepRBACExactMatch verifies RBAC does exact string matching
 func TestAuthorizeStepRBACExactMatch(t *testing.T) {
-	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "")
+	step, err := NewAuthorizeStep("rbac", []string{"admin"}, "", "", 30)
 	if err != nil {
 		t.Fatalf("NewAuthorizeStep failed: %v", err)
 	}
