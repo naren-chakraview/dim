@@ -1,9 +1,6 @@
-version: 2
-
 project_name: dim
 
 builds:
-  # dimd daemon binary
   - id: dimd
     main: ./cmd/dimd
     binary: dimd
@@ -19,7 +16,6 @@ builds:
     env:
       - CGO_ENABLED=0
 
-  # dimctl CLI tool
   - id: dimctl
     main: ./cmd/dimctl
     binary: dimctl
@@ -36,8 +32,7 @@ builds:
       - CGO_ENABLED=0
 
 archives:
-  - id: default
-    format: tar.gz
+  - format: tar.gz
     format_overrides:
       - goos: windows
         format: zip
@@ -55,33 +50,14 @@ release:
   github:
     owner: naren-chakraview
     name: dim
-  mode: replace
   draft: false
   prerelease: auto
-  name_template: "v{{ .Version }}"
-  body_templated: true
-  body: |
-    ## Release {{ .Version }}
+  name_template: "v{{ .Version }}"}
 
-    ### Binaries
-    This release includes pre-built binaries for:
-    - **Linux:** amd64, arm64
-    - **macOS:** amd64, arm64 (Intel and Apple Silicon)
-    - **Windows:** amd64, arm64
-
-    ### Installation
-    Download the binary for your platform, make it executable, and run it:
-    ```bash
-    tar xzf dim_{{ .Version }}_<os>_<arch>.tar.gz
-    ./dimd --help
-    ```
-
-    Or use the install script: `curl -sSL https://raw.githubusercontent.com/naren-chakraview/dim/master/scripts/install.sh | sh`
-
-    Or via Go: `go install github.com/naren-chakraview/dim/cmd/dimd@{{ .Version }}`
-
-    ### Checksums
-    All binaries are checksummed with SHA256 — see `{{ .ProjectName }}_{{ .Version }}_checksums.txt` included with this release.
-
-    ### What's Changed
-    See the commit log for full details: https://github.com/naren-chakraview/dim/compare/{{ .PreviousTag }}...{{ .Tag }}
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^ci:'
