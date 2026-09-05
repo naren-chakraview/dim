@@ -54,6 +54,9 @@ type Metadata struct {
 
 	// AggregatorFacet tracks aggregation metadata (M2.1.2)
 	AggregatorFacet interface{} `json:"aggregator_facet,omitempty"`
+
+	// SplitterFacet tracks split metadata (M2.2.2)
+	SplitterFacet interface{} `json:"splitter_facet,omitempty"`
 }
 
 // Principal represents an authenticated identity
