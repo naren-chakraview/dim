@@ -35,11 +35,28 @@ dim is a **configuration-driven integration middleware** that routes, transforms
 
 ## Quick Start (5 minutes)
 
-### 1. Build
+### 1. Install
 
+**Option A: Pre-built binaries (recommended)**
+```bash
+# Automatic install (detects OS/arch, downloads from GitHub Releases)
+curl -sSL https://raw.githubusercontent.com/naren-chakraview/dim/master/scripts/install.sh | sh
+
+# Or download manually from GitHub Releases
+# https://github.com/naren-chakraview/dim/releases/latest
+```
+
+**Option B: Go install (requires Go 1.26.7+)**
+```bash
+go install github.com/naren-chakraview/dim/cmd/dimd@latest
+go install github.com/naren-chakraview/dim/cmd/dimctl@latest
+```
+
+**Option C: Build from source**
 ```bash
 git clone https://github.com/naren-chakraview/dim.git
 cd dim
+go build ./cmd/dimd -o dimd
 go build ./cmd/dimctl -o dimctl
 ```
 
