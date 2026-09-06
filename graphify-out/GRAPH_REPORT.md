@@ -1,7 +1,7 @@
 # Graph Report - dim  (2026-09-06)
 
 ## Corpus Check
-- 192 files · ~297,909 words
+- 192 files · ~299,875 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
@@ -105,16 +105,16 @@
 10. `NewRouteStep()` - 27 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `buildExecutorForRoute()` --calls--> `BuildStepsFromSpec()`  [INFERRED]
-  cmd/dimctl/main.go → internal/steps/factory.go
-- `BenchmarkMessageThroughput()` --calls--> `NewTranslateStep()`  [INFERRED]
-  examples/bench/throughput_test.go → internal/steps/translate.go
-- `BenchmarkMessageThroughput()` --calls--> `NewFilterStep()`  [INFERRED]
-  examples/bench/throughput_test.go → internal/steps/filter.go
-- `BenchmarkMessageThroughput()` --calls--> `NewAuthorizeStep()`  [INFERRED]
-  examples/bench/throughput_test.go → internal/steps/authorize.go
-- `buildExecutorForRoute()` --calls--> `NewContractStore()`  [INFERRED]
-  cmd/dimctl/main.go → internal/config/contracts.go
+- `BuildStepsFromSpec()` --calls--> `buildExecutorForRoute()`  [INFERRED]
+  internal/steps/factory.go → cmd/dimctl/main.go
+- `NewTranslateStep()` --calls--> `BenchmarkMessageThroughput()`  [INFERRED]
+  internal/steps/translate.go → examples/bench/throughput_test.go
+- `NewFilterStep()` --calls--> `BenchmarkMessageThroughput()`  [INFERRED]
+  internal/steps/filter.go → examples/bench/throughput_test.go
+- `NewAuthorizeStep()` --calls--> `BenchmarkMessageThroughput()`  [INFERRED]
+  internal/steps/authorize.go → examples/bench/throughput_test.go
+- `NewContractStore()` --calls--> `buildExecutorForRoute()`  [INFERRED]
+  internal/config/contracts.go → cmd/dimctl/main.go
 
 ## Communities
 
