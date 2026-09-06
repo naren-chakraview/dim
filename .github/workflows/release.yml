@@ -106,10 +106,9 @@ jobs:
           --health-timeout 15s
           --health-retries 10
           --network-alias minio
+          --volume /tmp/minio-data:/data
         ports:
           - 9000:9000
-        volumes:
-          - /tmp/minio-data:/data
 
     steps:
       - uses: actions/checkout@v4
