@@ -1,0 +1,46 @@
+version: 1
+routes:
+  - name: order-processing-cluster
+    domain: orders
+    subjects: [order_id]
+    sources:
+      - type: http
+        endpoint: /message
+    steps:
+      - type: idempotent
+        keyExpr: $keys(body)[0]  # Use first body key as dedup key
+        ttlMinutes: 1440  # 24 hours
+      - type: translate
+        bodyExpr: |
+          {
+            "id": body.order_id,
+            "status": "received",
+            "timestamp": $now(),
+            "source_instance": $env("DIMD_INSTANCE_ID")
+          }
+    sinks:
+      - type: http
+        endpoint: http://example.com/webhook
+        method: POST
+    lineageEnabled: true
+    retentionPolicy: "30d"
+
+  # Test route for coordinated reload: echoes back with current generation
+  - name: health-check
+    domain: system
+    subjects: [check_id]
+    sources:
+      - type: http
+        endpoint: /health
+    steps:
+      - type: translate
+        bodyExpr: |
+          {
+            "status": "healthy",
+            "instance": $env("DIMD_INSTANCE_ID"),
+            "timestamp": $now()
+          }
+    sinks:
+      - type: http
+        endpoint: http://localhost:8080/health  # Echo response
+    lineageEnabled: false

@@ -1,0 +1,90 @@
+version: '3.8'
+
+services:
+  # Shared PostgreSQL database for cluster state (dedup, lineage)
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: dim_cluster
+      POSTGRES_USER: dimadmin
+      POSTGRES_PASSWORD: dimsecret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dimadmin -d dim_cluster"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # First dimd cluster instance
+  dimd-1:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      DIMD_INSTANCE_ID: "dimd-1"
+      DIMD_CLUSTER_HOSTS: "dimd-1:8080,dimd-2:8080,dimd-3:8080"
+      DIMD_DEDUP_BACKEND: "postgres"  # Use Postgres for shared dedup
+      DIMD_DEDUP_DSN: "postgres://dimadmin:dimsecret@postgres:5432/dim_cluster"
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./routes-cluster.yaml:/etc/dim/routes.yaml
+    command: ["dimd", "start", "/etc/dim/routes.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dim_cluster
+
+  # Second dimd cluster instance
+  dimd-2:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      DIMD_INSTANCE_ID: "dimd-2"
+      DIMD_CLUSTER_HOSTS: "dimd-1:8080,dimd-2:8080,dimd-3:8080"
+      DIMD_DEDUP_BACKEND: "postgres"
+      DIMD_DEDUP_DSN: "postgres://dimadmin:dimsecret@postgres:5432/dim_cluster"
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./routes-cluster.yaml:/etc/dim/routes.yaml
+    command: ["dimd", "start", "/etc/dim/routes.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dim_cluster
+
+  # Third dimd cluster instance
+  dimd-3:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    environment:
+      DIMD_INSTANCE_ID: "dimd-3"
+      DIMD_CLUSTER_HOSTS: "dimd-1:8080,dimd-2:8080,dimd-3:8080"
+      DIMD_DEDUP_BACKEND: "postgres"
+      DIMD_DEDUP_DSN: "postgres://dimadmin:dimsecret@postgres:5432/dim_cluster"
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./routes-cluster.yaml:/etc/dim/routes.yaml
+    command: ["dimd", "start", "/etc/dim/routes.yaml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dim_cluster
+
+networks:
+  dim_cluster:
+    driver: bridge
+
+volumes:
+  postgres_data:

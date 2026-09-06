@@ -64,8 +64,16 @@ func NewSplitStep(spec *SplitSpec) (*SplitStep, error) {
 // Returns a list of output messages (one per array element)
 // Note: In a real pipeline, these would be queued to output channels
 func (ss *SplitStep) Execute(ctx context.Context, msg *engine.Message) ([]*engine.Message, error) {
+	// Build the context object for expression evaluation
+	// Contains body, headers, and metadata from the message
+	evalContext := map[string]interface{}{
+		"body":     msg.Body,
+		"headers":  msg.Headers,
+		"metadata": msg.Metadata,
+	}
+
 	// Evaluate split expression
-	result, err := ss.splitEvaluator.Eval(msg.Body)
+	result, err := ss.splitEvaluator.Eval(evalContext)
 	if err != nil {
 		return nil, fmt.Errorf("split expression evaluation failed: %w", err)
 	}
@@ -101,7 +109,13 @@ func (ss *SplitStep) Execute(ctx context.Context, msg *engine.Message) ([]*engin
 		// Apply optional output transformation
 		outputValue := element
 		if ss.outputEvaluator != nil {
-			transformed, err := ss.outputEvaluator.Eval(element)
+			// Build context for output transformation (element is the body, original context preserved)
+			outputContext := map[string]interface{}{
+				"body":     element,
+				"headers":  msg.Headers,
+				"metadata": msg.Metadata,
+			}
+			transformed, err := ss.outputEvaluator.Eval(outputContext)
 			if err != nil {
 				return nil, fmt.Errorf("output_expr transformation failed at index %d: %w", index, err)
 			}
