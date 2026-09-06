@@ -7,6 +7,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -167,6 +168,13 @@ func TestE2ES3Integration(t *testing.T) {
 
 	ctx := context.Background()
 
+	// Check if MinIO is available (optional in CI)
+	conn, err := net.DialTimeout("tcp", "localhost:9000", 2*time.Second)
+	if err != nil {
+		t.Skip("MinIO not available (optional service) - skipping S3 tests")
+	}
+	conn.Close()
+
 	// Configure S3 client for MinIO
 	cfg, err := config.LoadDefaultConfig(
 		ctx,
@@ -239,6 +247,13 @@ func TestE2EClaimCheckPattern(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping e2e test in short mode")
 	}
+
+	// Check if MinIO is available (optional in CI)
+	conn, err := net.DialTimeout("tcp", "localhost:9000", 2*time.Second)
+	if err != nil {
+		t.Skip("MinIO not available (optional service) - skipping S3 tests")
+	}
+	conn.Close()
 
 	ctx := context.Background()
 
