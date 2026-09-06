@@ -33,9 +33,25 @@ Start here:
    - Message replay
    - Schema validation
 
+4. **[DEPLOYMENT_AND_RELEASE.md](DEPLOYMENT_AND_RELEASE.md)** (15 min)
+   - Local integration testing
+   - Creating releases
+   - Production deployment
+   - Monitoring & observability
+
 ---
 
 ## I Want to...
+
+### ...deploy to production
+
+→ **[DEPLOYMENT_AND_RELEASE.md](DEPLOYMENT_AND_RELEASE.md)**
+
+Covers:
+- Running dim as a daemon (systemd, Docker, Kubernetes)
+- Configuration management and secrets
+- Monitoring with Prometheus and OpenTelemetry
+- Complete workflow from development to production
 
 ### ...understand the language and configuration
 
@@ -189,11 +205,12 @@ Running dim in production and managing releases:
 | See real examples | USE_CASES | LANGUAGE_REFERENCE |
 | Learn config syntax | LANGUAGE_REFERENCE | USE_CASES for patterns |
 | Use CLI tools | CLI_REFERENCE | Examples for each command |
-| Test with external services | E2E_TESTING | CLI_REFERENCE (commands) |
+| Test with external services | E2E_TESTING | DEPLOYMENT_AND_RELEASE (local testing) |
 | Debug a problem | CLI_REFERENCE (debugging) | Provenance, trace tail, explain |
 | Set up compliance | LANGUAGE_REFERENCE (lineage) | USE_CASES (compliance example) |
-| Monitor performance | CLI_REFERENCE (stats, trace) | OKF.md (architecture) |
-| Create a release | ../RELEASE.md | E2E_TESTING (service health) |
+| Monitor performance | CLI_REFERENCE (stats, trace) | DEPLOYMENT_AND_RELEASE (production) |
+| Deploy to production | DEPLOYMENT_AND_RELEASE | CLI_REFERENCE (daemon) |
+| Create a release | DEPLOYMENT_AND_RELEASE | E2E_TESTING (service health) |
 | Contribute code | ../DEVELOPER_GUIDE | OKF.md for patterns |
 
 ---
