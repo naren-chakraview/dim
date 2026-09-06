@@ -12,14 +12,14 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Multi-Tenant Isolation Example (M3.4) ===\n")
+	fmt.Println("=== Multi-Tenant Isolation Example (M3.4) ===")
+	fmt.Println()
 
 	// Create a tenant manager
 	manager := tenant.NewManager()
 
 	// Register two tenants with different quotas
 	fmt.Println("1. Registering tenants with different quotas:")
-	fmt.Println()
 
 	// Premium tenant: high throughput, can handle 1000 msg/sec, 100 worker slots
 	premium := &tenant.Config{
@@ -61,10 +61,9 @@ func main() {
 	slotManager := tenant.NewWorkerSlotManager(manager)
 
 	// Scenario: Premium tenant receives heavy load while standard tenant should remain unaffected
-	fmt.Println("2. Simulating mixed load:\n")
+	fmt.Println("2. Simulating mixed load:")
 	fmt.Println("   - Premium domain: 50 messages in quick succession")
 	fmt.Println("   - Standard domain: 20 messages concurrently")
-	fmt.Println()
 
 	// Track results
 	var premiumProcessed, standardProcessed int32
@@ -110,13 +109,14 @@ func main() {
 	}()
 
 	wg.Wait()
+	fmt.Println()
 
 	fmt.Printf("   Premium:  processed %d messages in %.2fs\n", premiumProcessed, premiumLatency.Seconds())
 	fmt.Printf("   Standard: processed %d messages in %.2fs\n", standardProcessed, standardLatency.Seconds())
 	fmt.Println()
 
 	// Verify isolation
-	fmt.Println("3. Verifying resource isolation:\n")
+	fmt.Println("3. Verifying resource isolation:")
 
 	premiumUsed, premiumQueued := slotManager.GetSlotUsage("premium-corp")
 	standardUsed, standardQueued := slotManager.GetSlotUsage("standard-corp")
