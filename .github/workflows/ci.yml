@@ -29,6 +29,8 @@ jobs:
       # MERGE GATE 3: Lint catches style and quality issues
       - name: Lint
         uses: golangci/golangci-lint-action@v6
+        env:
+          ACTIONS_ALLOW_UNSECURE_COMMANDS: true
         with:
           version: latest
           args: --timeout=5m
