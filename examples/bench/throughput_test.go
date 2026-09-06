@@ -2,11 +2,8 @@ package bench
 
 import (
 	"context"
-	"fmt"
 	"testing"
-	"time"
 
-	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
 	"github.com/naren-chakraview/dim/internal/steps"
 )
@@ -25,14 +22,14 @@ func BenchmarkMessageThroughput(b *testing.B) {
 	filterStep, _ := steps.NewFilterStep("true")  // Always pass
 	translateStep, _ := steps.NewTranslateStep("{\"id\": body.id, \"ts\": $now()}")
 	authorizeStep, _ := steps.NewAuthorizeStep(
-		config.AuthorizeSpec{
-			Mode:       "rbac",
-			Required:   false,
-			AllowRoles: []string{"*"},
-		},
+		"rbac",
+		[]string{},
+		"",
+		"",
+		5000,
 	)
 
-	stepInstances := []steps.Step{filterStep, translateStep, authorizeStep}
+	stepInstances := []engine.Step{filterStep, translateStep, authorizeStep}
 	stepNames := []string{"filter", "translate", "authorize"}
 
 	executor := engine.NewExecutorWithWorkers("bench-route", inputCh, outputCh, nil, stepInstances, stepNames, 4)
@@ -47,20 +44,20 @@ func BenchmarkMessageThroughput(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		i := 0
 		for pb.Next() {
-			msg := engine.NewMessage()
-			msg.ID = fmt.Sprintf("msg-%d", i)
-			msg.Body = map[string]interface{}{"id": i, "value": "test"}
+			msg := engine.NewMessage(
+				map[string]interface{}{"id": i, "value": "test"},
+				"bench-route",
+				"v1",
+			)
 
-			inputCh.Send(msg)
+			inputCh.Send(ctx, msg)
 
 			// Wait for result with timeout
-			select {
-			case result := <-outputCh.Recv():
-				if result == nil {
-					b.Errorf("nil result received")
-				}
-			case <-time.After(5 * time.Second):
-				b.Errorf("message processing timeout")
+			result, err := outputCh.Recv(ctx)
+			if err != nil {
+				b.Errorf("recv error: %v", err)
+			} else if result == nil {
+				b.Errorf("nil result received")
 			}
 			i++
 		}
@@ -83,12 +80,15 @@ func BenchmarkStepExecution(b *testing.B) {
 
 	b.Run("Filter", func(b *testing.B) {
 		filterStep, _ := steps.NewFilterStep("body.amount > 100")
-		msg := engine.NewMessage()
-		msg.Body = map[string]interface{}{"amount": 150}
+		msg := engine.NewMessage(
+			map[string]interface{}{"amount": 150},
+			"bench",
+			"v1",
+		)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := filterStep.Process(ctx, msg)
+			_, err := filterStep.Execute(ctx, msg)
 			if err != nil {
 				b.Errorf("filter error: %v", err)
 			}
@@ -97,12 +97,15 @@ func BenchmarkStepExecution(b *testing.B) {
 
 	b.Run("Translate", func(b *testing.B) {
 		translateStep, _ := steps.NewTranslateStep("{\"id\": body.id, \"processed\": true}")
-		msg := engine.NewMessage()
-		msg.Body = map[string]interface{}{"id": "test-123"}
+		msg := engine.NewMessage(
+			map[string]interface{}{"id": "test-123"},
+			"bench",
+			"v1",
+		)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := translateStep.Process(ctx, msg)
+			_, err := translateStep.Execute(ctx, msg)
 			if err != nil {
 				b.Errorf("translate error: %v", err)
 			}
@@ -111,18 +114,22 @@ func BenchmarkStepExecution(b *testing.B) {
 
 	b.Run("Authorize", func(b *testing.B) {
 		authorizeStep, _ := steps.NewAuthorizeStep(
-			config.AuthorizeSpec{
-				Mode:       "rbac",
-				Required:   false,
-				AllowRoles: []string{"*"},
-			},
+			"rbac",
+			[]string{},
+			"",
+			"",
+			5000,
 		)
-		msg := engine.NewMessage()
-		msg.Principal = &engine.Principal{Subject: "user-123", Roles: []string{"admin"}}
+		msg := engine.NewMessage(
+			map[string]interface{}{},
+			"bench",
+			"v1",
+		)
+		msg.Metadata.Principal = &engine.Principal{Subject: "user-123", Roles: []string{"admin"}}
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := authorizeStep.Process(ctx, msg)
+			_, err := authorizeStep.Execute(ctx, msg)
 			if err != nil {
 				b.Errorf("authorize error: %v", err)
 			}
@@ -131,12 +138,15 @@ func BenchmarkStepExecution(b *testing.B) {
 
 	b.Run("Idempotent", func(b *testing.B) {
 		idempotentStep, _ := steps.NewIdempotentStep("body.transaction_id", 60)
-		msg := engine.NewMessage()
-		msg.Body = map[string]interface{}{"transaction_id": "txn-123"}
+		msg := engine.NewMessage(
+			map[string]interface{}{"transaction_id": "txn-123"},
+			"bench",
+			"v1",
+		)
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			_, err := idempotentStep.Process(ctx, msg)
+			_, err := idempotentStep.Execute(ctx, msg)
 			if err != nil {
 				b.Errorf("idempotent error: %v", err)
 			}
@@ -144,130 +154,63 @@ func BenchmarkStepExecution(b *testing.B) {
 	})
 }
 
-// BenchmarkContractValidation measures contract validation overhead
-func BenchmarkContractValidation(b *testing.B) {
-	ctx := context.Background()
-
-	// Simple schema
-	simpleSchema := map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"id":   map[string]interface{}{"type": "string"},
-			"name": map[string]interface{}{"type": "string"},
-		},
-		"required": []string{"id", "name"},
-	}
-
-	// Complex schema
-	complexSchema := map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"id": map[string]interface{}{"type": "string"},
-			"nested": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"field1": map[string]interface{}{"type": "string"},
-					"field2": map[string]interface{}{"type": "number"},
-					"field3": map[string]interface{}{"type": "array"},
-				},
-			},
-		},
-		"required": []string{"id", "nested"},
-	}
-
-	msg := engine.NewMessage()
-	msg.Body = map[string]interface{}{
-		"id":   "test-123",
-		"name": "Test Object",
-		"nested": map[string]interface{}{
-			"field1": "value1",
-			"field2": 42.0,
-			"field3": []string{"a", "b", "c"},
-		},
-	}
-
-	b.Run("SimpleSchema", func(b *testing.B) {
-		contractStep, _ := steps.NewContractStep(simpleSchema, "warn")
-
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_, err := contractStep.Process(ctx, msg)
-			if err != nil {
-				b.Errorf("contract validation error: %v", err)
-			}
-		}
-	})
-
-	b.Run("ComplexSchema", func(b *testing.B) {
-		contractStep, _ := steps.NewContractStep(complexSchema, "warn")
-
-		b.ResetTimer()
-		for i := 0; i < b.N; i++ {
-			_, err := contractStep.Process(ctx, msg)
-			if err != nil {
-				b.Errorf("contract validation error: %v", err)
-			}
-		}
-	})
-}
-
 // BenchmarkChannelOperations measures channel send/recv overhead
 func BenchmarkChannelOperations(b *testing.B) {
+	ctx := context.Background()
+
 	b.Run("Send", func(b *testing.B) {
 		ch := engine.NewChannel("bench", 1000)
-		msg := engine.NewMessage()
+		msg := engine.NewMessage(map[string]interface{}{}, "bench", "v1")
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			ch.Send(msg)
+			ch.Send(ctx, msg)
 		}
 	})
 
 	b.Run("Recv", func(b *testing.B) {
 		ch := engine.NewChannel("bench", 1000)
-		msg := engine.NewMessage()
+		msg := engine.NewMessage(map[string]interface{}{}, "bench", "v1")
 
 		// Pre-fill channel
 		for i := 0; i < b.N; i++ {
-			ch.Send(msg)
+			ch.Send(ctx, msg)
 		}
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			<-ch.Recv()
+			ch.Recv(ctx)
 		}
 	})
 
 	b.Run("SendRecv", func(b *testing.B) {
 		ch := engine.NewChannel("bench", 100)
-		msg := engine.NewMessage()
+		msg := engine.NewMessage(map[string]interface{}{}, "bench", "v1")
 
 		go func() {
 			for i := 0; i < b.N; i++ {
-				<-ch.Recv()
+				ch.Recv(ctx)
 			}
 		}()
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			ch.Send(msg)
+			ch.Send(ctx, msg)
 		}
 	})
 }
 
 // BenchmarkMessageCloning measures message deep copy overhead
 func BenchmarkMessageCloning(b *testing.B) {
-	original := engine.NewMessage()
-	original.Body = map[string]interface{}{
-		"id":    "test-123",
-		"amount": 1000.50,
-		"items": []string{"a", "b", "c"},
-	}
-	original.Headers = map[string]string{
-		"x-trace-id":  "trace-123",
-		"x-user-id":   "user-456",
-		"content-type": "application/json",
-	}
+	original := engine.NewMessage(
+		map[string]interface{}{
+			"id":    "test-123",
+			"amount": 1000.50,
+			"items": []string{"a", "b", "c"},
+		},
+		"bench",
+		"v1",
+	)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
