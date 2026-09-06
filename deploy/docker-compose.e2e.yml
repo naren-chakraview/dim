@@ -1,0 +1,117 @@
+version: '3.8'
+
+# E2E Test Environment
+# Provides all external dependencies required for end-to-end testing
+# Services auto-start and health checks ensure readiness before tests run
+
+services:
+  # Message Queue: Kafka
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: dim-e2e-kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
+    ports:
+      - "9092:9092"
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: kafka-broker-api-versions --bootstrap-server localhost:9092
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dim-e2e
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: dim-e2e-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: echo stat | nc localhost 2181
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dim-e2e
+
+  # Relational Database: PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: dim-e2e-postgres
+    environment:
+      POSTGRES_DB: dim_e2e
+      POSTGRES_USER: dim_test
+      POSTGRES_PASSWORD: test_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_e2e_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dim_test -d dim_e2e"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dim-e2e
+
+  # S3-compatible object storage: MinIO
+  minio:
+    image: minio/minio:latest
+    container_name: dim-e2e-minio
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_e2e_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dim-e2e
+
+  # Metrics: Prometheus
+  prometheus:
+    image: prom/prometheus:v2.40.0
+    container_name: dim-e2e-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.e2e.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      interval: 5s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dim-e2e
+
+volumes:
+  postgres_e2e_data:
+  minio_e2e_data:
+
+networks:
+  dim-e2e:
+    driver: bridge
