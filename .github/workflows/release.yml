@@ -109,17 +109,6 @@ jobs:
         ports:
           - 9000:9000
 
-      prometheus:
-        image: prom/prometheus:v2.40.0
-        options: >-
-          --health-cmd "curl -f http://localhost:9090/-/healthy || exit 1"
-          --health-interval 10s
-          --health-timeout 15s
-          --health-retries 10
-          --network-alias prometheus
-        ports:
-          - 9090:9090
-
     steps:
       - uses: actions/checkout@v4
 
@@ -151,7 +140,7 @@ jobs:
           echo "✓ MinIO ready"
 
           echo ""
-          echo "All services ready!"
+          echo "All required services ready!"
 
       - name: Run E2E Tests
         run: go test -tags e2e -v -race ./internal/integration/... -run "E2E" -timeout 5m
