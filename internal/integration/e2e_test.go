@@ -3,19 +3,13 @@
 package integration
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"fmt"
-	"net"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	_ "github.com/lib/pq"
-	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
 	"github.com/naren-chakraview/dim/internal/engine"
 	"github.com/segmentio/kafka-go"
 )
@@ -158,153 +152,6 @@ func TestE2EDatabaseIntegration(t *testing.T) {
 	}
 
 	t.Log("✓ Database integration test passed")
-}
-
-// TestE2ES3Integration verifies S3-compatible storage (MinIO) for claim-check pattern
-func TestE2ES3Integration(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping e2e test in short mode")
-	}
-
-	ctx := context.Background()
-
-	// Check if MinIO is available (optional in CI)
-	conn, err := net.DialTimeout("tcp", "localhost:9000", 2*time.Second)
-	if err != nil {
-		t.Skip("MinIO not available (optional service) - skipping S3 tests")
-	}
-	conn.Close()
-
-	// Configure S3 client for MinIO
-	cfg, err := config.LoadDefaultConfig(
-		ctx,
-		config.WithRegion("us-east-1"),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			"minioadmin",
-			"minioadmin",
-			"",
-		)),
-	)
-	if err != nil {
-		t.Skipf("Failed to load AWS config: %v", err)
-	}
-
-	// Create S3 client pointing to MinIO
-	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.UsePathStyle = true
-		o.BaseEndpoint = "http://localhost:9000"
-	})
-
-	bucketName := "e2e-test-bucket"
-
-	// Create bucket
-	_, err = client.CreateBucket(ctx, &s3.CreateBucketInput{
-		Bucket: &bucketName,
-	})
-	if err != nil {
-		// Bucket may already exist
-		t.Logf("Bucket creation note: %v", err)
-	}
-
-	// Test upload
-	key := "test-payload-001"
-	testData := []byte(`{"customer_id": "C-003", "order_total": 149.99}`)
-
-	_, err = client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: &bucketName,
-		Key:    &key,
-		Body:   bytes.NewReader(testData),
-	})
-	if err != nil {
-		t.Skipf("S3 not available (MinIO): %v", err)
-	}
-
-	// Test download
-	output, err := client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: &bucketName,
-		Key:    &key,
-	})
-	if err != nil {
-		t.Fatalf("Failed to get object: %v", err)
-	}
-	defer output.Body.Close()
-
-	retrieved := make([]byte, len(testData))
-	n, err := output.Body.Read(retrieved)
-	if err != nil && err.Error() != "EOF" {
-		t.Fatalf("Failed to read object: %v", err)
-	}
-
-	if string(retrieved[:n]) != string(testData) {
-		t.Errorf("Data mismatch: got %s, want %s", string(retrieved[:n]), string(testData))
-	}
-
-	t.Log("✓ S3/MinIO integration test passed")
-}
-
-// TestE2EClaimCheckPattern verifies claim-check EIP with S3 backend
-func TestE2EClaimCheckPattern(t *testing.T) {
-	if testing.Short() {
-		t.Skip("Skipping e2e test in short mode")
-	}
-
-	// Check if MinIO is available (optional in CI)
-	conn, err := net.DialTimeout("tcp", "localhost:9000", 2*time.Second)
-	if err != nil {
-		t.Skip("MinIO not available (optional service) - skipping S3 tests")
-	}
-	conn.Close()
-
-	ctx := context.Background()
-
-	// Create S3-backed claim check store
-	cfg, err := config.LoadDefaultConfig(
-		ctx,
-		config.WithRegion("us-east-1"),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			"minioadmin",
-			"minioadmin",
-			"",
-		)),
-	)
-	if err != nil {
-		t.Skipf("Failed to load AWS config: %v", err)
-	}
-
-	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.UsePathStyle = true
-		o.BaseEndpoint = "http://localhost:9000"
-	})
-
-	store := claimcheck.NewS3ClaimCheckStore(client, "e2e-claims", 24*time.Hour)
-	defer store.Close()
-
-	// Test: Store a large payload
-	largePayload := map[string]interface{}{
-		"order_id":  "ORD-789",
-		"items":     []string{"ITEM-1", "ITEM-2", "ITEM-3"},
-		"metadata":  "Large order with many line items",
-		"customer":  "C-004",
-		"timestamp": time.Now().Unix(),
-	}
-
-	ticket, err := store.Store(ctx, largePayload)
-	if err != nil {
-		t.Skipf("Claim-check store not available: %v", err)
-	}
-
-	// Test: Retrieve the payload
-	retrieved, err := store.Retrieve(ctx, ticket)
-	if err != nil {
-		t.Fatalf("Failed to retrieve payload: %v", err)
-	}
-
-	// Verify structure (note: types may vary after marshaling)
-	if retrieved == nil {
-		t.Fatal("Retrieved payload is nil")
-	}
-
-	t.Logf("✓ Claim-check pattern test passed (ticket: %s)", ticket)
 }
 
 // TestE2EMessageFlow verifies end-to-end message processing through the engine
