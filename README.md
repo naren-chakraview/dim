@@ -117,7 +117,9 @@ curl http://localhost:8081/debug/routes | jq
 - **[Design Documents](design/)** — EIP mapping, implementation roadmaps, feasibility studies
 
 **Release & Operations:**
+- **[RELEASE.md](RELEASE.md)** — Release process, semantic versioning, creating releases
 - **[RELEASE_NOTES_v0.5.0.md](RELEASE_NOTES_v0.5.0.md)** — Phase 0 features and deployment checklist
+- **[docs/E2E_TESTING.md](docs/E2E_TESTING.md)** — Integration testing, local e2e setup, release gates
 - **[Security Review](internal/security/SECURITY_REVIEW.md)** — Audit results (no critical issues)
 - **[Performance Results](examples/bench/RESULTS.md)** — Benchmarks and metrics
 - **[ADAPTER_SPEC.md](ADAPTER_SPEC.md)** — Source/Sink interface contract, patterns
@@ -212,12 +214,24 @@ dim/
 ├── examples/              # sample configurations
 ├── test/fixtures/         # test fixtures
 ├── design/                # architecture docs
+├── deploy/                # Docker Compose for e2e testing & local development
+│   ├── docker-compose.e2e.yml # Full integration environment (Kafka, PostgreSQL, etc.)
+│   └── prometheus.e2e.yml     # Prometheus config for local monitoring
+├── scripts/               # utility scripts
+│   ├── e2e-test.sh        # Run full e2e test suite locally
+│   └── check-release-readiness.sh # Pre-release validation
+├── .github/workflows/     # CI/CD automation
+│   ├── ci.yml             # Unit tests, vet, lint on every PR
+│   ├── e2e.yml            # Integration test gates on every push
+│   └── release.yml        # Release workflow (tag → build → publish)
 ├── graphify-out/          # knowledge graph (1130 nodes, 3352 edges)
 ├── ADAPTER_SPEC.md        # Source/Sink interface specification
 ├── CODE_REVIEW_WORKFLOW.md # 3-tier review governance
 ├── REVIEWERS.md           # subsystem expertise
-├── USER_GUIDE.md          # developer guide
+├── RELEASE.md             # Release process and semantic versioning
+├── USER_GUIDE.md          # user guide (configuration reference)
 ├── DEVELOPMENT.md         # development patterns
+├── DEVELOPER_GUIDE.md     # developer guide (project structure, building, testing)
 ├── OKF.md                 # operational knowledge framework
 ├── CHANGELOG.md           # version history
 └── README.md              # this file

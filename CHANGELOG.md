@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Infrastructure
+
+**E2E Testing & Release Gating (PR #55)**
+- ✅ GitHub Actions release workflow gates on service health checks (Kafka, PostgreSQL, Zookeeper)
+- ✅ Semantic version tag validation (v1.2.3 format required)
+- ✅ 3-stage release pipeline: verify CI → service health → build & release
+- ✅ Local e2e testing via `scripts/e2e-test.sh` with Docker Compose
+- ✅ Complete RELEASE.md documentation with troubleshooting guide
+- ✅ Updated E2E_TESTING.md with health check strategy and local testing guide
+- ✅ Pre-release checklist script: `scripts/check-release-readiness.sh`
+- ✅ Comprehensive docs for developers, operators, and release managers
+
 ## [0.6.0] - 2026-09-04
 
 ### Added - Phase 1 Complete (Track A & B)

@@ -93,6 +93,20 @@ go test ./internal/adapters/s3 -race -v
 go test ./internal/adapters/database -race -v
 ```
 
+### Local integration tests with Docker
+```bash
+# Run full e2e environment (Kafka, PostgreSQL, Zookeeper)
+scripts/e2e-test.sh
+
+# Or manage services manually
+cd deploy
+docker-compose -f docker-compose.e2e.yml -p dim-e2e up -d
+# ... run your tests ...
+docker-compose -f docker-compose.e2e.yml -p dim-e2e down -v
+```
+
+See **[docs/E2E_TESTING.md](docs/E2E_TESTING.md)** for complete integration testing guide.
+
 ### Benchmarks
 ```bash
 go test ./examples/bench -bench=. -benchmem -benchtime=10s
