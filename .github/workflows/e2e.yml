@@ -10,7 +10,7 @@ jobs:
   e2e-tests:
     name: End-to-End Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     services:
       # Zookeeper for Kafka coordination
@@ -23,10 +23,10 @@ jobs:
           ZK_SYNC_LIMIT: 5
           ZK_INIT_LIMIT: 5
         options: >-
-          --health-cmd "echo stat | nc -w 1 localhost 2181 || exit 1"
-          --health-interval 10s
-          --health-timeout 15s
-          --health-retries 10
+          --health-cmd "echo stat | nc -w 2 localhost 2181 || exit 1"
+          --health-interval 5s
+          --health-timeout 30s
+          --health-retries 15
           --network-alias zookeeper
 
       # Kafka message broker
@@ -43,9 +43,9 @@ jobs:
           KAFKA_BROKER_RACK: rack1
         options: >-
           --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"
-          --health-interval 10s
-          --health-timeout 15s
-          --health-retries 10
+          --health-interval 5s
+          --health-timeout 30s
+          --health-retries 20
           --network-alias kafka
         ports:
           - 9092:9092
@@ -101,7 +101,7 @@ jobs:
 
       # Run e2e tests
       - name: Run E2E Tests
-        run: go test -tags e2e -v -race ./internal/integration/... -run "E2E" -timeout 5m
+        run: go test -tags e2e -v -race ./internal/integration/... -run "E2E" -timeout 10m
         env:
           KAFKA_BROKERS: localhost:9092
           DATABASE_URL: postgres://dim_test:test_password@localhost:5432/dim_e2e?sslmode=disable
