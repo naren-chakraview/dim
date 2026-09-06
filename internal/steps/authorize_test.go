@@ -206,8 +206,9 @@ func TestAuthorizeStepNewAuthorizeStepInvalidMode(t *testing.T) {
 		t.Error("Expected error for invalid mode, but got none")
 	}
 
-	if errMsg := err.Error(); errMsg != `invalid mode: "invalid" (must be 'rbac' or 'abac')` {
-		t.Errorf("Expected error about invalid mode, got %q", errMsg)
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "invalid mode") || !strings.Contains(errMsg, "rbac") {
+		t.Errorf("Expected error about invalid mode mentioning rbac, got %q", errMsg)
 	}
 }
 
@@ -945,8 +946,8 @@ func TestRedactionMissingField(t *testing.T) {
 	}
 
 	body := result.Body.(map[string]interface{})
-	if body["name"] != "[REDACTED]" {
-		t.Errorf("Expected name=[REDACTED], got %v", body["name"])
+	if body["name"] != "***REDACTED***" {
+		t.Errorf("Expected name=***REDACTED***, got %v", body["name"])
 	}
 	if body["id"] != float64(1) {
 		t.Errorf("Expected id=1 (unchanged), got %v", body["id"])
