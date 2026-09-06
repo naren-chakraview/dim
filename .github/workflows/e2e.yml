@@ -76,29 +76,6 @@ jobs:
         with:
           go-version: '1.26.7'
 
-      # Wait for services to be ready with detailed logging
-      - name: Wait for services
-        run: |
-          echo "Waiting for services to be ready..."
-          echo "Timeout per service: 60 seconds"
-          echo ""
-
-          echo "[1/4] Checking Zookeeper (port 2181)..."
-          timeout 60 bash -c 'until (echo stat | nc -w 2 localhost 2181) >/dev/null 2>&1; do echo "  ... waiting"; sleep 2; done' || exit 1
-          echo "✓ Zookeeper ready"
-
-          echo "[2/4] Checking Kafka (port 9092)..."
-          timeout 60 bash -c 'until nc -z -w 2 localhost 9092 >/dev/null 2>&1; do echo "  ... waiting"; sleep 2; done' || exit 1
-          echo "✓ Kafka port open"
-
-          echo "[3/4] Checking PostgreSQL (port 5432)..."
-          timeout 60 bash -c 'until pg_isready -h localhost -U dim_test -d dim_e2e >/dev/null 2>&1; do echo "  ... waiting"; sleep 2; done' || exit 1
-          echo "✓ PostgreSQL ready"
-
-          echo ""
-          echo "All required services ready!"
-          echo "(Note: MinIO/S3 tests skipped in CI - optional for local testing)"
-
       # Run e2e tests
       - name: Run E2E Tests
         run: go test -tags e2e -v -race ./internal/integration/... -run "E2E" -timeout 10m
