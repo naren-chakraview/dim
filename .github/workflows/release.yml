@@ -96,7 +96,7 @@ jobs:
           - 5432:5432
 
       minio:
-        image: minio/minio:RELEASE.2024-01-01T00-00-00Z
+        image: minio/minio:latest
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
