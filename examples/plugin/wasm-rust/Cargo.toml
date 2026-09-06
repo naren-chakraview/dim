@@ -1,0 +1,25 @@
+[package]
+name = "dim-wasm-plugin-example"
+version = "0.1.0"
+edition = "2021"
+
+# Compile to WebAssembly
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"], default-features = false }
+serde_json = { version = "1.0", default-features = false }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+
+# Example WASM plugin for dim
+#
+# Building:
+#   rustup target add wasm32-unknown-unknown
+#   cargo build --target wasm32-unknown-unknown --release
+#
+# Output: target/wasm32-unknown-unknown/release/dim_wasm_plugin_example.wasm
