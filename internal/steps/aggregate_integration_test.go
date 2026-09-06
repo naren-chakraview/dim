@@ -10,9 +10,9 @@ import (
 
 // TestAggregatorIntegration verifies end-to-end aggregation with lineage (M2.1.3)
 func TestAggregatorIntegration(t *testing.T) {
-	t.Skip("TODO: Fix JSONata expression parsing - '>' operator syntax error")
-	spec := &AggregateSpec{
-		CorrelationKey:     "body.order_id",
+	t.Skip("TODO: JSONata library issue - lambda expressions ($ -> ...) not supported by blues/jsonata-go")
+spec := &AggregateSpec{
+		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              3,
 		TimeoutMs:          5000,
@@ -129,9 +129,8 @@ func TestAggregatorIntegration(t *testing.T) {
 
 // TestAggregatorMultipleOrdersIntegration verifies concurrent aggregation of multiple orders
 func TestAggregatorMultipleOrdersIntegration(t *testing.T) {
-	t.Skip("TODO: Fix JSONata expression parsing - '>' operator syntax error")
-	spec := &AggregateSpec{
-		CorrelationKey:     "body.order_id",
+spec := &AggregateSpec{
+		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              2,
 		TimeoutMs:          5000,
@@ -200,9 +199,8 @@ func TestAggregatorMultipleOrdersIntegration(t *testing.T) {
 
 // TestAggregatorTimeoutCompletion verifies timeout-based flush (M2.1.3)
 func TestAggregatorTimeoutCompletion(t *testing.T) {
-	t.Skip("TODO: Fix JSONata expression parsing - '>' operator syntax error")
-	spec := &AggregateSpec{
-		CorrelationKey:     "body.order_id",
+spec := &AggregateSpec{
+		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              10, // High count to ensure timeout triggers
 		TimeoutMs:          100,
@@ -239,9 +237,8 @@ func TestAggregatorTimeoutCompletion(t *testing.T) {
 
 // TestAggregatorWithComplexMessages verifies aggregation of complex message structures
 func TestAggregatorWithComplexMessages(t *testing.T) {
-	t.Skip("TODO: Fix JSONata expression parsing - '>' operator syntax error")
-	spec := &AggregateSpec{
-		CorrelationKey:     "body.metadata.order_id",
+spec := &AggregateSpec{
+		CorrelationKey:     "metadata.order_id",
 		CompletionStrategy: "count",
 		Count:              2,
 		TimeoutMs:          5000,

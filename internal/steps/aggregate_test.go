@@ -10,9 +10,8 @@ import (
 
 // TestAggregateCountCompletion verifies count-based aggregation (M2.1.2)
 func TestAggregateCountCompletion(t *testing.T) {
-	t.Skip("TODO: Fix JSONata expression parsing - '>' operator syntax error")
 	spec := &AggregateSpec{
-		CorrelationKey:     "body.order_id",
+		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              3,
 		TimeoutMs:          10000,
@@ -85,9 +84,8 @@ func TestAggregateCountCompletion(t *testing.T) {
 
 // TestAggregateTimeWindowCompletion verifies time-window-based aggregation (M2.1.2)
 func TestAggregateTimeWindowCompletion(t *testing.T) {
-	t.Skip("TODO: Fix JSONata expression parsing - '>' operator syntax error")
-	spec := &AggregateSpec{
-		CorrelationKey:     "body.order_id",
+spec := &AggregateSpec{
+		CorrelationKey:     "order_id",
 		CompletionStrategy: "time_window",
 		WindowMs:           100,
 		MaxMessages:        10,
@@ -128,7 +126,7 @@ func TestAggregateTimeWindowCompletion(t *testing.T) {
 // TestAggregateNullCorrelationKey verifies null key handling (M2.1.2)
 func TestAggregateNullCorrelationKey(t *testing.T) {
 	spec := &AggregateSpec{
-		CorrelationKey:     "body.order_id",
+		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              2,
 		OnNullCorrelation:  "error_path",
@@ -155,9 +153,8 @@ func TestAggregateNullCorrelationKey(t *testing.T) {
 
 // TestAggregateMultipleCorrelationKeys verifies independent groups (M2.1.2)
 func TestAggregateMultipleCorrelationKeys(t *testing.T) {
-	t.Skip("TODO: Fix JSONata expression parsing - '>' operator syntax error")
-	spec := &AggregateSpec{
-		CorrelationKey:     "body.order_id",
+spec := &AggregateSpec{
+		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              2,
 		TimeoutMs:          10000,
@@ -212,9 +209,8 @@ func TestAggregateMultipleCorrelationKeys(t *testing.T) {
 
 // TestAggregateDrain verifies hot-reload drain behavior (M2.1.2)
 func TestAggregateDrain(t *testing.T) {
-	t.Skip("TODO: Fix JSONata expression parsing - '>' operator syntax error")
-	spec := &AggregateSpec{
-		CorrelationKey:     "body.order_id",
+spec := &AggregateSpec{
+		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              10, // High count so groups don't auto-flush
 		TimeoutMs:          60000,
@@ -272,7 +268,7 @@ func TestAggregateSpecValidation(t *testing.T) {
 		{
 			name: "valid count strategy",
 			spec: &AggregateSpec{
-				CorrelationKey:     "body.id",
+				CorrelationKey:     "id",
 				CompletionStrategy: "count",
 				Count:              5,
 			},
@@ -281,7 +277,7 @@ func TestAggregateSpecValidation(t *testing.T) {
 		{
 			name: "valid time_window strategy",
 			spec: &AggregateSpec{
-				CorrelationKey:     "body.id",
+				CorrelationKey:     "id",
 				CompletionStrategy: "time_window",
 				WindowMs:           1000,
 			},
@@ -298,7 +294,7 @@ func TestAggregateSpecValidation(t *testing.T) {
 		{
 			name: "invalid completion_strategy",
 			spec: &AggregateSpec{
-				CorrelationKey:     "body.id",
+				CorrelationKey:     "id",
 				CompletionStrategy: "invalid",
 			},
 			wantErr: true,
@@ -306,7 +302,7 @@ func TestAggregateSpecValidation(t *testing.T) {
 		{
 			name: "count strategy with count=0",
 			spec: &AggregateSpec{
-				CorrelationKey:     "body.id",
+				CorrelationKey:     "id",
 				CompletionStrategy: "count",
 				Count:              0,
 			},
@@ -315,7 +311,7 @@ func TestAggregateSpecValidation(t *testing.T) {
 		{
 			name: "time_window strategy with window_ms=0",
 			spec: &AggregateSpec{
-				CorrelationKey:     "body.id",
+				CorrelationKey:     "id",
 				CompletionStrategy: "time_window",
 				WindowMs:           0,
 			},
@@ -335,9 +331,8 @@ func TestAggregateSpecValidation(t *testing.T) {
 
 // TestAggregateOutputStructure verifies output message structure (M2.1.2)
 func TestAggregateOutputStructure(t *testing.T) {
-	t.Skip("TODO: Fix JSONata expression parsing - '>' operator syntax error")
-	spec := &AggregateSpec{
-		CorrelationKey:     "body.order_id",
+spec := &AggregateSpec{
+		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              2,
 	}

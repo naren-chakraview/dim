@@ -27,12 +27,12 @@ jobs:
         run: go vet ./...
 
       # MERGE GATE 3: Lint catches style and quality issues
-      # TODO: Re-enable when golangci-lint is compatible with Go 1.26.7
-      # Currently disabled due to version mismatch (golangci-lint built with Go 1.24)
+      # NOTE: golangci-lint disabled until it supports Go 1.26.7
+      # Issue: golangci-lint is built with Go 1.23, which doesn't recognize 1.26.7 language features
+      # Workaround: Use 'go vet' (MERGE GATE 2) for basic checking, rely on comprehensive test coverage
+      # Once golangci-lint releases with Go 1.27+ support, uncomment below:
       # - name: Lint
       #   uses: golangci/golangci-lint-action@v6
-      #   env:
-      #     ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
       #   with:
       #     args: --timeout=5m
 
