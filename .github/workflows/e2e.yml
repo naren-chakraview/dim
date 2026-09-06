@@ -10,7 +10,7 @@ jobs:
   e2e-tests:
     name: End-to-End Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     services:
       # Zookeeper for Kafka coordination
@@ -19,11 +19,15 @@ jobs:
         env:
           ZOOKEEPER_CLIENT_PORT: 2181
           ZOOKEEPER_TICK_TIME: 2000
+          # Reduce startup time
+          ZK_SYNC_LIMIT: 5
+          ZK_INIT_LIMIT: 5
         options: >-
-          --health-cmd "echo stat | nc localhost 2181"
-          --health-interval 5s
-          --health-timeout 10s
-          --health-retries 5
+          --health-cmd "echo stat | nc -w 1 localhost 2181 || exit 1"
+          --health-interval 10s
+          --health-timeout 15s
+          --health-retries 10
+          --network-alias zookeeper
 
       # Kafka message broker
       kafka:
@@ -36,11 +40,13 @@ jobs:
           KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
           KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+          KAFKA_BROKER_RACK: rack1
         options: >-
-          --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092"
-          --health-interval 5s
-          --health-timeout 10s
-          --health-retries 5
+          --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"
+          --health-interval 10s
+          --health-timeout 15s
+          --health-retries 10
+          --network-alias kafka
         ports:
           - 9092:9092
 
@@ -51,31 +57,41 @@ jobs:
           POSTGRES_DB: dim_e2e
           POSTGRES_USER: dim_test
           POSTGRES_PASSWORD: test_password
+          # Disable fsync for faster startup in CI
+          POSTGRES_INITDB_ARGS: "-c fsync=off"
         options: >-
           --health-cmd "pg_isready -U dim_test -d dim_e2e"
-          --health-interval 5s
-          --health-timeout 10s
-          --health-retries 5
+          --health-interval 10s
+          --health-timeout 15s
+          --health-retries 10
+          --network-alias postgres
         ports:
           - 5432:5432
 
       # MinIO for S3-compatible storage
       minio:
-        image: minio/minio:latest
+        image: minio/minio:RELEASE.2024-01-01T00-00-00Z
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
         options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 5s
-          --health-timeout 10s
-          --health-retries 5
+          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
+          --health-interval 10s
+          --health-timeout 15s
+          --health-retries 10
+          --network-alias minio
         ports:
           - 9000:9000
 
       # Prometheus for metrics collection
       prometheus:
         image: prom/prometheus:v2.40.0
+        options: >-
+          --health-cmd "curl -f http://localhost:9090/-/healthy || exit 1"
+          --health-interval 10s
+          --health-timeout 15s
+          --health-retries 10
+          --network-alias prometheus
         ports:
           - 9090:9090
 
@@ -87,18 +103,30 @@ jobs:
         with:
           go-version: '1.26.7'
 
-      # Wait for services to be ready
+      # Wait for services to be ready with detailed logging
       - name: Wait for services
         run: |
-          echo "Waiting for Kafka..."
-          timeout 30 bash -c 'until nc -z localhost 9092; do sleep 1; done'
+          echo "Waiting for services to be ready..."
+          echo "Timeout per service: 60 seconds"
+          echo ""
 
-          echo "Waiting for PostgreSQL..."
-          timeout 30 bash -c 'until pg_isready -h localhost -U dim_test -d dim_e2e; do sleep 1; done'
+          echo "[1/4] Checking Zookeeper (port 2181)..."
+          timeout 60 bash -c 'until (echo stat | nc -w 2 localhost 2181) >/dev/null 2>&1; do echo "  ... waiting"; sleep 2; done' || exit 1
+          echo "✓ Zookeeper ready"
 
-          echo "Waiting for MinIO..."
-          timeout 30 bash -c 'until curl -f http://localhost:9000/minio/health/live; do sleep 1; done'
+          echo "[2/4] Checking Kafka (port 9092)..."
+          timeout 60 bash -c 'until nc -z -w 2 localhost 9092 >/dev/null 2>&1; do echo "  ... waiting"; sleep 2; done' || exit 1
+          echo "✓ Kafka port open"
 
+          echo "[3/4] Checking PostgreSQL (port 5432)..."
+          timeout 60 bash -c 'until pg_isready -h localhost -U dim_test -d dim_e2e >/dev/null 2>&1; do echo "  ... waiting"; sleep 2; done' || exit 1
+          echo "✓ PostgreSQL ready"
+
+          echo "[4/4] Checking MinIO (port 9000)..."
+          timeout 60 bash -c 'until curl -sf http://localhost:9000/minio/health/live >/dev/null 2>&1; do echo "  ... waiting"; sleep 2; done' || exit 1
+          echo "✓ MinIO ready"
+
+          echo ""
           echo "All services ready!"
 
       # Run e2e tests
