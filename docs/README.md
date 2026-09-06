@@ -39,9 +39,55 @@ Start here:
    - Production deployment
    - Monitoring & observability
 
+5. **[PHASE3_FEATURES.md](PHASE3_FEATURES.md)** (30 min)
+   - Claim Check Pattern (large payloads)
+   - Plugin SDK (custom functions)
+   - Multi-Tenant Resource Isolation (SaaS)
+   - Distributed Clustering (high availability)
+
 ---
 
 ## I Want to...
+
+### ...handle large message attachments
+
+→ **[PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-1-claim-check-pattern-m32)**
+
+Features:
+- Store large payloads (5MB+ files) externally
+- Lightweight tickets travel through pipeline
+- Retrieve payloads only when needed
+- Production-ready with S3 backend
+
+### ...write custom validation or transformation logic
+
+→ **[PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-2-plugin-sdk-m33)**
+
+Features:
+- Native Go plugins (fast, subprocess-based)
+- WebAssembly plugins (secure, sandboxed)
+- Call from JSONata expressions
+- Real-world examples included
+
+### ...build multi-tenant SaaS with resource isolation
+
+→ **[PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-3-multi-tenant-resource-isolation-m34)**
+
+Features:
+- Per-tenant message rate limits
+- Worker pool partitioning
+- Lineage storage quotas
+- Prevent noisy neighbor problems
+
+### ...scale horizontally across multiple instances
+
+→ **[PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-4-distributed-clustering-m31)**
+
+Features:
+- Active-active clustering
+- Shared state (Postgres/Redis)
+- Unified lineage across cluster
+- No duplicate processing
 
 ### ...deploy to production
 
