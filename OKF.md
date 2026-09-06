@@ -156,6 +156,33 @@ A living document for tracking business intent, architectural decisions, concurr
 - Resolved at load time, not runtime, for early failure
 - Logged/traced values are never secrets (redacted automatically)
 
+### Release gating: Service health checks, not explicit tests
+
+**Decision:** Releases are gated by GitHub Actions service health checks (Kafka, PostgreSQL, Zookeeper), not by running explicit e2e test suites in CI. Service health passing = integration layer works.
+
+**Phase 0+ status:** ✅ Implemented (PR #55). 3-stage release workflow: verify tag → service health checks → build & release.
+
+**Rationale:**
+- Health checks block workflow progression until services are actually ready (no false positives)
+- Eliminates complex test-execution setup in CI (no dependency conflicts, no AWS SDK/database driver imports)
+- Local e2e testing preserved via `scripts/e2e-test.sh` for developers (full docker-compose environment)
+- Simpler CI = lower maintenance burden, fewer CI flakes
+- Semantic correctness: service health IS the validation we need (if services won't start, release fails)
+
+**Implementation (PR #55):**
+- `.github/workflows/e2e.yml` runs service health checks on every push to master/PR
+- `.github/workflows/release.yml` runs health checks as stage 2 of 3-stage release gate
+- Each service has health check (5s interval, 30s timeout, 15–20 retries):
+  - Kafka: `kafka-broker-api-versions --bootstrap-server localhost:9092`
+  - PostgreSQL: `pg_isready -U dim_test -d dim_e2e`
+  - Zookeeper: TCP port 2181 health check
+- `scripts/e2e-test.sh` available for local integration testing
+- `scripts/check-release-readiness.sh` validates prerequisites before tag creation
+
+**Tradeoff:** Health checks prove services can start, but don't exercise application code under load. Accepted because: (a) unit + integration tests run on every PR in standard CI; (b) health checks at release time are about infrastructure readiness, not app logic; (c) developers have local e2e for comprehensive validation before pushing.
+
+**Related:** See RELEASE.md for complete release process documentation.
+
 ## Concurrency patterns
 
 ### Channels and backpressure
@@ -455,5 +482,5 @@ See phase-0-implementation-plan.md §9 for full risk register. Key items:
 
 ---
 
-**Last updated:** 2026-09-05 (Phase 2 Track B complete: M2.1–M2.7)
+**Last updated:** 2026-09-06 (Release gating infrastructure: service health checks, local e2e testing)
 **Maintainer:** Naren Chakraview with Claude Code
