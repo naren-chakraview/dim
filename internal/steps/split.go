@@ -68,7 +68,7 @@ func (ss *SplitStep) Execute(ctx context.Context, msg *engine.Message) ([]*engin
 	// Contains body, headers, and metadata from the message
 	evalContext := map[string]interface{}{
 		"body":     msg.Body,
-		"headers":  msg.Metadata.Headers,
+		"headers":  msg.Headers,
 		"metadata": msg.Metadata,
 	}
 
@@ -112,7 +112,7 @@ func (ss *SplitStep) Execute(ctx context.Context, msg *engine.Message) ([]*engin
 			// Build context for output transformation (element is the body, original context preserved)
 			outputContext := map[string]interface{}{
 				"body":     element,
-				"headers":  msg.Metadata.Headers,
+				"headers":  msg.Headers,
 				"metadata": msg.Metadata,
 			}
 			transformed, err := ss.outputEvaluator.Eval(outputContext)

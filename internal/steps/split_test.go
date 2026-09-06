@@ -50,8 +50,18 @@ func TestSplitBasicArray(t *testing.T) {
 		}
 
 		body := out.Body.(map[string]interface{})
-		if id, ok := body["id"].(float64); !ok || id != float64(i+1) {
-			t.Errorf("Output %d: expected id=%d, got %v", i, i+1, body["id"])
+		var id float64
+		switch v := body["id"].(type) {
+		case float64:
+			id = v
+		case int:
+			id = float64(v)
+		default:
+			t.Errorf("Output %d: id has unexpected type %T", i, v)
+			continue
+		}
+		if id != float64(i+1) {
+			t.Errorf("Output %d: expected id=%d, got %v", i, i+1, id)
 		}
 
 		// Verify correlation ID is preserved
