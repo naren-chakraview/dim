@@ -82,6 +82,17 @@ Reference for:
 - `dimctl replay` — Replay messages
 - `dimd` daemon — Run as a service
 
+### ...test integration with external services
+
+→ **[E2E_TESTING.md](E2E_TESTING.md)**
+
+Local integration testing:
+- Start Kafka, PostgreSQL, Zookeeper via Docker Compose
+- Verify connectivity to external services
+- Test message flow end-to-end
+- Health check validation
+- Troubleshooting guide
+
 ### ...set up alerts and monitoring
 
 → **[CLI_REFERENCE.md](CLI_REFERENCE.md#dimctl-stats)** and **[CLI_REFERENCE.md](CLI_REFERENCE.md#dimctl-trace)**
@@ -145,11 +156,25 @@ Covers:
 
 ## For Operators/DevOps
 
-Running dim in production:
+Running dim in production and managing releases:
 
+**Daemonization & Operations:**
 → **[CLI_REFERENCE.md](CLI_REFERENCE.md#dimd-daemon)** (daemonization and systemd)
 
-Also see:
+**Release Management:**
+→ **[../RELEASE.md](../RELEASE.md)**
+- Creating releases with semantic versioning
+- 3-stage release workflow (verify CI → service health checks → build & release)
+- Release troubleshooting guide
+- Pre-release validation checklist
+
+**Integration Testing & Service Health:**
+→ **[E2E_TESTING.md](E2E_TESTING.md)**
+- Local integration environment setup
+- Service health check configuration
+- Verifying production-like external services
+
+**Additional Resources:**
 - [RELEASE_NOTES_v0.5.0.md](../RELEASE_NOTES_v0.5.0.md) — Deployment checklist
 - [../ADAPTER_SPEC.md](../ADAPTER_SPEC.md) — Adapter patterns
 - [../OKF.md](../OKF.md) — Architecture patterns
@@ -164,9 +189,11 @@ Also see:
 | See real examples | USE_CASES | LANGUAGE_REFERENCE |
 | Learn config syntax | LANGUAGE_REFERENCE | USE_CASES for patterns |
 | Use CLI tools | CLI_REFERENCE | Examples for each command |
+| Test with external services | E2E_TESTING | CLI_REFERENCE (commands) |
 | Debug a problem | CLI_REFERENCE (debugging) | Provenance, trace tail, explain |
 | Set up compliance | LANGUAGE_REFERENCE (lineage) | USE_CASES (compliance example) |
 | Monitor performance | CLI_REFERENCE (stats, trace) | OKF.md (architecture) |
+| Create a release | ../RELEASE.md | E2E_TESTING (service health) |
 | Contribute code | ../DEVELOPER_GUIDE | OKF.md for patterns |
 
 ---
