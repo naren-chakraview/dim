@@ -39,11 +39,11 @@ Start here:
    - Production deployment
    - Monitoring & observability
 
-5. **[PHASE3_FEATURES.md](PHASE3_FEATURES.md)** (30 min)
-   - Claim Check Pattern (large payloads)
-   - Plugin SDK (custom functions)
-   - Multi-Tenant Resource Isolation (SaaS)
-   - Distributed Clustering (high availability)
+5. **[Advanced Features Guide](PHASE3_FEATURES.md)** (30 min)
+   - Claim Check Pattern (handle large attachments efficiently)
+   - Plugin System (custom Go & WASM functions)
+   - Resource Quotas (multi-tenant isolation)
+   - Distributed Clustering (geographic scale & HA)
 
 ---
 
@@ -51,7 +51,7 @@ Start here:
 
 ### ...handle large message attachments
 
-→ **[PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-1-claim-check-pattern-m32)**
+→ **[Advanced Features: Claim Check](PHASE3_FEATURES.md#feature-1-claim-check-pattern)**
 
 Features:
 - Store large payloads (5MB+ files) externally
@@ -61,7 +61,7 @@ Features:
 
 ### ...write custom validation or transformation logic
 
-→ **[PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-2-plugin-sdk-m33)**
+→ **[Advanced Features: Plugin System](PHASE3_FEATURES.md#feature-2-plugin-system)**
 
 Features:
 - Native Go plugins (fast, subprocess-based)
@@ -71,7 +71,7 @@ Features:
 
 ### ...build multi-tenant SaaS with resource isolation
 
-→ **[PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-3-multi-tenant-resource-isolation-m34)**
+→ **[Advanced Features: Resource Quotas](PHASE3_FEATURES.md#feature-3-resource-quotas--multi-tenancy)**
 
 Features:
 - Per-tenant message rate limits
@@ -81,7 +81,7 @@ Features:
 
 ### ...scale horizontally across multiple instances
 
-→ **[PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-4-distributed-clustering-m31)**
+→ **[Advanced Features: Clustering](PHASE3_FEATURES.md#feature-4-distributed-clustering)**
 
 Features:
 - Active-active clustering
@@ -236,6 +236,12 @@ Running dim in production and managing releases:
 - Service health check configuration
 - Verifying production-like external services
 
+**Scaling & Advanced Deployments:**
+→ **[Advanced Features](PHASE3_FEATURES.md)**
+- Distributed clustering for high availability
+- Resource quotas for multi-tenant scenarios
+- Custom plugins for specialized logic
+
 **Additional Resources:**
 - [RELEASE_NOTES_v0.5.0.md](../RELEASE_NOTES_v0.5.0.md) — Deployment checklist
 - [../ADAPTER_SPEC.md](../ADAPTER_SPEC.md) — Adapter patterns
@@ -251,13 +257,17 @@ Running dim in production and managing releases:
 | See real examples | USE_CASES | LANGUAGE_REFERENCE |
 | Learn config syntax | LANGUAGE_REFERENCE | USE_CASES for patterns |
 | Use CLI tools | CLI_REFERENCE | Examples for each command |
-| Test with external services | E2E_TESTING | DEPLOYMENT_AND_RELEASE (local testing) |
+| Handle large attachments | Advanced Features | LANGUAGE_REFERENCE (claim-check step) |
+| Add custom logic | Advanced Features | LANGUAGE_REFERENCE (plugins) |
+| Build SaaS | Advanced Features | LANGUAGE_REFERENCE (domain labels) |
+| Test with services | E2E_TESTING | DEPLOYMENT_AND_RELEASE (local testing) |
 | Debug a problem | CLI_REFERENCE (debugging) | Provenance, trace tail, explain |
 | Set up compliance | LANGUAGE_REFERENCE (lineage) | USE_CASES (compliance example) |
-| Monitor performance | CLI_REFERENCE (stats, trace) | DEPLOYMENT_AND_RELEASE (production) |
+| Monitor performance | CLI_REFERENCE (stats, trace) | Advanced Features (clustering) |
 | Deploy to production | DEPLOYMENT_AND_RELEASE | CLI_REFERENCE (daemon) |
+| Scale globally | Advanced Features (clustering) | DEPLOYMENT_AND_RELEASE (ops) |
 | Create a release | DEPLOYMENT_AND_RELEASE | E2E_TESTING (service health) |
-| Contribute code | ../DEVELOPER_GUIDE | OKF.md for patterns |
+| Contribute code | ../DEVELOPER_GUIDE | ../OKF.md for patterns |
 
 ---
 
@@ -265,15 +275,27 @@ Running dim in production and managing releases:
 
 **Q: What's the difference between dim and Kafka/RabbitMQ?**
 
-A: dim is an *integration middleware* — it routes and transforms messages *between* systems. Kafka and RabbitMQ are *brokers* — they store and distribute messages. dim can *use* either as a source or sink.
+A: dim is a *declarative integration middleware* — it routes and transforms messages *between* systems. Kafka and RabbitMQ are *brokers* — they store and distribute messages. dim can *use* either as a source or sink.
 
 **Q: Do I need to write code?**
 
-A: No. Routes are pure YAML configuration. Expressions use JSONata (not imperative code).
+A: No. Routes are pure YAML configuration. Expressions use JSONata (not imperative code). Custom logic uses plugins (Go or WASM) without modifying dim.
 
 **Q: Can I run dim in Kubernetes?**
 
-A: Yes. dim compiles to a single binary with no external dependencies (SQLite is embedded). Use the `dimd` daemon in a container.
+A: Yes. dim compiles to a single binary with no external dependencies (SQLite is embedded). Use the `dimd` daemon in a container. See [DEPLOYMENT_AND_RELEASE.md](DEPLOYMENT_AND_RELEASE.md).
+
+**Q: What about large attachments or media?**
+
+A: dim has the Claim Check pattern for handling 5MB+ payloads. Store externally (S3), carry lightweight tickets through pipeline. See [PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-1-claim-check-pattern-m32).
+
+**Q: Can I add custom validation logic?**
+
+A: Yes, via plugins. Write Go binaries or WebAssembly modules, call from JSONata expressions. No dim code changes needed. See [PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-2-plugin-sdk-m33).
+
+**Q: How do I build SaaS with dim?**
+
+A: Use multi-tenant resource isolation to prevent one customer from affecting another. Set per-tenant quotas (message rate, workers, lineage). See [PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-3-multi-tenant-resource-isolation-m34).
 
 **Q: What about schema evolution?**
 
@@ -286,6 +308,10 @@ A: Routes emit audit trail (lineage) to SQLite automatically. Every message carr
 **Q: Can I replay messages?**
 
 A: Yes. Export messages from lineage, then replay with `dimctl replay`. See [CLI_REFERENCE.md](CLI_REFERENCE.md#dimctl-replay) and [USE_CASES.md](USE_CASES.md#message-replay-and-recovery).
+
+**Q: How do I scale to high throughput?**
+
+A: Run multiple dim instances in an active-active cluster with shared state. No duplicate processing, unified lineage. See [PHASE3_FEATURES.md](PHASE3_FEATURES.md#feature-4-distributed-clustering-m31).
 
 ---
 

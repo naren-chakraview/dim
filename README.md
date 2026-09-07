@@ -10,26 +10,105 @@ Phase 2 Track B: Complete (M2.1-M2.7). Aggregator, splitter, database adapters, 
 
 ## What is dim?
 
-dim is a **configuration-driven integration middleware** that routes, transforms, and audits messages between systems. You define pipelines in YAML, not code. Every message is traced, authorized, and audited.
+**dim** is a **declarative integration middleware** that routes, transforms, and audits messages between systems. You define pipelines in YAML, not code. Every message is traced, authorized, and audited.
 
 **Use dim for:**
 - Message routing between APIs, queues, and databases
 - Data validation with JSON Schema contracts
-- Access control (RBAC, ABAC) on every message
+- Access control (RBAC, ABAC, PBAC) on every message
 - Audit trail and compliance (lineage, retention, purge evidence)
 - Observability (OTel tracing, Prometheus metrics)
+- Custom business logic (plugins: Go and WASM)
+- Large message handling (claim-check pattern)
+- Multi-tenant isolation with resource quotas
+- Horizontal scaling with distributed clustering
 
 ---
 
-## Features
+## Complete Feature Set
 
-- **Configuration-First:** Routes are YAML, not code
-- **Governance:** JWT auth, RBAC/ABAC, data contracts
-- **Lineage:** SQLite audit trail, retention policies, purge evidence
-- **Observability:** OTel tracing, Prometheus, Grafana dashboard, live viewer
-- **Reliability:** Worker pools, retry logic, hot reload, ordered processing
-- **Performance:** 1,245+ msg/sec, <50ms p99 latency, <1% tracing overhead
-- **Security:** No hardcoded secrets, parameterized SQL, JWT validation
+### Message Routing & Transformation
+- **Configuration-First:** Routes defined in YAML, not code
+- **EIP Steps:** Filter, translate, route (conditional branching), aggregate, split
+- **JSONata Expressions:** Powerful transformation language with full function library
+- **Plugin Functions:** Custom Go (RPC) and WebAssembly (sandboxed) functions
+- **Claim Check Pattern:** Handle large payloads (5MB+ attachments) efficiently
+- **Hot Reload:** Config changes take effect without downtime or message loss
+
+### Governance & Security
+- **Authentication:** JWT token validation and principal extraction
+- **Authorization:** RBAC (role-based), ABAC (attribute-based), PBAC (policy-based with OPA)
+- **Data Contracts:** JSON Schema validation at source/sink boundaries
+- **Contract Registry:** Inline schemas + registry-backed (Apicurio, Confluent)
+- **Obligations:** PDP-driven field redaction, encryption, rate limiting
+- **Secrets Management:** `${SECRET:name}` resolved at runtime, never stored plaintext
+- **Security Audit:** Authorization decisions tracked in lineage
+
+### Message Processing & Reliability
+- **Worker Pools:** Configurable concurrency per route with backpressure
+- **Retry Logic:** Exponential backoff for transient failures
+- **Dead-Letter Queue:** Automatic routing of unrecoverable messages
+- **Error Classifications:** Retryable (5xx), non-retryable (4xx), auth denied, contract violation
+- **Ordered Processing:** Guaranteed order per correlation ID
+- **Idempotent Processing:** Prevents duplicate message processing
+
+### Observability & Monitoring
+- **OpenTelemetry Tracing:** OTLP export to Jaeger, Datadog, etc.
+- **Prometheus Metrics:** Message counts, latency histograms, authorization decisions
+- **Live Viewer:** Built-in `/debug/routes` showing real-time stats
+- **Trace Streaming:** `dimctl trace tail` for live execution visibility
+- **Message Provenance:** Reconstruct any message's journey through lineage
+
+### Audit & Compliance
+- **SQLite Lineage Store:** Embedded audit trail (no external DB needed)
+- **Cross-Cluster Lineage:** Unified queries across distributed instances (PostgreSQL backend)
+- **Retention Policies:** Named policies (default, pci, phi, custom) with TTL
+- **Automatic Purge:** Background reaper deletes old records per policy
+- **Purge Evidence:** Append-only log proving deletion (tamper-proof)
+- **Export & Audit:** CSV/NDJSON export for compliance analysis
+- **Subject ID Tracking:** GDPR-ready subject-based queries and deletion
+
+### Data Connectivity
+- **Sources:** HTTP, file polling, Kafka (consumer groups), AMQP, S3, SFTP, database (CDC)
+- **Sinks:** HTTP, file, Kafka (producer), AMQP, S3, SFTP, database (UPSERT/INSERT)
+- **CDC:** Log-based (Debezium/Maxwell) and trigger-based (Postgres timestamp watermark)
+- **Schema Evolution:** Contract versioning independent from route versioning
+
+### Multi-Tenancy & Scalability
+- **Resource Quotas:** Per-tenant message rate limits, worker slot allocation, lineage storage caps
+- **Distributed Clustering:** Active-active mode with shared state (PostgreSQL/Redis backend)
+- **No Duplicate Processing:** Shared idempotent dedup store across cluster
+- **Coordinated Hot-Reload:** Config changes reach all instances together
+- **Geographic Distribution:** Run instances across regions with unified lineage
+
+### Configuration & Composition
+- **Fragments:** Reusable YAML blocks with late binding and parameter substitution
+- **Imports:** Recursive configuration composition with cycle detection
+- **Parameter Substitution:** `${PARAM:name}` for template values
+- **Build Tags:** Conditional compilation for environment-specific code
+- **Fragment Defaults:** Merged from global, domain, and route levels
+
+### Performance & Efficiency
+- **Single Static Binary:** No runtime dependencies (SQLite embedded, WASM runtime pure Go)
+- **High Throughput:** 1,245+ messages/sec on single instance
+- **Low Latency:** <50ms p99, <1% tracing overhead
+- **Horizontal Scaling:** Add instances for linear throughput increase
+- **Resource Accounting:** Per-tenant quotas prevent noisy neighbor issues
+
+### Extensibility
+- **Native Plugins:** Go binaries via RPC (fast, trusted logic)
+- **WASM Plugins:** Sandboxed functions (any language, secure)
+- **Pluggable Functions Registry:** Custom functions in expressions
+- **Adapter Interfaces:** Implement Source/Sink for custom adapters
+- **Policy Decision Point:** Pluggable authorization engine (OPA reference)
+
+### Developer Experience
+- **Single Binary:** `go build ./cmd/dimctl` produces ready-to-use CLI
+- **No Code Required:** Everything is configuration
+- **Rapid Development:** Hot reload for instant testing
+- **Debugging Tools:** `dimctl explain`, `dimctl trace tail`, `dimctl provenance`
+- **Testing Framework:** Fixture-based route validation
+- **Race Detector Ready:** Full concurrency testing coverage
 
 ---
 

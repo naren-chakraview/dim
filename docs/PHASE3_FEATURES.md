@@ -1,21 +1,21 @@
-# dim — Phase 3 Features Guide
+# dim Advanced Features Guide
 
-Phase 3 introduces powerful new capabilities for scalability, extensibility, and multi-tenancy.
+This guide covers dim's powerful advanced capabilities for handling complex integration scenarios: large payloads, custom logic, multi-tenancy, and distributed systems.
 
 ---
 
-## Quick Overview
+## Feature Overview
 
-| Feature | Problem Solved | When to Use |
+| Feature | Solves | Best For |
 |---------|---|---|
-| **Claim Check Pattern** | Large message payloads slow down processing | Handling attachments, documents, media files |
-| **Plugin SDK** | Need custom logic without modifying dim | Domain-specific validation, transformation, enrichment |
-| **Multi-Tenant Resource Isolation** | One overloaded tenant affects others | SaaS platforms, shared internal infrastructure |
-| **Distributed Clustering** | Single instance is a bottleneck | Horizontal scaling, high availability, geographic distribution |
+| **Claim Check Pattern** | Large message payloads slow down processing | Attachments, documents, media, archives |
+| **Plugin System** | Custom logic without modifying dim core | Validation, enrichment, transformation, encryption |
+| **Resource Quotas** | One customer/domain overloads affects others | SaaS, multi-domain shared infrastructure |
+| **Distributed Clustering** | Single instance throughput ceiling | Global scale, high availability, geographic distribution |
 
 ---
 
-## Feature 1: Claim Check Pattern (M3.2)
+## Feature 1: Claim Check Pattern
 
 ### Problem
 
@@ -145,7 +145,7 @@ Full message restored (payload retrieved from S3)
 
 ---
 
-## Feature 2: Plugin SDK (M3.3)
+## Feature 2: Plugin System
 
 ### Problem
 
@@ -303,7 +303,7 @@ cp target/wasm32-unknown-unknown/release/encrypt_pii.wasm ./plugins/
 
 ---
 
-## Feature 3: Multi-Tenant Resource Isolation (M3.4)
+## Feature 3: Resource Quotas ## Feature 3: Multi-Tenant Resource Isolation (M3.4) Multi-Tenancy
 
 ### Problem
 
@@ -477,7 +477,7 @@ dimctl stats --by-domain
 
 ---
 
-## Feature 4: Distributed Clustering (M3.1)
+## Feature 4: Distributed Clustering
 
 ### Problem
 
