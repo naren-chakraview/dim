@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/naren-chakraview/dim/internal/cluster"
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/factory"
 	"github.com/naren-chakraview/dim/internal/observability"
@@ -109,6 +110,22 @@ func runDaemon(configPath string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 	log.Printf("[INFO] loaded configuration with %d routes", len(cfg.Routes))
+
+	// Initialize cluster if in cluster mode
+	var clusterInstance *cluster.Cluster
+	clusterConfig, clusterErr := cluster.NewClusterConfigFromEnv()
+	if clusterErr == nil && clusterConfig.IsClustered() {
+		// Cluster mode enabled
+		clusterInstance, err = cluster.NewCluster(clusterConfig)
+		if err != nil {
+			return fmt.Errorf("failed to initialize cluster: %w", err)
+		}
+		defer clusterInstance.Close(ctx)
+		log.Printf("[INFO] cluster mode initialized with %d instances", len(clusterConfig.Instances))
+	} else if clusterErr != nil {
+		// Cluster env vars not set or invalid: single-instance mode
+		log.Printf("[DEBUG] cluster mode not configured (single-instance mode)")
+	}
 
 	// Initialize observability
 	obsConfig := observability.FromRouteConfig(cfg)

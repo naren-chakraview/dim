@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 )
 
@@ -24,10 +25,20 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 	// Select dedup store based on cluster mode
 	var dedupStore DedupStore
 	if config.IsClustered() {
-		// In clustered mode, use Redis or Postgres backend (for now, using in-memory as fallback)
-		// TODO: Implement Redis and Postgres backends
-		log.Printf("[WARN] cluster mode enabled but Redis/Postgres dedup not yet implemented; using in-memory (not production-ready)")
-		dedupStore = NewInMemoryDedupStore(60 * time.Minute)
+		// In clustered mode, use Postgres backend
+		dsn := os.Getenv("DIMD_DEDUP_DSN")
+		if dsn == "" {
+			// Fall back to in-memory if DSN not provided
+			log.Printf("[WARN] DIMD_DEDUP_DSN not set; using in-memory dedup (not production-ready)")
+			dedupStore = NewInMemoryDedupStore(60 * time.Minute)
+		} else {
+			pgStore, err := NewPostgresDedupStore(dsn, 60*time.Minute)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize postgres dedup store: %w", err)
+			}
+			log.Printf("[INFO] postgres dedup store initialized")
+			dedupStore = pgStore
+		}
 	} else {
 		// Single instance: use in-memory dedup
 		dedupStore = NewInMemoryDedupStore(60 * time.Minute)
@@ -36,10 +47,20 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 	// Select lineage backend based on cluster mode
 	var lineageBackend LineageBackend
 	if config.IsClustered() {
-		// In clustered mode, use external Postgres backend (for now, using no-op as fallback)
-		// TODO: Implement Postgres lineage backend
-		log.Printf("[WARN] cluster mode enabled but Postgres lineage not yet implemented; using no-op (lineage disabled)")
-		lineageBackend = NewNoOpLineageBackend()
+		// In clustered mode, use Postgres backend for lineage
+		dsn := os.Getenv("DIMD_DEDUP_DSN")
+		if dsn == "" {
+			// Fall back to no-op if DSN not provided
+			log.Printf("[WARN] DIMD_DEDUP_DSN not set; using no-op lineage backend")
+			lineageBackend = NewNoOpLineageBackend()
+		} else {
+			pgBackend, err := NewPostgresLineageBackend(dsn)
+			if err != nil {
+				return nil, fmt.Errorf("failed to initialize postgres lineage backend: %w", err)
+			}
+			log.Printf("[INFO] postgres lineage backend initialized")
+			lineageBackend = pgBackend
+		}
 	} else {
 		// Single instance: lineage disabled in cluster package (uses existing SQLite directly)
 		lineageBackend = NewNoOpLineageBackend()
@@ -62,7 +83,8 @@ func NewCluster(config *ClusterConfig) (*Cluster, error) {
 		GenerationTracker: genTracker,
 	}
 
-	log.Printf("[INFO] cluster initialized: mode=%s, instances=%d, current=%s", config.Mode, len(config.Instances), config.CurrentID)
+	log.Printf("[INFO] cluster initialized: mode=%s, instances=%d, current=%s, clustered=%v",
+		config.Mode, len(config.Instances), config.CurrentID, config.IsClustered())
 
 	return cluster, nil
 }
