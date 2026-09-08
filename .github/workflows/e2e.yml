@@ -13,42 +13,39 @@ jobs:
     timeout-minutes: 30
 
     services:
-      # Zookeeper for Kafka coordination
-      zookeeper:
-        image: confluentinc/cp-zookeeper:7.5.0
-        env:
-          ZOOKEEPER_CLIENT_PORT: 2181
-          ZOOKEEPER_TICK_TIME: 2000
-          # Reduce startup time
-          ZK_SYNC_LIMIT: 5
-          ZK_INIT_LIMIT: 5
-        options: >-
-          --health-cmd "echo stat | nc -w 2 localhost 2181 || exit 1"
-          --health-interval 5s
-          --health-timeout 30s
-          --health-retries 15
-          --network-alias zookeeper
-
-      # Kafka message broker
+      # Kafka message broker (KRaft mode - no Zookeeper needed)
       kafka:
-        image: confluentinc/cp-kafka:7.5.0
+        image: apache/kafka:3.9.0
         env:
-          KAFKA_BROKER_ID: 1
-          KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
           KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092
           KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_NODE_ID: 1
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
           KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
           KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
           KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-          KAFKA_BROKER_RACK: rack1
-        options: >-
-          --health-cmd "kafka-broker-api-versions --bootstrap-server localhost:9092 || exit 1"
-          --health-interval 5s
-          --health-timeout 30s
-          --health-retries 20
-          --network-alias kafka
+          KAFKA_LOG_RETENTION_HOURS: 1
         ports:
           - 9092:9092
+
+      # S3-compatible object storage: MinIO
+      minio:
+        image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd "curl -f http://localhost:9000/minio/health/live"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 10
+          --network-alias minio
 
       # PostgreSQL database
       postgres:
@@ -76,8 +73,8 @@ jobs:
         with:
           go-version: '1.26.7'
 
-      # Services are verified healthy by GitHub Actions health checks
-      # No explicit tests needed - health checks prove services work
+      - name: Run e2e tests
+        run: go test -v -tags=e2e -timeout 5m ./cmd/dimd/...
         env:
           KAFKA_BROKERS: localhost:9092
           DATABASE_URL: postgres://dim_test:test_password@localhost:5432/dim_e2e?sslmode=disable
@@ -85,7 +82,6 @@ jobs:
           S3_ACCESS_KEY: minioadmin
           S3_SECRET_KEY: minioadmin
 
-      # Upload test artifacts on failure
       - name: Upload test logs on failure
         if: failure()
         uses: actions/upload-artifact@v4

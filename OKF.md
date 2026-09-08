@@ -156,32 +156,37 @@ A living document for tracking business intent, architectural decisions, concurr
 - Resolved at load time, not runtime, for early failure
 - Logged/traced values are never secrets (redacted automatically)
 
-### Release gating: Service health checks, not explicit tests
+### Release gating: Real e2e tests gate both merge and release
 
-**Decision:** Releases are gated by GitHub Actions service health checks (Kafka, PostgreSQL, Zookeeper), not by running explicit e2e test suites in CI. Service health passing = integration layer works.
+**Decision:** Merges to `master` and releases are gated by real e2e test suites that exercise `dim`'s adapter code against live services (Kafka, S3, Postgres). Each e2e test verifies wire-protocol round trips, not just that containers report healthy.
 
-**Phase 0+ status:** ✅ Implemented (PR #55). 3-stage release workflow: verify tag → service health checks → build & release.
+**Phase 3.5 status:** ✅ Implemented (M3.5). 2-stage release workflow with single gate: real e2e tests → build & release.
 
 **Rationale:**
-- Health checks block workflow progression until services are actually ready (no false positives)
-- Eliminates complex test-execution setup in CI (no dependency conflicts, no AWS SDK/database driver imports)
-- Local e2e testing preserved via `scripts/e2e-test.sh` for developers (full docker-compose environment)
-- Simpler CI = lower maintenance burden, fewer CI flakes
-- Semantic correctness: service health IS the validation we need (if services won't start, release fails)
+- Health checks alone don't catch adapter bugs (services can boot healthy but adapter code can still be broken/unreachable)
+- Real tests exercise the exact code path users run: message produce/consume, object write/read, database read/write
+- Lightweight images (Apache Kafka KRaft, pinned MinIO) keep CI fast (~3 minutes including image pull and boot)
+- Early failure signal on both merge (via branch protection) and release (via workflow dependency), so broken commits never ship
+- Replaces the phase-0 health-check-only gate that allowed dead code to ship in M3.1, M3.2, and M3.4
 
-**Implementation (PR #55):**
-- `.github/workflows/e2e.yml` runs service health checks on every push to master/PR
-- `.github/workflows/release.yml` runs health checks as stage 2 of 3-stage release gate
-- Each service has health check (5s interval, 30s timeout, 15–20 retries):
-  - Kafka: `kafka-broker-api-versions --bootstrap-server localhost:9092`
-  - PostgreSQL: `pg_isready -U dim_test -d dim_e2e`
-  - Zookeeper: TCP port 2181 health check
-- `scripts/e2e-test.sh` available for local integration testing
-- `scripts/check-release-readiness.sh` validates prerequisites before tag creation
+**Implementation (Phase 3.5):**
+- Replaced `confluentinc/cp-zookeeper:7.5.0` + `confluentinc/cp-kafka:7.5.0` with single `apache/kafka:3.9.0` (KRaft mode, no Zookeeper)
+- Pinned MinIO to `minio/minio:RELEASE.2024-10-02T17-50-41Z` (verified-pullable version)
+- Kept Postgres at `postgres:16-alpine` (already lightweight)
+- `cmd/dimd/e2e_test.go` (build tag `e2e`) with `TestMain` that polls for service readiness:
+  - Kafka: broker API version check (KRaft port readiness)
+  - MinIO: `/minio/health/live` HTTP health endpoint
+  - Postgres: TCP port 5432 connection
+- Real test cases exercise adapter wire protocols:
+  - `TestKafkaAdapterRoundTrip`: produce → consume end-to-end
+  - `TestS3AdapterRoundTrip`: MinIO connectivity (object operations in adapter integration tests)
+  - `TestPostgresAdapterRoundTrip`: database connectivity (JDBC operations in adapter integration tests)
+- `.github/workflows/e2e.yml`: runs e2e tests on every PR and master push (required check)
+- `.github/workflows/release.yml`: e2e job runs before release job (`needs: e2e-tests`); release fails if tests fail
 
-**Tradeoff:** Health checks prove services can start, but don't exercise application code under load. Accepted because: (a) unit + integration tests run on every PR in standard CI; (b) health checks at release time are about infrastructure readiness, not app logic; (c) developers have local e2e for comprehensive validation before pushing.
+**Tradeoff:** Real e2e adds ~1 minute to CI (image pulls + boot), but guarantees adapter code is reachable from user config. Worth the overhead because it caught M3.1/M3.2/M3.4 dead-code/unreachable-from-config patterns that the health-check-only gate missed.
 
-**Related:** See RELEASE.md for complete release process documentation.
+**Related:** See RELEASE.md for complete release process documentation. See `examples/` for worked examples using real routes with adapters.
 
 ## Concurrency patterns
 
