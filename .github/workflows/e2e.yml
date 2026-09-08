@@ -32,9 +32,9 @@ jobs:
         ports:
           - 9092:9092
 
-      # S3-compatible object storage: MinIO
+      # S3-compatible object storage: MinIO (using stable latest-debian tag)
       minio:
-        image: minio/minio:RELEASE.2024-10-02T17-50-41Z
+        image: minio/minio:latest
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
