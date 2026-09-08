@@ -8,7 +8,7 @@ import (
 
 // TestBuildStepsFromSpecEmptySteps tests building with no steps
 func TestBuildStepsFromSpecEmptySteps(t *testing.T) {
-	steps, stepNames, err := BuildStepsFromSpec([]config.StepSpec{}, nil, "")
+	steps, stepNames, err := BuildStepsFromSpec([]config.StepSpec{}, nil, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -229,8 +229,8 @@ func TestBuildStepsFromSpecWiretapStep(t *testing.T) {
 	}
 }
 
-// TestBuildStepsFromSpecIdempotentStepNotImplemented tests error for idempotent step
-func TestBuildStepsFromSpecIdempotentStepNotImplemented(t *testing.T) {
+// TestBuildStepsFromSpecIdempotentStep tests building idempotent step (M3.1)
+func TestBuildStepsFromSpecIdempotentStep(t *testing.T) {
 	specs := []config.StepSpec{
 		{
 			Idempotent: &config.IdempotentSpec{
@@ -239,9 +239,16 @@ func TestBuildStepsFromSpecIdempotentStepNotImplemented(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs, nil, "", nil)
-	if err == nil {
-		t.Fatal("expected error for idempotent step not implemented")
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "", nil)
+	if err != nil {
+		t.Fatalf("BuildStepsFromSpec failed: %v", err)
+	}
+
+	if len(steps) != 1 {
+		t.Fatalf("expected 1 step, got %d", len(steps))
+	}
+	if len(stepNames) != 1 || stepNames[0] != "idempotent" {
+		t.Fatalf("expected stepNames=['idempotent'], got %v", stepNames)
 	}
 }
 
@@ -422,7 +429,7 @@ func TestBuildStepsFromSpecContractStepNoStore(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs, nil, "test-route")
+	_, _, err := BuildStepsFromSpec(specs, nil, "test-route", nil)
 	if err == nil {
 		t.Fatal("expected error when contract store is nil")
 	}
