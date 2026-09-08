@@ -73,10 +73,10 @@ jobs:
         ports:
           - 9000:9000
         options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live"
-          --health-interval 5s
-          --health-timeout 10s
-          --health-retries 10
+          --health-cmd "curl -f http://127.0.0.1:9000/minio/health/live || exit 1"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 30
           --network-alias minio
 
       # PostgreSQL database
@@ -103,6 +103,43 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: '1.26.7'
+
+      - name: Wait for services to be ready
+        run: |
+          # Wait for Kafka to be ready
+          echo "Waiting for Kafka..."
+          for i in {1..30}; do
+            if timeout 2 bash -c "echo > /dev/tcp/localhost/9092" 2>/dev/null; then
+              echo "Kafka is ready"
+              break
+            fi
+            echo "Attempt $i/30: Kafka not ready yet..."
+            sleep 2
+          done
+
+          # Wait for MinIO to be ready
+          echo "Waiting for MinIO..."
+          for i in {1..30}; do
+            if curl -f http://localhost:9000/minio/health/live 2>/dev/null; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Attempt $i/30: MinIO not ready yet..."
+            sleep 2
+          done
+
+          # Wait for Postgres to be ready
+          echo "Waiting for Postgres..."
+          for i in {1..30}; do
+            if timeout 2 bash -c "echo > /dev/tcp/localhost/5432" 2>/dev/null; then
+              echo "Postgres is ready"
+              break
+            fi
+            echo "Attempt $i/30: Postgres not ready yet..."
+            sleep 2
+          done
+
+          echo "All services are ready!"
 
       - name: Run e2e tests
         run: go test -v -tags=e2e -timeout 5m ./cmd/dimd/...
