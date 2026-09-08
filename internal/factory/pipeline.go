@@ -266,8 +266,8 @@ func BuildSingleRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteC
 		}
 	}
 
-	// Build steps from route config
-	stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps, contractStore, routeName)
+	// Build steps from route config (dedupStore is nil for single-instance mode)
+	stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps, contractStore, routeName, nil)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to build steps: %w", err)
 	}
@@ -419,8 +419,8 @@ func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteCo
 			}
 		}
 
-		// Build steps from route config
-		stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps, contractStore, routeName)
+		// Build steps from route config (dedupStore is nil for single-instance mode)
+		stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps, contractStore, routeName, nil)
 		if err != nil {
 			return nil, nil, nil, nil, fmt.Errorf("failed to build steps for route %q: %w", routeName, err)
 		}

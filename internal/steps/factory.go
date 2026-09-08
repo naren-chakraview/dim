@@ -3,9 +3,13 @@ package steps
 import (
 	"fmt"
 
+	"github.com/naren-chakraview/dim/internal/cluster"
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
+
+// DedupStore is an alias for cluster.DedupStore to make it available here
+type DedupStore = cluster.DedupStore
 
 // BuildStepsFromSpec creates step instances from a slice of step specifications.
 // Returns (steps, stepNames, error).
@@ -18,10 +22,11 @@ import (
 // - wiretap: Copy to secondary sink (M0.2.4+)
 // - authorize: RBAC/ABAC policy enforcement (M0.2.6+)
 // - contract: Data contract validation with JSON Schema (M0.3.5+)
+// - idempotent: Message deduplication (M0.2.5, requires dedupStore parameter)
 //
-// Unsupported step types return error "not implemented in Phase 0":
-// - idempotent (M0.2.5)
-func BuildStepsFromSpec(stepSpecs []config.StepSpec, contractStore *config.ContractStore, routeName string) ([]engine.Step, []string, error) {
+// dedupStore may be nil, in which case idempotent steps use in-memory dedup (single-instance mode).
+// For cluster mode, pass the cluster's DedupStore to enable cross-instance deduplication.
+func BuildStepsFromSpec(stepSpecs []config.StepSpec, contractStore *config.ContractStore, routeName string, dedupStore DedupStore) ([]engine.Step, []string, error) {
 	var steps []engine.Step
 	var stepNames []string
 
@@ -96,7 +101,21 @@ func BuildStepsFromSpec(stepSpecs []config.StepSpec, contractStore *config.Contr
 			}
 			stepNames = append(stepNames, "wiretap")
 		case spec.Idempotent != nil:
-			return nil, nil, fmt.Errorf("step %d: idempotent step not implemented in Phase 0", i)
+			// Build idempotent step with optional cluster dedup store
+			if dedupStore != nil {
+				// Cluster mode: use shared dedup store
+				step, err = NewIdempotentStepWithStore(spec.Idempotent.KeyExpr, dedupStore)
+				if err != nil {
+					return nil, nil, fmt.Errorf("step %d (idempotent): %w", i, err)
+				}
+			} else {
+				// Single-instance mode: use in-memory dedup (default 60 minutes)
+				step, err = NewIdempotentStep(spec.Idempotent.KeyExpr, 60)
+				if err != nil {
+					return nil, nil, fmt.Errorf("step %d (idempotent): %w", i, err)
+				}
+			}
+			stepNames = append(stepNames, "idempotent")
 		case spec.Authorize != nil:
 			pdpEndpoint := ""
 			pdpTimeout := 5000

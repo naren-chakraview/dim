@@ -31,7 +31,7 @@ func TestBuildStepsFromSpecFilter(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -63,7 +63,7 @@ func TestBuildStepsFromSpecTranslate(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -105,7 +105,7 @@ func TestBuildStepsFromSpecMultiple(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestBuildStepsFromSpecNoStepTypeError(t *testing.T) {
 		{}, // No step type specified
 	}
 
-	_, _, err := BuildStepsFromSpec(specs, nil, "")
+	_, _, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err == nil {
 		t.Fatal("expected error when no step type specified")
 	}
@@ -150,7 +150,7 @@ func TestBuildStepsFromSpecMultipleStepTypesError(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs, nil, "")
+	_, _, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err == nil {
 		t.Fatal("expected error when multiple step types specified")
 	}
@@ -171,7 +171,7 @@ func TestBuildStepsFromSpecRoute(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestBuildStepsFromSpecWiretapStep(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -239,7 +239,7 @@ func TestBuildStepsFromSpecIdempotentStepNotImplemented(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs, nil, "")
+	_, _, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err == nil {
 		t.Fatal("expected error for idempotent step not implemented")
 	}
@@ -256,7 +256,7 @@ func TestBuildStepsFromSpecAuthorizeStepRBAC(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestBuildStepsFromSpecAuthorizeStepABAC(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "")
+	steps, stepNames, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -329,7 +329,7 @@ func TestBuildStepsFromSpecInvalidFilterExpression(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs, nil, "")
+	_, _, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err == nil {
 		t.Fatal("expected error for invalid filter expression")
 	}
@@ -345,7 +345,7 @@ func TestBuildStepsFromSpecInvalidTranslateExpression(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs, nil, "")
+	_, _, err := BuildStepsFromSpec(specs, nil, "", nil)
 	if err == nil {
 		t.Fatal("expected error for invalid translate expression")
 	}
@@ -372,7 +372,7 @@ func TestBuildStepsFromSpecContractStep(t *testing.T) {
 		},
 	}
 
-	steps, stepNames, err := BuildStepsFromSpec(specs, contractStore, "test-route")
+	steps, stepNames, err := BuildStepsFromSpec(specs, contractStore, "test-route", nil)
 	if err != nil {
 		t.Fatalf("BuildStepsFromSpec failed: %v", err)
 	}
@@ -406,7 +406,7 @@ func TestBuildStepsFromSpecContractStepMissingContract(t *testing.T) {
 		},
 	}
 
-	_, _, err := BuildStepsFromSpec(specs, contractStore, "test-route")
+	_, _, err := BuildStepsFromSpec(specs, contractStore, "test-route", nil)
 	if err == nil {
 		t.Fatal("expected error when contract not found")
 	}

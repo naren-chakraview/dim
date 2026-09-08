@@ -281,8 +281,8 @@ func buildExecutorForRoute(ctx context.Context, routeName string, routeSpec conf
 		}
 	}
 
-	// Build steps from route config
-	stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps, contractStore, routeName)
+	// Build steps from route config (dedupStore is nil for CLI tool)
+	stepsInstances, stepNames, err := steps.BuildStepsFromSpec(routeSpec.Steps, contractStore, routeName, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build steps for route %q: %w", routeName, err)
 	}
