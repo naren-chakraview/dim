@@ -2,10 +2,13 @@ package cluster
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"log"
 	"sync"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 // DedupStore defines the interface for shared message deduplication across cluster instances.
@@ -143,6 +146,77 @@ type RedisDedupStore struct {
 
 // PostgresDedupStore is a cluster-wide dedup store backed by PostgreSQL.
 type PostgresDedupStore struct {
-	// TODO: Implement Postgres backend in M3.1.2 follow-up
-	// Placeholder for now - will be implemented with PostgreSQL client
+	db  *sql.DB
+	ttl time.Duration
+}
+
+// NewPostgresDedupStore creates a Postgres-backed dedup store.
+func NewPostgresDedupStore(dsn string, ttl time.Duration) (*PostgresDedupStore, error) {
+	if ttl <= 0 {
+		ttl = 60 * time.Minute
+	}
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to postgres: %w", err)
+	}
+
+	// Verify connection works
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("postgres ping failed: %w", err)
+	}
+
+	return &PostgresDedupStore{
+		db:  db,
+		ttl: ttl,
+	}, nil
+}
+
+// Check looks up a dedup key in Postgres and marks it as seen if new.
+func (p *PostgresDedupStore) Check(ctx context.Context, key string) (bool, error) {
+	// Check if key exists and is not expired
+	query := "SELECT expires_at FROM dedup_store WHERE dedup_key = $1"
+	var expiresAt time.Time
+	err := p.db.QueryRowContext(ctx, query, key).Scan(&expiresAt)
+
+	if err == sql.ErrNoRows {
+		// Key is new: insert it
+		insertQuery := "INSERT INTO dedup_store (dedup_key, expires_at) VALUES ($1, $2) ON CONFLICT (dedup_key) DO NOTHING"
+		expireTime := time.Now().Add(p.ttl)
+		_, err := p.db.ExecContext(ctx, insertQuery, key, expireTime)
+		if err != nil {
+			return false, fmt.Errorf("failed to insert dedup key: %w", err)
+		}
+		return false, nil // Key is new
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("failed to query dedup key: %w", err)
+	}
+
+	// Key exists: check if expired
+	if time.Now().After(expiresAt) {
+		// Key is expired: treat as new and update
+		updateQuery := "UPDATE dedup_store SET expires_at = $1 WHERE dedup_key = $2"
+		expireTime := time.Now().Add(p.ttl)
+		_, err := p.db.ExecContext(ctx, updateQuery, expireTime, key)
+		if err != nil {
+			return false, fmt.Errorf("failed to update dedup key: %w", err)
+		}
+		return false, nil // Key was expired, now renewed
+	}
+
+	return true, nil // Key exists and is not expired: duplicate
+}
+
+// Delete removes a dedup key from Postgres.
+func (p *PostgresDedupStore) Delete(ctx context.Context, key string) error {
+	query := "DELETE FROM dedup_store WHERE dedup_key = $1"
+	_, err := p.db.ExecContext(ctx, query, key)
+	return err
+}
+
+// Stop gracefully closes the Postgres connection.
+func (p *PostgresDedupStore) Stop(ctx context.Context) error {
+	return p.db.Close()
 }
