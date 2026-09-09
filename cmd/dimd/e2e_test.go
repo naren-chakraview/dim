@@ -138,17 +138,13 @@ func dialWithRetry(addr string, retries int) error {
 func TestKafkaAdapterRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
-	// Test topic for this test
 	testTopic := "e2e-test-messages"
 
-	// Create topic via admin API
+	// Verify Kafka broker is operational
 	conn, err := kafka.Dial("tcp", "localhost:9092")
 	if err != nil {
 		t.Fatalf("failed to dial kafka broker: %v", err)
 	}
-	defer conn.Close()
-
-	// Verify broker is operational
 	brokers, err := conn.Brokers()
 	if err != nil {
 		t.Fatalf("failed to fetch brokers: %v", err)
@@ -156,26 +152,39 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	if len(brokers) == 0 {
 		t.Fatalf("no brokers available")
 	}
+	conn.Close()
 
-	// Produce test message
+	// Produce test message (with retries for topic auto-creation)
 	w := kafka.NewWriter(kafka.WriterConfig{
-		Brokers: []string{"localhost:9092"},
-		Topic:   testTopic,
+		Brokers:       []string{"localhost:9092"},
+		Topic:         testTopic,
+		WriteTimeout:  10 * time.Second,
+		ReadTimeout:   10 * time.Second,
+		RequiredAcks:  kafka.RequireNone,
 	})
 	defer w.Close()
 
 	testMsg := "e2e-test-payload"
-	err = w.WriteMessages(ctx, kafka.Message{Value: []byte(testMsg)})
+	for attempt := 0; attempt < 3; attempt++ {
+		err = w.WriteMessages(ctx, kafka.Message{Value: []byte(testMsg)})
+		if err == nil {
+			break
+		}
+		if attempt < 2 {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
 	if err != nil {
-		t.Fatalf("failed to produce message: %v", err)
+		t.Fatalf("failed to produce message after retries: %v", err)
 	}
 
 	// Consume test message
 	r := kafka.NewReader(kafka.ReaderConfig{
 		Brokers:        []string{"localhost:9092"},
 		Topic:          testTopic,
-		GroupID:        "e2e-test-group",
-		CommitInterval: time.Second,
+		Partition:      0,
+		StartOffset:    0,
+		CommitInterval: 0,
 		MaxBytes:       1e6,
 	})
 	defer r.Close()
@@ -196,12 +205,18 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 func TestS3AdapterRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
-	// Create S3 client pointing to MinIO
+	// Create S3 client pointing to MinIO with proper configuration
 	cfg, err := config.LoadDefaultConfig(ctx,
 		config.WithRegion("us-east-1"),
 		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
 			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{URL: "http://localhost:9000"}, nil
+				if service == "s3" {
+					return aws.Endpoint{
+						URL:           "http://localhost:9000",
+						SigningRegion: "us-east-1",
+					}, nil
+				}
+				return aws.Endpoint{}, fmt.Errorf("unknown service %s", service)
 			})),
 		config.WithCredentialsProvider(aws.NewCredentialsCache(
 			credentials.NewStaticCredentialsProvider("minioadmin", "minioadmin", ""))),
@@ -210,22 +225,26 @@ func TestS3AdapterRoundTrip(t *testing.T) {
 		t.Fatalf("failed to load AWS config: %v", err)
 	}
 
-	s3Client := s3.NewFromConfig(cfg)
+	s3Client := s3.NewFromConfig(cfg, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
 
-	// Ensure bucket exists
+	// Test bucket and key
 	bucketName := "e2e-test-bucket"
+	testKey := "e2e-test-object"
+	testData := []byte("e2e-test-payload-data")
+
+	// Try to create bucket (may already exist)
 	_, err = s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucketName)})
-	if err != nil && !strings.Contains(err.Error(), "BucketAlreadyExists") {
-		t.Fatalf("failed to create bucket: %v", err)
+	if err != nil && !strings.Contains(err.Error(), "BucketAlreadyExists") && !strings.Contains(err.Error(), "bucket already exists") {
+		t.Logf("bucket creation returned error (may be expected): %v", err)
 	}
 
 	// Write object
-	testKey := "e2e-test-object"
-	testData := []byte("e2e-test-payload-data")
 	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: aws.String(bucketName),
 		Key:    aws.String(testKey),
-		Body:   strings.NewReader(string(testData)),
+		Body:   bytes.NewReader(testData),
 	})
 	if err != nil {
 		t.Fatalf("failed to write object: %v", err)
