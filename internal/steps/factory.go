@@ -2,6 +2,7 @@ package steps
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
 	"github.com/naren-chakraview/dim/internal/cluster"
@@ -11,6 +12,41 @@ import (
 
 // DedupStore is an alias for cluster.DedupStore to make it available here
 type DedupStore = cluster.DedupStore
+
+// newClaimCheckStore creates a ClaimCheckStore based on environment configuration.
+// Checks CLAIM_CHECK_STORE_TYPE env var (default: "memory", supported: "s3")
+// For S3, requires S3_BUCKET and optionally S3_REGION and S3_PREFIX.
+func newClaimCheckStore() (claimcheck.ClaimCheckStore, error) {
+	storeType := os.Getenv("CLAIM_CHECK_STORE_TYPE")
+	if storeType == "" {
+		storeType = "memory"
+	}
+
+	switch storeType {
+	case "memory":
+		return claimcheck.NewInMemoryClaimCheckStore(), nil
+	case "s3":
+		bucket := os.Getenv("S3_BUCKET")
+		if bucket == "" {
+			return nil, fmt.Errorf("S3 claim-check store requires S3_BUCKET environment variable")
+		}
+		region := os.Getenv("S3_REGION")
+		if region == "" {
+			region = "us-east-1"
+		}
+		prefix := os.Getenv("S3_PREFIX")
+		if prefix == "" {
+			prefix = "claim-check/"
+		}
+		return claimcheck.NewS3ClaimCheckStore(claimcheck.S3StoreConfig{
+			Bucket: bucket,
+			Region: region,
+			Prefix: prefix,
+		})
+	default:
+		return nil, fmt.Errorf("unknown claim-check store type: %s (supported: memory, s3)", storeType)
+	}
+}
 
 // BuildStepsFromSpec creates step instances from a slice of step specifications.
 // Returns (steps, stepNames, error).
@@ -147,16 +183,20 @@ func BuildStepsFromSpec(stepSpecs []config.StepSpec, contractStore *config.Contr
 			}
 			stepNames = append(stepNames, "contract")
 		case spec.ClaimCheck != nil:
-			// Use in-memory claim check store for now (M3.2 - S3 backend coming next)
-			claimStore := claimcheck.NewInMemoryClaimCheckStore()
+			claimStore, err := newClaimCheckStore()
+			if err != nil {
+				return nil, nil, fmt.Errorf("step %d (claim_check): failed to initialize store: %w", i, err)
+			}
 			step, err = NewClaimCheckStep(spec.ClaimCheck, claimStore)
 			if err != nil {
 				return nil, nil, fmt.Errorf("step %d (claim_check): %w", i, err)
 			}
 			stepNames = append(stepNames, "claim_check")
 		case spec.ClaimResolve != nil:
-			// Use in-memory claim check store for now (M3.2 - S3 backend coming next)
-			claimStore := claimcheck.NewInMemoryClaimCheckStore()
+			claimStore, err := newClaimCheckStore()
+			if err != nil {
+				return nil, nil, fmt.Errorf("step %d (claim_resolve): failed to initialize store: %w", i, err)
+			}
 			step, err = NewClaimResolveStep(spec.ClaimResolve, claimStore)
 			if err != nil {
 				return nil, nil, fmt.Errorf("step %d (claim_resolve): %w", i, err)

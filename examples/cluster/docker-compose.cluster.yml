@@ -24,12 +24,14 @@ services:
 
   # First dimd instance (cluster-aware)
   dimd-1:
-    image: dim:latest
+    build:
+      context: ../..
+      dockerfile: Dockerfile
     container_name: dim-instance-1
     environment:
-      DIMD_CLUSTER_HOSTS: "postgres://dim:dim_password@postgres:5432/dim_cluster"
-      DIMD_DEDUP_DSN: "postgres://dim:dim_password@postgres:5432/dim_cluster"
+      DIMD_CLUSTER_HOSTS: "dimd-1:8080,dimd-2:8080"
       DIMD_INSTANCE_ID: "instance-1"
+      DIMD_DEDUP_DSN: "postgres://dim:dim_password@postgres:5432/dim_cluster"
     ports:
       - "8080:8080"
       - "8081:8081"
@@ -45,12 +47,14 @@ services:
 
   # Second dimd instance (cluster-aware)
   dimd-2:
-    image: dim:latest
+    build:
+      context: ../..
+      dockerfile: Dockerfile
     container_name: dim-instance-2
     environment:
-      DIMD_CLUSTER_HOSTS: "postgres://dim:dim_password@postgres:5432/dim_cluster"
-      DIMD_DEDUP_DSN: "postgres://dim:dim_password@postgres:5432/dim_cluster"
+      DIMD_CLUSTER_HOSTS: "dimd-1:8080,dimd-2:8080"
       DIMD_INSTANCE_ID: "instance-2"
+      DIMD_DEDUP_DSN: "postgres://dim:dim_password@postgres:5432/dim_cluster"
     ports:
       - "8082:8080"
       - "8083:8081"

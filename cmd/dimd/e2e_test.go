@@ -3,14 +3,23 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	_ "github.com/lib/pq"
 	"github.com/segmentio/kafka-go"
 )
 
@@ -126,68 +135,188 @@ func dialWithRetry(addr string, retries int) error {
 	return fmt.Errorf("failed to dial after %d retries", retries)
 }
 
-// TestKafkaAdapterRoundTrip tests Kafka connectivity via broker metadata
+// TestKafkaAdapterRoundTrip tests Kafka adapter with real message produce/consume
 func TestKafkaAdapterRoundTrip(t *testing.T) {
-	// Verify Kafka broker is reachable and operational
+	ctx := context.Background()
+
+	// Test topic for this test
+	testTopic := "e2e-test-messages"
+
+	// Create topic via admin API
 	conn, err := kafka.Dial("tcp", "localhost:9092")
 	if err != nil {
 		t.Fatalf("failed to dial kafka broker: %v", err)
 	}
 	defer conn.Close()
 
-	// Fetch broker metadata to verify connectivity and leadership
+	// Verify broker is operational
 	brokers, err := conn.Brokers()
 	if err != nil {
 		t.Fatalf("failed to fetch brokers: %v", err)
 	}
-
 	if len(brokers) == 0 {
 		t.Fatalf("no brokers available")
 	}
 
-	// Verify broker details
-	broker := brokers[0]
-	if broker.Host == "" || broker.Port == 0 {
-		t.Fatalf("invalid broker details: %+v", broker)
-	}
+	// Produce test message
+	w := kafka.NewWriter(kafka.WriterConfig{
+		Brokers:  []string{"localhost:9092"},
+		Topic:    testTopic,
+		Attempts: 3,
+	})
+	defer w.Close()
 
-	t.Logf("✓ Kafka adapter: broker connectivity verified (broker: %s:%d)", broker.Host, broker.Port)
-}
-
-// TestS3AdapterRoundTrip tests S3 object connectivity via MinIO HTTP endpoint
-func TestS3AdapterRoundTrip(t *testing.T) {
-	// Verify MinIO HTTP endpoint is reachable and responsive
-	client := &http.Client{
-		Timeout: 5 * time.Second,
-	}
-
-	// Test MinIO health endpoint
-	resp, err := client.Get("http://localhost:9000/minio/health/live")
+	testMsg := "e2e-test-payload"
+	err = w.WriteMessages(ctx, kafka.Message{Value: []byte(testMsg)})
 	if err != nil {
-		t.Fatalf("failed to reach MinIO health endpoint: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("MinIO health check failed with status %d", resp.StatusCode)
+		t.Fatalf("failed to produce message: %v", err)
 	}
 
-	// Test basic connectivity to MinIO API endpoint
-	connErr := dialWithRetry("localhost:9000", 3)
-	if connErr != nil {
-		t.Fatalf("failed to connect to MinIO API: %v", connErr)
+	// Consume test message
+	r := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:        []string{"localhost:9092"},
+		Topic:          testTopic,
+		GroupID:        "e2e-test-group",
+		CommitInterval: time.Second,
+		MaxBytes:       1e6,
+	})
+	defer r.Close()
+
+	msg, err := r.FetchMessage(ctx)
+	if err != nil {
+		t.Fatalf("failed to consume message: %v", err)
 	}
 
-	t.Logf("✓ S3 adapter: MinIO connectivity verified (actual object operations would use s3 adapter)")
+	if string(msg.Value) != testMsg {
+		t.Fatalf("consumed message mismatch: got %q, want %q", string(msg.Value), testMsg)
+	}
+
+	t.Logf("✓ Kafka adapter: message produce/consume round-trip successful")
 }
 
-// TestPostgresAdapterRoundTrip tests Postgres connectivity via database adapter
-func TestPostgresAdapterRoundTrip(t *testing.T) {
-	// Verify Postgres is listening on the expected port
-	connErr := dialWithRetry("localhost:5432", 3)
-	if connErr != nil {
-		t.Fatalf("failed to connect to Postgres: %v", connErr)
+// TestS3AdapterRoundTrip tests S3 adapter with real object write/read
+func TestS3AdapterRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	// Create S3 client pointing to MinIO
+	cfg, err := config.LoadDefaultConfig(ctx,
+		config.WithRegion("us-east-1"),
+		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
+			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
+				return aws.Endpoint{URL: "http://localhost:9000"}, nil
+			})),
+		config.WithCredentialsProvider(aws.NewCredentialsCache(
+			credentials.NewStaticCredentialsProvider("minioadmin", "minioadmin", ""))),
+	)
+	if err != nil {
+		t.Fatalf("failed to load AWS config: %v", err)
 	}
 
-	t.Logf("✓ Postgres adapter: connectivity verified on localhost:5432 (actual JDBC operations would use database adapter)")
+	s3Client := s3.NewFromConfig(cfg)
+
+	// Ensure bucket exists
+	bucketName := "e2e-test-bucket"
+	_, err = s3Client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucketName)})
+	if err != nil && !strings.Contains(err.Error(), "BucketAlreadyExists") {
+		t.Fatalf("failed to create bucket: %v", err)
+	}
+
+	// Write object
+	testKey := "e2e-test-object"
+	testData := []byte("e2e-test-payload-data")
+	_, err = s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(testKey),
+		Body:   strings.NewReader(string(testData)),
+	})
+	if err != nil {
+		t.Fatalf("failed to write object: %v", err)
+	}
+
+	// Read object back
+	output, err := s3Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(bucketName),
+		Key:    aws.String(testKey),
+	})
+	if err != nil {
+		t.Fatalf("failed to read object: %v", err)
+	}
+	defer output.Body.Close()
+
+	// Verify content
+	data, err := io.ReadAll(output.Body)
+	if err != nil {
+		t.Fatalf("failed to read object body: %v", err)
+	}
+
+	if !bytes.Equal(data, testData) {
+		t.Fatalf("object content mismatch: got %q, want %q", string(data), string(testData))
+	}
+
+	t.Logf("✓ S3 adapter: object write/read round-trip successful")
+}
+
+// TestPostgresAdapterRoundTrip tests Postgres adapter with real database operations
+func TestPostgresAdapterRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	// Connect to Postgres
+	dbURL := "postgres://dim_test:test_password@localhost:5432/dim_e2e?sslmode=disable"
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		t.Fatalf("failed to open database connection: %v", err)
+	}
+	defer db.Close()
+
+	// Test connection with context
+	err = db.PingContext(ctx)
+	if err != nil {
+		t.Fatalf("failed to ping database: %v", err)
+	}
+
+	// Create test table if not exists
+	_, err = db.ExecContext(ctx, `
+		CREATE TABLE IF NOT EXISTS e2e_test_data (
+			id SERIAL PRIMARY KEY,
+			key TEXT NOT NULL,
+			value TEXT NOT NULL,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		t.Fatalf("failed to create test table: %v", err)
+	}
+
+	// Insert test data
+	testKey := "e2e-test-key"
+	testValue := "e2e-test-value"
+	result, err := db.ExecContext(ctx,
+		"INSERT INTO e2e_test_data (key, value) VALUES ($1, $2)",
+		testKey, testValue)
+	if err != nil {
+		t.Fatalf("failed to insert test data: %v", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		t.Fatalf("failed to get rows affected: %v", err)
+	}
+	if rowsAffected != 1 {
+		t.Fatalf("expected 1 row affected, got %d", rowsAffected)
+	}
+
+	// Query test data back
+	var retrievedValue string
+	err = db.QueryRowContext(ctx,
+		"SELECT value FROM e2e_test_data WHERE key = $1 ORDER BY created_at DESC LIMIT 1",
+		testKey).Scan(&retrievedValue)
+	if err != nil {
+		t.Fatalf("failed to query test data: %v", err)
+	}
+
+	if retrievedValue != testValue {
+		t.Fatalf("data mismatch: got %q, want %q", retrievedValue, testValue)
+	}
+
+	t.Logf("✓ Postgres adapter: read/write round-trip successful")
 }
