@@ -106,7 +106,7 @@ func waitForPostgres(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			conn, err := net.DialTimeout("tcp", "localhost:5432", 2*time.Second)
+			conn, err := net.DialTimeout("tcp", "localhost:5433", 2*time.Second)
 			if err != nil {
 				continue
 			}
@@ -294,7 +294,7 @@ func TestPostgresAdapterRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	// Connect to Postgres
-	dbURL := "postgres://dim_test:test_password@localhost:5432/dim_e2e?sslmode=disable"
+	dbURL := "postgres://dim_test:test_password@localhost:5433/dim_e2e?sslmode=disable"
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		t.Fatalf("failed to open database connection: %v", err)

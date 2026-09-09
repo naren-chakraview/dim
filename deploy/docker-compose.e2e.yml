@@ -48,7 +48,7 @@ services:
       POSTGRES_USER: dim_test
       POSTGRES_PASSWORD: test_password
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_e2e_data:/var/lib/postgresql/data
     healthcheck:

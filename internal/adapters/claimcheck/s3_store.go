@@ -294,7 +294,7 @@ func (s *S3ClaimCheckStore) Close(ctx context.Context) error {
 	return nil
 }
 
-// HealthCheck verifies S3 connectivity
+// HealthCheck verifies S3 connectivity and creates bucket if needed
 func (s *S3ClaimCheckStore) HealthCheck(ctx context.Context) error {
 	if s.client == nil {
 		return fmt.Errorf("S3 client not initialized")
@@ -303,15 +303,31 @@ func (s *S3ClaimCheckStore) HealthCheck(ctx context.Context) error {
 		return fmt.Errorf("S3 bucket not configured")
 	}
 
-	// Try to list objects in bucket (minimal permissions test)
+	// Try to access the bucket
 	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(s.bucket),
 	})
+
+	// If bucket doesn't exist (404), try to create it
 	if err != nil {
+		if contains(err.Error(), "NotFound") || contains(err.Error(), "404") {
+			_, createErr := s.client.CreateBucket(ctx, &s3.CreateBucketInput{
+				Bucket: aws.String(s.bucket),
+			})
+			if createErr != nil && !contains(createErr.Error(), "BucketAlreadyExists") && !contains(createErr.Error(), "409") {
+				return fmt.Errorf("failed to create S3 bucket: %w", createErr)
+			}
+			return nil // Bucket now exists or already existed
+		}
 		return fmt.Errorf("failed to access S3 bucket: %w", err)
 	}
 
 	return nil
+}
+
+// contains checks if string s contains substring substr
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && bytes.Contains([]byte(s), []byte(substr))
 }
 
 // Helper function to extract key from ticket
