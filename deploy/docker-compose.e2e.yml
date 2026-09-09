@@ -53,6 +53,27 @@ services:
     networks:
       - dim-e2e
 
+  # Topic initialization: create e2e test topic
+  kafka-init:
+    image: apache/kafka:3.9.0
+    container_name: dim-e2e-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    environment:
+      KAFKA_BROKER: kafka:29092
+    entrypoint: >
+      sh -c "
+      /opt/kafka/bin/kafka-topics.sh --create
+        --topic e2e-test-messages
+        --bootstrap-server kafka:29092
+        --partitions 1
+        --replication-factor 1
+        --if-not-exists
+      "
+    networks:
+      - dim-e2e
+
   # S3-compatible object storage: MinIO
   minio:
     image: minio/minio:RELEASE.2024-10-02T17-50-41Z
