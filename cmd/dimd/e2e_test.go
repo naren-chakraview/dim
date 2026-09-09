@@ -195,11 +195,11 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 
 	// Step 4: Consume the message with fresh reader starting from beginning
 	reader2 := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:   []string{"localhost:9092"},
-		Topic:     testTopic,
-		Partition: 0,
+		Brokers:     []string{"localhost:9092"},
+		Topic:       testTopic,
+		Partition:   0,
 		StartOffset: 0,
-		MaxBytes:  1e6,
+		MaxBytes:    1e6,
 	})
 	defer reader2.Close()
 
