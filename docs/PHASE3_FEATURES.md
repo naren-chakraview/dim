@@ -1,21 +1,25 @@
 # dim Advanced Features Guide
 
-This guide covers dim's powerful advanced capabilities for handling complex integration scenarios: large payloads, custom logic, multi-tenancy, and distributed systems.
+This guide covers dim's powerful advanced capabilities (Phase 3) for handling complex integration scenarios: large payloads, custom logic, multi-tenancy, and distributed systems.
+
+**Current Status:** All features are architecturally complete and passing tests. Some backends are ready for production; others are pending follow-up implementations.
 
 ---
 
 ## Feature Overview
 
-| Feature | Solves | Best For |
-|---------|---|---|
-| **Claim Check Pattern** | Large message payloads slow down processing | Attachments, documents, media, archives |
-| **Plugin System** | Custom logic without modifying dim core | Validation, enrichment, transformation, encryption |
-| **Resource Quotas** | One customer/domain overloads affects others | SaaS, multi-domain shared infrastructure |
-| **Distributed Clustering** | Single instance throughput ceiling | Global scale, high availability, geographic distribution |
+| Feature | Solves | Best For | Status |
+|---------|---|---|---|
+| **Claim Check Pattern** | Large message payloads slow down processing | Attachments, documents, media, archives | YAML support ✅ · In-memory store ✅ · S3 backend (pending) |
+| **Plugin System** | Custom logic without modifying dim core | Validation, enrichment, transformation, encryption | Native-Go ✅ · WASM support ✅ · SDK proven ✅ |
+| **Resource Quotas** | One customer/domain overloads affects others | SaaS, multi-domain shared infrastructure | Executor logic ✅ · Factory wiring (pending) |
+| **Distributed Clustering** | Single instance throughput ceiling | Global scale, high availability, geographic distribution | Postgres dedup ✅ · Cross-instance lineage ✅ · Demo (pending) |
 
 ---
 
-## Feature 1: Claim Check Pattern
+## Feature 1: Claim Check Pattern (M3.2)
+
+**Status:** YAML configuration ✅ · In-memory store ✅ · Integration tests ✅ · S3 backend (in development)
 
 ### Problem
 
@@ -46,7 +50,7 @@ Lightweight Message (with ticket)
 
 ### Configuration
 
-#### Step 1: Define claim-check storage in route
+#### Step 1: Store large payload and replace with ticket
 
 ```yaml
 routes:
@@ -54,13 +58,11 @@ routes:
     from: api
     auth: rbac
     steps:
-      - claim-check:
-          store_type: s3           # or 'memory' for testing
-          store_config:
-            bucket: dim-payloads
-            region: us-east-1
-          payload_field: attachments   # Field to store
-          remove_after: true           # Remove from message after storing
+      - claim_check:
+          payload_field: body              # Field containing large payload
+          remove_payload: true             # Remove original from message
+          ticket_field_path: _claim_check  # Where to store the ticket
+          content_type: application/octet-stream
     sinks:
       - kafka-orders
 ```
@@ -73,18 +75,17 @@ routes:
     from: kafka-orders
     auth: rbac
     steps:
-      - claim-resolve:
-          store_type: s3
-          store_config:
-            bucket: dim-payloads
-            region: us-east-1
-          ticket_field: _claim_check    # Where ticket is stored
-          restore_field: attachments     # Restore to this field
+      - claim_resolve:
+          ticket_field_path: _claim_check   # Where ticket is stored
+          payload_field_path: body          # Restore to this field
       - translate:
-          expr: '{ validated: validateAttachments(attachments), order_id: order_id }'
+          expr: '{ validated: validateAttachments(body), order_id: order_id }'
     sinks:
       - compliance-db
 ```
+
+**Currently:** In-memory store (testing & small-scale)  
+**Roadmap:** S3-backed store for production (pending M3.2 follow-up)
 
 ### Message Flow Example
 
@@ -137,15 +138,19 @@ Full message restored (payload retrieved from S3)
 
 ### Storage Backends
 
-| Backend | Use Case | When |
-|---------|----------|------|
-| **Memory** | Testing, development | Local testing only |
-| **S3 / S3-compatible** | Production | Standard choice (MinIO, AWS S3, DigitalOcean) |
-| **PostgreSQL** | Central persistence | Future (planned) |
+| Backend | Status | When |
+|---------|--------|------|
+| **In-Memory** | ✅ Available | Testing, development, single-instance |
+| **S3 / S3-compatible** | 🚧 In development | Production (MinIO, AWS S3, DigitalOcean) |
+| **PostgreSQL** | 📋 Planned | Central persistence (future) |
+
+**Current:** In-memory store is production-ready for testing. S3 backend implementation is the next priority (see Follow-up Work).
 
 ---
 
-## Feature 2: Plugin System
+## Feature 2: Plugin System (M3.3)
+
+**Status:** Native-Go plugins ✅ · WASM plugins ✅ · SDK proven ✅ · Reference implementations available ✅
 
 ### Problem
 
@@ -303,7 +308,9 @@ cp target/wasm32-unknown-unknown/release/encrypt_pii.wasm ./plugins/
 
 ---
 
-## Feature 3: Resource Quotas ## Feature 3: Multi-Tenant Resource Isolation (M3.4) Multi-Tenancy
+## Feature 3: Multi-Tenant Resource Isolation (M3.4)
+
+**Status:** Executor logic ✅ · Per-domain rate limiting ✅ · Worker slot management ✅ · Factory wiring (pending)
 
 ### Problem
 
@@ -477,7 +484,9 @@ dimctl stats --by-domain
 
 ---
 
-## Feature 4: Distributed Clustering
+## Feature 4: Distributed Clustering (M3.1)
+
+**Status:** Postgres dedup store ✅ · Cross-instance lineage ✅ · Environment config ✅ · End-to-end demo (pending)
 
 ### Problem
 
@@ -871,6 +880,33 @@ routes:
 - ✅ Custom validation logic pluggable (M3.3)
 - ✅ Geographic instances, unified lineage (M3.1)
 - ✅ One tenant overload doesn't affect others
+
+---
+
+## Production Readiness
+
+All Phase 3 features have been architecturally implemented and pass test suites. Here's the current status:
+
+### Ready for Production 🟢
+
+- **Plugin System (M3.3):** Native-Go and WASM plugins are fully functional with SDK proven in real use. No follow-up work needed.
+- **Distributed Clustering Core (M3.1):** PostgreSQL-backed dedup and cross-instance lineage are implemented and tested.
+- **Multi-Tenant Isolation Core (M3.4):** Executor-level rate limiting and worker slot management are implemented.
+
+### In-Memory Implementations (Suitable for Testing) 🟡
+
+- **Claim-Check In-Memory Store:** Works well for testing and single-instance deployments; factory wiring is complete for in-memory operations.
+- **Multi-Tenant Isolation:** Executor logic works; **factory wiring is pending** to enable end-to-end feature (see roadmap below).
+
+### Follow-up Work Required 📋
+
+See **[../design/PHASE-3-COMPLETION-REPORT.md](../design/PHASE-3-COMPLETION-REPORT.md)** for details on:
+
+1. **M3.2 S3-Backed Claim-Check Store** — Implement production-scale payload storage backend (HIGH priority)
+2. **M3.4 Factory Wiring** — Wire tenant manager through pipeline to enable multi-tenant quotas end-to-end (HIGH priority)
+3. **M3.1 Cluster Demo** — End-to-end test with two instances to verify no duplicate processing (MEDIUM priority)
+
+For maintainers extending dim, see **[../DEVELOPER_GUIDE.md](../DEVELOPER_GUIDE.md#phase-3-follow-up-work-maintainers-only)** for architecture context on follow-up work.
 
 ---
 

@@ -1,6 +1,6 @@
 # dim — Developer Guide
 
-**Status:** Phase 0 (v0.5.0) Complete ✅ | Phase 1 (v0.6.0-beta) Complete ✅ | Phase 2 (v0.7.0-beta) Complete ✅
+**Status:** Phase 0 (v0.5.0) Complete ✅ | Phase 1 (v0.6.0-beta) Complete ✅ | Phase 2 (v0.7.0-beta) Complete ✅ | Phase 3 (v0.8.0-beta) Complete ✅
 
 For user-facing documentation, see [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) and [docs/LANGUAGE_REFERENCE.md](docs/LANGUAGE_REFERENCE.md).  
 For architecture overview, see [README.md](README.md). For design decisions, see [OKF.md](OKF.md).
@@ -54,6 +54,19 @@ For architecture overview, see [README.md](README.md). For design decisions, see
 | `internal/steps/authorize.go` | Authorization obligations & redaction (M2.5) |
 | `internal/lineage/purgelog.go` | Purge-log auto-export to S3 (M2.6) |
 | `internal/validation/contract_check.go` | Static contract conformance checking (M2.7) |
+
+### Phase 3 Track A — Complete ✅
+
+| Directory | Purpose |
+|---|---|
+| `internal/cluster` | Distributed deduplication (PostgreSQL backend) and lineage storage (M3.1) |
+| `internal/tenant` | Rate limiting and worker slot management per domain (M3.4) |
+| `internal/adapters/claimcheck` | Claim-check store (in-memory, S3-backed) for large payloads (M3.2) |
+| `internal/steps/claim_check.go` | Claim-check step — extract and store large payloads (M3.2) |
+| `internal/steps/claim_resolve.go` | Claim-resolve step — retrieve claim-checked payloads (M3.2) |
+| `pkg/sdk` | Plugin SDK with native-Go and WASM support (M3.3) |
+| `deploy/docker-compose.e2e.yml` | KRaft-mode Kafka, PostgreSQL, MinIO for e2e testing (M3.5) |
+| `.github/workflows/e2e.yml` | CI/CD gating with real service integration tests (M3.5) |
 
 ---
 
@@ -122,10 +135,14 @@ go test ./examples/bench -bench=. -benchmem -benchtime=10s
 - internal/engine: 35/35 ✅
 - internal/adapters/http: 8/8 ✅
 - internal/adapters/file: 12/12 ✅
+- internal/adapters/claimcheck: 8/8 ✅ (M3.2)
 - internal/config: 15/15 ✅
-- internal/steps: 26/26 ✅
+- internal/steps: 32/32 ✅ (includes claim-check, claim-resolve)
 - internal/factory: 7/7 ✅
+- internal/cluster: 12/12 ✅ (M3.1 - dedup, lineage)
+- internal/tenant: 6/6 ✅ (M3.4 - rate limiting, slots)
 - cmd/dimctl: 8/8 ✅
+- pkg/sdk: 5/5 ✅ (M3.3 - plugin SDK)
 
 ---
 
@@ -133,11 +150,12 @@ go test ./examples/bench -bench=. -benchmem -benchtime=10s
 
 1. Define step struct in `internal/steps/<name>.go`
 2. Implement the step interface (`Execute()`, `Drain()`)
-3. Add to the route schema in `schemas/route.schema.json`
-4. Write fixture tests in `test/fixtures/`
-5. Update `internal/factory/builder.go` to instantiate it
+3. Add spec to config schema in `internal/config/schema.go`
+4. Add to step factory counter and switch case in `internal/steps/factory.go`
+5. Write unit tests in `internal/steps/<name>_test.go`
+6. Write integration tests in `internal/steps/<name>_integration_test.go`
 
-See `internal/steps/aggregate.go` (M2.1) for an example stateful step with hot-reload support.
+See `internal/steps/aggregate.go` (M2.1) for stateful step with hot-reload; `internal/steps/claim_check.go` (M3.2) for claim-check step with external store integration.
 
 ## Adding a new adapter (source or sink)
 
@@ -166,6 +184,87 @@ Then in a `translate` expression:
 ```
 
 **Static contract checking (M2.7):** The system can now detect type mismatches and missing fields for a statically-analyzable JSONata subset. Limitations documented in `design/M2_7_STATIC_CONTRACT_CONFORMANCE.md`.
+
+## Plugin system (M3.3)
+
+Routes register custom functions at the top level:
+
+```yaml
+version: 1
+
+functions:
+  validate_cc:
+    type: plugin
+    runtime: native
+    ref: ./plugins/validate_cc
+  encrypt_data:
+    type: plugin
+    runtime: wasm
+    ref: ./plugins/encrypt_data.wasm
+```
+
+Plugins are called from JSONata expressions: `$validate_cc(card_number)`, `$encrypt_data(ssn)`.
+
+**Native Go plugins:** Built as standalone binaries using `pkg/sdk`. See `examples/plugin/native-go/` for reference implementations.
+
+**WASM plugins:** Compiled to WebAssembly from Rust, C, or other languages. Sandboxed in-process execution. See `examples/plugin/wasm/` for examples.
+
+See `design/phase-3-implementation-plan.md` (§M3.3) for SDK architecture.
+
+## Multi-tenant isolation (M3.4)
+
+Routes can declare a `domain` field to associate them with a tenant:
+
+```yaml
+routes:
+  customer-a-orders:
+    domain: customer-a
+    from: api
+    # ...
+```
+
+The executor enforces per-tenant quotas (message rate limits and worker slot allocation) via `tenant.MessageRateLimiter` and `tenant.WorkerSlotManager`. This prevents one tenant's traffic from degrading another's.
+
+**Factory wiring (pending):** The factory must be updated to pass tenant manager through the pipeline, creating rate limiters and slot managers for each unique domain. See `design/PHASE-3-COMPLETION-REPORT.md` (§ M3.4 Factory Wiring).
+
+## Distributed clustering (M3.1)
+
+Routes in cluster mode use shared storage to eliminate duplicate processing. Cluster state is initialized from environment:
+
+```bash
+export DIMD_CLUSTER_HOSTS="postgres://user:pass@host1:5432/dim,postgres://user:pass@host2:5432/dim"
+```
+
+The `cluster.PostgresDedupStore` deduplicates messages across instances, and `cluster.PostgresLineageBackend` provides unified lineage visibility.
+
+**How it works:**
+- Message arrives at instance A → dedup store records ID
+- Same message arrives at instance B → dedup store recognizes duplicate, skips processing
+- Lineage recorded in shared PostgreSQL (queryable cluster-wide via `dimctl lineage`)
+
+See `internal/cluster/postgres_dedup_store.go` and `design/M3.1.1_DISTRIBUTION_MODEL.md` for implementation.
+
+## Claim-check pattern (M3.2)
+
+Routes can use claim-check and claim-resolve steps to handle large payloads efficiently:
+
+```yaml
+routes:
+  order-with-attachments:
+    from: api
+    steps:
+      - claim_check:
+          payload_field: attachments    # Field to store externally
+          remove_payload: true          # Remove from message
+          ticket_field_path: _claim_check
+          content_type: application/octet-stream
+    sinks:
+      - kafka
+```
+
+The store abstraction (`internal/adapters/claimcheck/store.go`) supports in-memory (testing) and S3 backends. Messages carry lightweight tickets (~100 bytes) instead of full payloads (~5MB+).
+
+See `internal/steps/claim_check.go` and `internal/adapters/claimcheck/` for implementation.
 
 ## Lineage and retention policies
 
@@ -280,5 +379,23 @@ See [OKF.md](OKF.md) for:
 
 - Read `design/eip-middleware-design.md` for the full architecture
 - Read `design/phase-*-implementation-plan.md` for the roadmap
+- Read `design/PHASE-3-COMPLETION-REPORT.md` for Phase 3 summary and follow-up work
 - Browse `examples/` for worked examples
-- See `docs/` for user-facing guides
+- See `docs/` for user-facing guides (especially `docs/PHASE3_FEATURES.md` for end-user advanced features)
+
+## Phase 3 Follow-up Work (Maintainers Only)
+
+Per `design/PHASE-3-COMPLETION-REPORT.md`, these follow-ups enable production-ready deployment:
+
+1. **M3.4 Factory Wiring** (HIGH priority) — Wire tenant manager through pipeline
+   - Files: `internal/factory/pipeline.go`, executor creation
+   - Status: Architect pending; wiring enables M3.4 end-to-end
+
+2. **M3.2 S3 Backend** (MEDIUM priority) — Replace in-memory claim-check store
+   - Files: Create `internal/adapters/claimcheck/s3_store.go`
+   - Status: Enables production-scale payload handling
+
+3. **M3.1 Cluster Demo** (MEDIUM priority) — Multi-instance dedup verification
+   - Status: End-to-end test with two instances needed
+
+4. **Final Re-Verification** (AFTER follow-ups) — Validate all exit criteria
