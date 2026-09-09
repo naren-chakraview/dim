@@ -135,13 +135,13 @@ func dialWithRetry(addr string, retries int) error {
 
 // TestKafkaAdapterRoundTrip tests Kafka adapter with real produce/consume round trip
 func TestKafkaAdapterRoundTrip(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	testTopic := "e2e-test-" + fmt.Sprintf("%d", time.Now().UnixNano())
+	testTopic := "e2e-test-messages"
 	testMessage := []byte(`{"order_id": "test-123", "amount": 99.99}`)
 
-	// Refresh broker metadata to trigger topic auto-creation
+	// Connect to broker and refresh metadata to trigger topic auto-creation
 	conn, err := kafka.Dial("tcp", "localhost:9092")
 	if err != nil {
 		t.Fatalf("failed to dial kafka: %v", err)
@@ -151,9 +151,9 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 		t.Fatalf("failed to fetch brokers: %v", err)
 	}
 	conn.Close()
-	time.Sleep(500 * time.Millisecond)
+	time.Sleep(1 * time.Second)
 
-	// Producer: write message with retry for topic auto-creation
+	// Producer: write message with extended retry for topic auto-creation
 	writer := &kafka.Writer{
 		Addr:     kafka.TCP("localhost:9092"),
 		Topic:    testTopic,
@@ -161,21 +161,27 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	}
 	defer writer.Close()
 
+	// Aggressive retry: up to 30 attempts with increasing backoff
 	var writeErr error
-	for attempt := 0; attempt < 10; attempt++ {
+	for attempt := 0; attempt < 30; attempt++ {
 		writeErr = writer.WriteMessages(ctx, kafka.Message{Value: testMessage})
 		if writeErr == nil {
+			t.Logf("Write succeeded on attempt %d", attempt+1)
 			break
 		}
-		if attempt < 9 {
-			time.Sleep(time.Duration((attempt+1)*200) * time.Millisecond)
+		if attempt < 29 {
+			backoff := time.Duration(100+attempt*50) * time.Millisecond
+			if backoff > 2*time.Second {
+				backoff = 2 * time.Second
+			}
+			time.Sleep(backoff)
 		}
 	}
 	if writeErr != nil {
-		t.Fatalf("failed to produce message after retries: %v", writeErr)
+		t.Fatalf("failed to produce message after 30 retries: %v", writeErr)
 	}
 
-	// Consumer: read message back
+	// Consumer: read message back with explicit partition
 	reader := kafka.NewReader(kafka.ReaderConfig{
 		Brokers: []string{"localhost:9092"},
 		Topic:   testTopic,
