@@ -1,0 +1,4 @@
+# GitHub CODEOWNERS file for domain-scoped review.
+# Format: path @reviewer @backup
+# Example (added later):
+# domains/payments/ @alice @bob

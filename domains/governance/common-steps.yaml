@@ -1,0 +1,11 @@
+# Common transformation and validation patterns reused across domains
+# Import this if you need standard data cleaning, filtering, or validation.
+
+version: 1
+
+fragments:
+  standard-filter:
+    - filter: { expr: 'body.id != null and body.timestamp != null' }
+
+  standard-validate-json:
+    - filter: { expr: 'typeof(body) = "object"' }

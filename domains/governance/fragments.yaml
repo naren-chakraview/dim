@@ -1,0 +1,11 @@
+# Governance baseline fragment — mandatory import for all routes
+# This centralizes authorization, error handling, and lineage policy.
+
+version: 1
+
+fragments:
+  governance-baseline:
+    - authorize:
+        mode: rbac
+        require_roles: [domain-member]
+        on_deny: { to: unauthorized-dlq }
