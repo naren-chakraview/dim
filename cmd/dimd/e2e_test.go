@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -160,9 +159,8 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 
 	// Produce test message
 	w := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:  []string{"localhost:9092"},
-		Topic:    testTopic,
-		Attempts: 3,
+		Brokers: []string{"localhost:9092"},
+		Topic:   testTopic,
 	})
 	defer w.Close()
 
