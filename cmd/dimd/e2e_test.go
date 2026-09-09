@@ -135,6 +135,18 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	testTopic := "e2e-test-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	testMessage := `{"order_id": "test-123", "amount": 99.99}`
 
+	// Force topic auto-creation by refreshing metadata via a temporary reader
+	// This ensures the topic exists before we try to write to it
+	tempReader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers: []string{"localhost:9092"},
+		Topic:   testTopic,
+		GroupID: "e2e-temp-group",
+	})
+	tempReader.Close()
+
+	// Small delay to allow auto-creation to complete
+	time.Sleep(100 * time.Millisecond)
+
 	// Producer: write message to Kafka
 	writer := &kafka.Writer{
 		Addr:     kafka.TCP("localhost:9092"),
