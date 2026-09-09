@@ -70,13 +70,14 @@ services:
     environment:
       KAFKA_BROKER: kafka:29092
     entrypoint: >
-      sh -c "
-      /opt/kafka/bin/kafka-topics.sh --create
+      bash -c "
+      kafka-topics --create
         --topic e2e-test-messages
         --bootstrap-server kafka:29092
         --partitions 1
         --replication-factor 1
         --if-not-exists
+      && echo 'Topic created successfully'
       "
     networks:
       - dim-e2e
