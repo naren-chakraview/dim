@@ -2,11 +2,13 @@
 
 A declarative, configuration-driven integration middleware for routing, transforming, and auditing messages between systems — without code, configuration-first.
 
-**Status:** ✅ **Phase 0 Production Ready (v0.5.0)** | ✅ **Phase 1 Complete (v0.6.0)** | ✅ **Phase 2 Complete (v0.7.0-beta)**  
-Phase 0: Complete. 440+ tests, security audit passed.  
-Phase 1 Track A: Complete (R1-R21). Governance, CLI, daemon, observability, schema registry, SFTP, OpenLineage dead-letter.  
-Phase 1 Track B: Complete (M1.2-M1.8). PBAC+OPA, OBO, AMQP/Kafka reliability, OpenLineage/Marquez, replay tooling.  
-Phase 2 Track B: Complete (M2.1-M2.7). Aggregator, splitter, database adapters, fragment params, obligations/redaction, purge-log auto-export, static contract checking.
+**Status:** ✅ **Phase 0 Production Ready (v0.5.0)** | ✅ **Phase 1 Complete (v0.6.0)** | ✅ **Phase 2 Complete (v0.7.0-beta)** | ✅ **Phase 3 Complete (v0.8.0-beta)**
+
+- Phase 0: Complete. 440+ tests, security audit passed.
+- Phase 1 Track A: Complete (R1-R21). Governance, CLI, daemon, observability, schema registry, SFTP, OpenLineage dead-letter.
+- Phase 1 Track B: Complete (M1.2-M1.8). PBAC+OPA, OBO, AMQP/Kafka reliability, OpenLineage/Marquez, replay tooling.
+- Phase 2 Track B: Complete (M2.1-M2.7). Aggregator, splitter, database adapters, fragment params, obligations/redaction, purge-log auto-export, static contract checking.
+- Phase 3: Complete (M3.1-M3.5). Distributed clustering (Postgres dedup, lineage), claim-check pattern (in-memory/S3), plugin SDK (native-Go, WASM), multi-tenant resource quotas, e2e release pipeline.
 
 ## What is dim?
 
