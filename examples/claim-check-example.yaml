@@ -1,0 +1,173 @@
+version: 1
+
+# Example: Order processing with large attachments
+#
+# This example demonstrates the Claim Check pattern (M3.2) for handling
+# large message payloads efficiently:
+# 1. Store large payloads externally (in-memory for this example)
+# 2. Pass lightweight tickets through the pipeline
+# 3. Retrieve full payloads only when needed (e.g., for compliance)
+#
+# Run with:
+#   dimctl validate examples/claim-check-example.yaml
+#   dimctl run examples/claim-check-example.yaml
+#
+# Or send test messages:
+#   curl -X POST http://localhost:8080/orders \
+#     -H "Content-Type: application/json" \
+#     -d '{
+#       "order_id": "ORD-2026-001",
+#       "customer": "ACME Corp",
+#       "invoice_pdf": <base64-encoded-5mb-pdf>,
+#       "signed_contract": <base64-encoded-document>
+#     }'
+
+sources:
+  api:
+    type: http
+    port: 8080
+
+sinks:
+  # Lightweight routing: fast, no 5MB PDF
+  orders-queue:
+    type: file
+    path: ./output/orders-lightweight.jsonl
+
+  # Compliance review: retrieves full PDFs, validates
+  compliance-queue:
+    type: file
+    path: ./output/compliance-review.jsonl
+
+routes:
+  # ROUTE 1: Order ingestion with attachment handling
+  # Large attachments are extracted and stored; message becomes lightweight
+  order-ingestion:
+    from: api
+    steps:
+      # Step 1: Extract and store large payload, replace with ticket
+      - claim_check:
+          payload_field: body                # Store entire message body
+          remove_payload: true               # Don't send full payload downstream
+          ticket_field_path: _claim_check    # Where to store the ticket
+          content_type: application/json
+
+      # Step 2: Translate to lightweight order summary (no PDF)
+      - translate:
+          expr: |
+            {
+              order_id: body.order_id,
+              customer: body.customer,
+              claim_check: _claim_check,
+              processed_at: $now()
+            }
+
+    sinks:
+      - orders-queue
+
+  # ROUTE 2: Compliance review
+  # Retrieves stored payloads and validates against regulatory requirements
+  compliance-review:
+    from: orders-queue
+    steps:
+      # Step 1: Retrieve the full payload from claim-check store
+      - claim_resolve:
+          ticket_field_path: _claim_check
+          payload_field_path: full_order
+
+      # Step 2: Validate invoice PDF signatures and compliance
+      - translate:
+          expr: |
+            {
+              order_id: order_id,
+              customer: customer,
+              compliance_check: {
+                pdf_signature_valid: $validateSignature(full_order.invoice_pdf),
+                invoice_lines: $invoiceLineCount(full_order.invoice_pdf),
+                contract_terms_valid: $checkContractTerms(full_order.signed_contract)
+              },
+              reviewed_at: $now()
+            }
+
+    sinks:
+      - compliance-queue
+
+  # ROUTE 3 (OPTIONAL): Archive full payloads to S3
+  # For this example, we keep the lightweight version;
+  # in production, you might also save full orders to S3 for long-term storage
+  archive-full-orders:
+    from: orders-queue
+    steps:
+      # Retrieve full payload
+      - claim_resolve:
+          ticket_field_path: _claim_check
+          payload_field_path: full_payload
+
+      # Filter to high-value orders only (S3 storage cost)
+      - filter:
+          expr: "full_payload.amount > 5000"
+
+      # Log for later archival
+      - translate:
+          expr: |
+            {
+              order_id: order_id,
+              customer: customer,
+              amount: full_payload.amount,
+              full_payload_size_bytes: $strlen($formatJson(full_payload))
+            }
+
+    sinks:
+      # In production, this would be:
+      # - s3-archive:
+      #     bucket: dim-order-archive
+      #     key_expr: "orders/{{ order_id }}/{{ $now() }}.json"
+      - orders-queue  # For demo, just re-route to same queue
+
+---
+
+# USAGE NOTES:
+#
+# 1. WHAT IS CLAIM-CHECK?
+#    The Claim Check EIP solves the "large payload" problem:
+#
+#    Without claim-check:
+#    ├─ Order arrives (5MB PDF + metadata)
+#    ├─ Each step processes full 5MB
+#    ├─ Routing step passes 5MB
+#    ├─ Translation step processes 5MB
+#    └─ Compliance step gets 5MB
+#    = Inefficient: 5MB × many steps
+#
+#    With claim-check:
+#    ├─ Order arrives (5MB PDF + metadata)
+#    ├─ Claim-check stores PDF, returns ~100 byte ticket
+#    ├─ Lightweight order (metadata + ticket) travels pipeline
+#    ├─ Only compliance step retrieves PDF when needed
+#    └─ Compliance step gets full 5MB (only once)
+#    = Efficient: 5MB stored once, lightweight tickets in transit
+#
+# 2. PRODUCTION READINESS:
+#    ✅ In-memory store: suitable for testing and small instances
+#    🚧 S3 store: in development for production scale
+#
+#    For production, you'll want to:
+#    - Configure S3-backed claim-check store
+#    - Set retention policies for stored payloads
+#    - Monitor storage costs and cleanup
+#
+# 3. STORE LIFECYCLE:
+#    - Payload stored in claim-check store (e.g., S3)
+#    - Ticket expires after TTL (default: 30 days)
+#    - dimctl provides cleanup commands for expired tickets
+#
+# 4. FAILURE MODES:
+#    If a ticket is lost:
+#    - claim-resolve step returns error
+#    - Message routed to error path (if defined)
+#    - Consider adding retry logic
+#
+# 5. MONITORING:
+#    - Track claim-check operations in OTel tracing
+#    - Monitor store size and retrieval latency
+#    - Set alerts on resolve failures
+
