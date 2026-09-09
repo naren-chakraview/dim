@@ -20,6 +20,7 @@ import (
 	"github.com/naren-chakraview/dim/internal/observability/viewer"
 	"github.com/naren-chakraview/dim/internal/ordering"
 	"github.com/naren-chakraview/dim/internal/steps"
+	"github.com/naren-chakraview/dim/internal/tenant"
 	"github.com/naren-chakraview/dim/internal/testing"
 	"github.com/naren-chakraview/dim/internal/validation"
 	"github.com/spf13/cobra"
@@ -172,7 +173,10 @@ func runSingleRoute(cfg *config.RouteConfig) error {
 	fmt.Fprintf(os.Stderr, "Tier 1 viewer enabled on http://localhost:8081/debug/routes\n")
 	_ = viewerSrv // Use it when recording messages
 
-	executor, _, _, _, sources, sinks, err := factory.BuildSingleRoutePipelineWithTracing(ctx, cfg, tracingProvider)
+	// Initialize tenant manager for multi-tenant isolation (M3.4+)
+	tenantManager := tenant.NewManager()
+
+	executor, _, _, _, sources, sinks, err := factory.BuildSingleRoutePipelineWithTracing(ctx, cfg, tracingProvider, tenantManager)
 	if err != nil {
 		return fmt.Errorf("failed to build pipeline: %w", err)
 	}
@@ -370,7 +374,10 @@ func runMultiRoute(cfg *config.RouteConfig, configPath string) error {
 	fmt.Fprintf(os.Stderr, "Tier 1 viewer enabled on http://localhost:8081/debug/routes\n")
 	_ = viewerSrv // Use it when recording messages
 
-	generationMgrs, router, sources, sinks, err := factory.BuildMultiRoutePipelineWithTracing(ctx, cfg, tracingProvider)
+	// Initialize tenant manager for multi-tenant isolation (M3.4+)
+	tenantManager := tenant.NewManager()
+
+	generationMgrs, router, sources, sinks, err := factory.BuildMultiRoutePipelineWithTracing(ctx, cfg, tracingProvider, tenantManager)
 	if err != nil {
 		return fmt.Errorf("failed to build multi-route pipeline: %w", err)
 	}
