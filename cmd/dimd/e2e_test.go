@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
-	"github.com/segmentio/kafka-go/admin"
 )
 
 // TestMain polls for service readiness before running tests
@@ -136,23 +135,7 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	testTopic := "e2e-test-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	testMessage := `{"order_id": "test-123", "amount": 99.99}`
 
-	// Explicitly create the topic using admin API
-	adminClient := &admin.Client{
-		Addr: kafka.TCP("localhost:9092"),
-	}
-	defer adminClient.Close()
-
-	// Create topic with 1 partition and replication factor 1
-	err := adminClient.CreateTopics(ctx, &admin.TopicConfig{
-		Topic:             testTopic,
-		NumPartitions:     1,
-		ReplicationFactor: 1,
-	})
-	if err != nil {
-		t.Fatalf("failed to create topic: %v", err)
-	}
-
-	// Producer: write message to Kafka
+	// Producer: write message to Kafka with retry for topic auto-creation
 	writer := &kafka.Writer{
 		Addr:     kafka.TCP("localhost:9092"),
 		Topic:    testTopic,
@@ -160,11 +143,21 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	}
 	defer writer.Close()
 
-	err = writer.WriteMessages(ctx, kafka.Message{
-		Value: []byte(testMessage),
-	})
+	// Retry writing with exponential backoff to allow broker auto-creation
+	var err error
+	for attempt := 0; attempt < 5; attempt++ {
+		err = writer.WriteMessages(ctx, kafka.Message{
+			Value: []byte(testMessage),
+		})
+		if err == nil {
+			break
+		}
+		if attempt < 4 {
+			time.Sleep(time.Duration((attempt+1)*100) * time.Millisecond)
+		}
+	}
 	if err != nil {
-		t.Fatalf("failed to produce Kafka message: %v", err)
+		t.Fatalf("failed to produce Kafka message after retries: %v", err)
 	}
 
 	// Consumer: read message from Kafka
