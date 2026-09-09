@@ -71,6 +71,8 @@ type StepSpec struct {
 	Idempotent *IdempotentSpec `yaml:"idempotent,omitempty" json:"idempotent,omitempty"`
 	Authorize *AuthorizeSpec `yaml:"authorize,omitempty" json:"authorize,omitempty"`
 	Contract  *ContractStepSpec `yaml:"contract,omitempty" json:"contract,omitempty"` // Contract validation step (M0.3.5)
+	ClaimCheck *ClaimCheckSpec `yaml:"claim_check,omitempty" json:"claim_check,omitempty"` // Claim check step (M3.2)
+	ClaimResolve *ClaimResolveSpec `yaml:"claim_resolve,omitempty" json:"claim_resolve,omitempty"` // Claim resolve step (M3.2)
 
 	// Extra fields for extensibility
 	Extra map[string]interface{} `yaml:",inline" json:"-"`
@@ -80,6 +82,20 @@ type StepSpec struct {
 type ContractStepSpec struct {
 	ID     string `yaml:"id" json:"id"`                           // contract ID to validate against
 	Strict bool   `yaml:"strict,omitempty" json:"strict,omitempty"` // fail pipeline on violation? (default: false)
+}
+
+// ClaimCheckSpec defines a claim-check step (M3.2)
+type ClaimCheckSpec struct {
+	PayloadField    string `yaml:"payload_field,omitempty" json:"payload_field,omitempty"`       // Field to extract (default: "body")
+	RemovePayload   bool   `yaml:"remove_payload,omitempty" json:"remove_payload,omitempty"`     // Remove original (default: true)
+	TicketFieldPath string `yaml:"ticket_field_path,omitempty" json:"ticket_field_path,omitempty"` // Where to store ticket (default: "_claim_check")
+	ContentType     string `yaml:"content_type,omitempty" json:"content_type,omitempty"`         // MIME type hint
+}
+
+// ClaimResolveSpec defines a claim-resolve step (M3.2)
+type ClaimResolveSpec struct {
+	TicketFieldPath string `yaml:"ticket_field_path,omitempty" json:"ticket_field_path,omitempty"` // Where ticket is (default: "_claim_check")
+	PayloadFieldPath string `yaml:"payload_field_path,omitempty" json:"payload_field_path,omitempty"` // Where to restore payload (default: "body")
 }
 
 // FilterSpec defines a filter step (boolean predicate)

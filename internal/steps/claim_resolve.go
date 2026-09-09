@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
+	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
 
@@ -16,28 +17,22 @@ type ClaimResolveStep struct {
 	outputFieldPath string // Where to put resolved payload (default: "body")
 }
 
-// ClaimResolveSpec defines claim-resolve step configuration
-type ClaimResolveSpec struct {
-	TicketPath      string `yaml:"ticket_path" json:"ticket_path"`           // Where to find claim-check (default: "_claim_check")
-	OutputFieldPath string `yaml:"output_field_path" json:"output_field_path"` // Where to restore payload (default: "body")
-}
-
 // NewClaimResolveStep creates a new claim-resolve step
-func NewClaimResolveStep(spec *ClaimResolveSpec, store claimcheck.ClaimCheckStore) (*ClaimResolveStep, error) {
+func NewClaimResolveStep(spec *config.ClaimResolveSpec, store claimcheck.ClaimCheckStore) (*ClaimResolveStep, error) {
 	if spec == nil {
-		spec = &ClaimResolveSpec{}
+		return nil, fmt.Errorf("claim resolve spec is required")
 	}
 
 	if store == nil {
 		return nil, fmt.Errorf("claim resolve: store is required")
 	}
 
-	ticketPath := spec.TicketPath
+	ticketPath := spec.TicketFieldPath
 	if ticketPath == "" {
 		ticketPath = "_claim_check"
 	}
 
-	outputPath := spec.OutputFieldPath
+	outputPath := spec.PayloadFieldPath
 	if outputPath == "" {
 		outputPath = "body"
 	}

@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
+	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
 
 // TestClaimCheckStepBasic verifies basic claim-check functionality (M3.2.2)
 func TestClaimCheckStepBasic(t *testing.T) {
 	store := claimcheck.NewInMemoryClaimCheckStore()
-	spec := &ClaimCheckSpec{
+	spec := &config.ClaimCheckSpec{
 		PayloadField:    "body",
 		RemovePayload:   true,
 		TicketFieldPath: "_claim_check",
@@ -78,7 +79,7 @@ func TestClaimCheckStepBasic(t *testing.T) {
 // TestClaimCheckStepWithoutRemoval verifies claim-check preserves body (M3.2.2)
 func TestClaimCheckStepWithoutRemoval(t *testing.T) {
 	store := claimcheck.NewInMemoryClaimCheckStore()
-	spec := &ClaimCheckSpec{
+	spec := &config.ClaimCheckSpec{
 		PayloadField:    "body",
 		RemovePayload:   false, // Keep payload in message
 		TicketFieldPath: "_claim_check",
@@ -122,7 +123,7 @@ func TestClaimCheckStepWithoutRemoval(t *testing.T) {
 // TestResolveClaimCheck verifies retrieval of claim-checked payload (M3.2.3)
 func TestResolveClaimCheck(t *testing.T) {
 	store := claimcheck.NewInMemoryClaimCheckStore()
-	spec := &ClaimCheckSpec{
+	spec := &config.ClaimCheckSpec{
 		PayloadField:    "body",
 		RemovePayload:   true,
 		TicketFieldPath: "_claim_check",
@@ -231,7 +232,7 @@ func TestClaimCheckStoreInMemory(t *testing.T) {
 // TestClaimCheckCorrelationIDPreserved verifies metadata preservation (M3.2.2)
 func TestClaimCheckCorrelationIDPreserved(t *testing.T) {
 	store := claimcheck.NewInMemoryClaimCheckStore()
-	spec := &ClaimCheckSpec{
+	spec := &config.ClaimCheckSpec{
 		RemovePayload: true,
 	}
 

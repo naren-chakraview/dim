@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
+	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
 
@@ -19,16 +20,8 @@ type ClaimCheckStep struct {
 	ticketFieldPath   string // Where to store the claim-check ticket in the message
 }
 
-// ClaimCheckSpec defines claim-check step configuration
-type ClaimCheckSpec struct {
-	PayloadField    string `yaml:"payload_field" json:"payload_field"`             // Field to store (default: "body")
-	RemovePayload   bool   `yaml:"remove_payload" json:"remove_payload"`           // Remove original payload (default: true)
-	TicketFieldPath string `yaml:"ticket_field_path" json:"ticket_field_path"`     // Where to store ticket (default: "_claim_check")
-	ContentType     string `yaml:"content_type" json:"content_type"`               // MIME type hint
-}
-
 // NewClaimCheckStep creates a new claim-check step
-func NewClaimCheckStep(spec *ClaimCheckSpec, store claimcheck.ClaimCheckStore) (*ClaimCheckStep, error) {
+func NewClaimCheckStep(spec *config.ClaimCheckSpec, store claimcheck.ClaimCheckStore) (*ClaimCheckStep, error) {
 	if spec == nil {
 		return nil, fmt.Errorf("claim check spec is required")
 	}

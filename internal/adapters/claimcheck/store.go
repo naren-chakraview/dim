@@ -2,6 +2,7 @@ package claimcheck
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -104,7 +105,10 @@ func computeHash(data []byte) string {
 }
 
 func generateRandomID() string {
-	// In production, this would use crypto/rand
-	// For now, use timestamp suffix
-	return fmt.Sprintf("%d", time.Now().UnixNano())
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		// Fallback to timestamp if crypto/rand fails (shouldn't happen)
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(b)
 }

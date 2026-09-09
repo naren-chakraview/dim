@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
+	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
 
@@ -36,7 +37,7 @@ func TestClaimCheckOrderWithAttachmentWorkflow(t *testing.T) {
 	orderMessage.Metadata.CorrelationID = "corr-2026-001"
 
 	// Step 2: Claim-check step - store large payload, keep lightweight message
-	checkSpec := &ClaimCheckSpec{
+	checkSpec := &config.ClaimCheckSpec{
 		PayloadField:    "body",
 		RemovePayload:   true, // Remove payload from message body
 		TicketFieldPath: "_claim_check",
@@ -79,7 +80,7 @@ func TestClaimCheckOrderWithAttachmentWorkflow(t *testing.T) {
 	}
 
 	// Step 4: Compliance step needs to retrieve PDF for validation
-	resolveSpec := &ClaimResolveSpec{
+	resolveSpec := &config.ClaimResolveSpec{
 		TicketPath:      "_claim_check",
 		OutputFieldPath: "body",
 	}
@@ -119,7 +120,7 @@ func TestClaimCheckMultipleAttachments(t *testing.T) {
 	msg := engine.NewMessage(docPackage, "document-processing", "v1")
 
 	// Claim-check the entire document package
-	checkStep, err := NewClaimCheckStep(&ClaimCheckSpec{
+	checkStep, err := NewClaimCheckStep(&config.ClaimCheckSpec{
 		RemovePayload: true,
 	}, store)
 	if err != nil {
@@ -146,7 +147,7 @@ func TestClaimCheckMultipleAttachments(t *testing.T) {
 	t.Logf("✓ Multi-document package stored with total size: %d bytes", size)
 
 	// Resolve and verify
-	resolveStep, _ := NewClaimResolveStep(&ClaimResolveSpec{}, store)
+	resolveStep, _ := NewClaimResolveStep(&config.ClaimResolveSpec{}, store)
 	resolved, err := resolveStep.Execute(ctx, checked)
 	if err != nil {
 		t.Fatalf("Resolve failed: %v", err)
