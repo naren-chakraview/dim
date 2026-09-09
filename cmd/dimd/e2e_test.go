@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
+	"github.com/segmentio/kafka-go/admin"
 )
 
 // TestMain polls for service readiness before running tests
@@ -135,17 +136,21 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	testTopic := "e2e-test-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	testMessage := `{"order_id": "test-123", "amount": 99.99}`
 
-	// Force topic auto-creation by refreshing metadata via a temporary reader
-	// This ensures the topic exists before we try to write to it
-	tempReader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{"localhost:9092"},
-		Topic:   testTopic,
-		GroupID: "e2e-temp-group",
-	})
-	tempReader.Close()
+	// Explicitly create the topic using admin API
+	adminClient := &admin.Client{
+		Addr: kafka.TCP("localhost:9092"),
+	}
+	defer adminClient.Close()
 
-	// Small delay to allow auto-creation to complete
-	time.Sleep(100 * time.Millisecond)
+	// Create topic with 1 partition and replication factor 1
+	err := adminClient.CreateTopics(ctx, &admin.TopicConfig{
+		Topic:             testTopic,
+		NumPartitions:     1,
+		ReplicationFactor: 1,
+	})
+	if err != nil {
+		t.Fatalf("failed to create topic: %v", err)
+	}
 
 	// Producer: write message to Kafka
 	writer := &kafka.Writer{
@@ -155,7 +160,7 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	}
 	defer writer.Close()
 
-	err := writer.WriteMessages(ctx, kafka.Message{
+	err = writer.WriteMessages(ctx, kafka.Message{
 		Value: []byte(testMessage),
 	})
 	if err != nil {
