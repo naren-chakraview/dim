@@ -3,33 +3,39 @@
 # Services auto-start and health checks ensure readiness before tests run
 
 services:
-  # Message Queue: Kafka (KRaft mode - no Zookeeper needed)
-  kafka:
-    image: apache/kafka:3.9.0
-    container_name: dim-e2e-kafka
+  # Zookeeper for Kafka coordination (more stable than KRaft)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: dim-e2e-zookeeper
     environment:
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092,CONTROLLER://kafka:29093
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_NODE_ID: 1
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - dim-e2e
+
+  # Message Queue: Kafka with Zookeeper (more reliable than KRaft)
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: dim-e2e-kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
-      KAFKA_LOG_RETENTION_HOURS: 1
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
     ports:
       - "9092:9092"
-      - "29093:29093"
+      - "29092:29092"
     healthcheck:
       test: kafka-broker-api-versions --bootstrap-server localhost:9092
       interval: 5s
-      timeout: 30s
-      retries: 10
-      start_period: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
     networks:
       - dim-e2e
 
@@ -56,7 +62,7 @@ services:
 
   # Topic initialization: create e2e test topic
   kafka-init:
-    image: apache/kafka:3.9.0
+    image: confluentinc/cp-kafka:7.6.0
     container_name: dim-e2e-kafka-init
     depends_on:
       kafka:
