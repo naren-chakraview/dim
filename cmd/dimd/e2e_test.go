@@ -133,27 +133,47 @@ func dialWithRetry(addr string, retries int) error {
 	return fmt.Errorf("failed to dial after %d retries", retries)
 }
 
-// TestKafkaAdapterRoundTrip tests Kafka adapter with real produce/consume round trip
+// TestKafkaAdapterRoundTrip tests Kafka adapter connectivity and wire protocol
 func TestKafkaAdapterRoundTrip(t *testing.T) {
+	// Test Kafka adapter via actual produce/consume operations
+	// Uses a well-known topic that should exist or be created
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	testTopic := "e2e-test-messages"
 	testMessage := []byte(`{"order_id": "test-123", "amount": 99.99}`)
 
-	// Connect to broker and refresh metadata to trigger topic auto-creation
+	// Step 1: Verify broker connectivity by fetching metadata
 	conn, err := kafka.Dial("tcp", "localhost:9092")
 	if err != nil {
-		t.Fatalf("failed to dial kafka: %v", err)
+		t.Fatalf("failed to dial kafka broker: %v", err)
 	}
-	if _, err := conn.Brokers(); err != nil {
+	brokers, err := conn.Brokers()
+	if err != nil {
 		conn.Close()
 		t.Fatalf("failed to fetch brokers: %v", err)
 	}
+	if len(brokers) == 0 {
+		conn.Close()
+		t.Fatalf("no brokers available")
+	}
 	conn.Close()
-	time.Sleep(1 * time.Second)
 
-	// Producer: write message with extended retry for topic auto-creation
+	// Step 2: Create a reader to trigger topic initialization
+	reader := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:        []string{"localhost:9092"},
+		Topic:          testTopic,
+		Partition:      0,
+		StartOffset:    kafka.LastOffset,
+		MaxBytes:       1e6,
+		CommitInterval: time.Second,
+	})
+	defer reader.Close()
+
+	// Give topic time to initialize
+	time.Sleep(2 * time.Second)
+
+	// Step 3: Produce a test message with retry
 	writer := &kafka.Writer{
 		Addr:     kafka.TCP("localhost:9092"),
 		Topic:    testTopic,
@@ -161,44 +181,38 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	}
 	defer writer.Close()
 
-	// Aggressive retry: up to 30 attempts with increasing backoff
 	var writeErr error
-	for attempt := 0; attempt < 30; attempt++ {
+	for attempt := 0; attempt < 20; attempt++ {
 		writeErr = writer.WriteMessages(ctx, kafka.Message{Value: testMessage})
 		if writeErr == nil {
-			t.Logf("Write succeeded on attempt %d", attempt+1)
 			break
 		}
-		if attempt < 29 {
-			backoff := time.Duration(100+attempt*50) * time.Millisecond
-			if backoff > 2*time.Second {
-				backoff = 2 * time.Second
-			}
-			time.Sleep(backoff)
-		}
+		time.Sleep(500 * time.Millisecond)
 	}
 	if writeErr != nil {
-		t.Fatalf("failed to produce message after 30 retries: %v", writeErr)
+		t.Fatalf("failed to produce message: %v", writeErr)
 	}
 
-	// Consumer: read message back with explicit partition
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers: []string{"localhost:9092"},
-		Topic:   testTopic,
-		GroupID: "e2e-test-group",
+	// Step 4: Consume the message with fresh reader starting from beginning
+	reader2 := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:   []string{"localhost:9092"},
+		Topic:     testTopic,
+		Partition: 0,
+		StartOffset: 0,
+		MaxBytes:  1e6,
 	})
-	defer reader.Close()
+	defer reader2.Close()
 
-	msg, err := reader.ReadMessage(ctx)
+	msg, err := reader2.ReadMessage(ctx)
 	if err != nil {
 		t.Fatalf("failed to consume message: %v", err)
 	}
 
-	if string(msg.Value) != string(testMessage) {
-		t.Fatalf("message mismatch: got %q, want %q", string(msg.Value), string(testMessage))
+	if !bytes.Equal(msg.Value, testMessage) {
+		t.Fatalf("message content mismatch: got %q, want %q", string(msg.Value), string(testMessage))
 	}
 
-	t.Logf("✓ Kafka adapter: message produced and consumed successfully")
+	t.Logf("✓ Kafka adapter: broker connectivity verified, message produced and consumed")
 }
 
 // TestS3AdapterRoundTrip tests S3 adapter with real object PUT and GET
