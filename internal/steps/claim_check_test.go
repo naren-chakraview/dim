@@ -5,13 +5,14 @@ import (
 	"testing"
 
 	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
+	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
 
 // TestClaimCheckStepBasic verifies basic claim-check functionality (M3.2.2)
 func TestClaimCheckStepBasic(t *testing.T) {
 	store := claimcheck.NewInMemoryClaimCheckStore()
-	spec := &ClaimCheckSpec{
+	spec := &config.ClaimCheckSpec{
 		PayloadField:    "body",
 		RemovePayload:   true,
 		TicketFieldPath: "_claim_check",

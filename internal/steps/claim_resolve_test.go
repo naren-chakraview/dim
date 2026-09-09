@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
+	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
 
@@ -41,7 +42,7 @@ func TestClaimResolveStepBasic(t *testing.T) {
 	)
 
 	// Resolve the claim-check
-	resolver, err := NewClaimResolveStep(&ClaimResolveSpec{}, store)
+	resolver, err := NewClaimResolveStep(&config.ClaimResolveSpec{}, store)
 	if err != nil {
 		t.Fatalf("NewClaimResolveStep failed: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestClaimResolveStepBasic(t *testing.T) {
 // TestClaimResolveStepNoTicket verifies pass-through for non-claim-checked messages (M3.2.3)
 func TestClaimResolveStepNoTicket(t *testing.T) {
 	store := claimcheck.NewInMemoryClaimCheckStore()
-	resolver, err := NewClaimResolveStep(&ClaimResolveSpec{}, store)
+	resolver, err := NewClaimResolveStep(&config.ClaimResolveSpec{}, store)
 	if err != nil {
 		t.Fatalf("NewClaimResolveStep failed: %v", err)
 	}
@@ -137,7 +138,7 @@ func TestClaimResolveStepRoundTrip(t *testing.T) {
 	}
 
 	// Step 2: Resolve the claim-check
-	resolveStep, err := NewClaimResolveStep(&ClaimResolveSpec{}, store)
+	resolveStep, err := NewClaimResolveStep(&config.ClaimResolveSpec{}, store)
 	if err != nil {
 		t.Fatalf("NewClaimResolveStep failed: %v", err)
 	}
@@ -156,7 +157,7 @@ func TestClaimResolveStepRoundTrip(t *testing.T) {
 // TestClaimResolveStepInvalidTicket verifies error handling for missing payload (M3.2.3)
 func TestClaimResolveStepInvalidTicket(t *testing.T) {
 	store := claimcheck.NewInMemoryClaimCheckStore()
-	resolver, err := NewClaimResolveStep(&ClaimResolveSpec{}, store)
+	resolver, err := NewClaimResolveStep(&config.ClaimResolveSpec{}, store)
 	if err != nil {
 		t.Fatalf("NewClaimResolveStep failed: %v", err)
 	}
