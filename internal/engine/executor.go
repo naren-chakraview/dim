@@ -282,13 +282,14 @@ func (e *Executor) worker(ctx context.Context, workerID int, wg *sync.WaitGroup)
 
 		// Increment in-flight counter
 		atomic.AddInt32(&e.inFlightCount, 1)
-		defer atomic.AddInt32(&e.inFlightCount, -1)
 
 		// Apply tenant rate limiting (M3.4+)
 		if e.rateLimiter != nil {
 			allowed, rate := e.rateLimiter.AllowMessage(e.domain)
 			if !allowed {
 				log.Printf("[DEBUG] Executor %q domain %q rate limited (current: %.2f msgs/sec)", e.name, e.domain, rate)
+				// Decrement in-flight for re-queued message
+				atomic.AddInt32(&e.inFlightCount, -1)
 				// Re-queue message for later processing
 				if err := e.inputCh.Send(ctx, msg); err != nil {
 					log.Printf("[ERROR] Executor %q failed to re-queue rate-limited message: %v", e.name, err)
@@ -304,6 +305,8 @@ func (e *Executor) worker(ctx context.Context, workerID int, wg *sync.WaitGroup)
 			slotAcquired = e.slotManager.AcquireSlot(e.domain)
 			if !slotAcquired {
 				log.Printf("[DEBUG] Executor %q domain %q no available worker slots, queueing", e.name, e.domain)
+				// Decrement in-flight for re-queued message
+				atomic.AddInt32(&e.inFlightCount, -1)
 				// Re-queue message for later processing
 				if err := e.inputCh.Send(ctx, msg); err != nil {
 					log.Printf("[ERROR] Executor %q failed to re-queue message waiting for slot: %v", e.name, err)
@@ -319,6 +322,9 @@ func (e *Executor) worker(ctx context.Context, workerID int, wg *sync.WaitGroup)
 				e.slotManager.ReleaseSlot(e.domain)
 			}
 		}()
+
+		// Defer decrement of in-flight counter for actually-processed messages
+		defer atomic.AddInt32(&e.inFlightCount, -1)
 
 		// Start message processing span for tracing
 		var msgSpan *observability.Span
