@@ -14,6 +14,7 @@ import (
 	"github.com/naren-chakraview/dim/internal/factory"
 	"github.com/naren-chakraview/dim/internal/observability"
 	"github.com/naren-chakraview/dim/internal/observability/viewer"
+	"github.com/naren-chakraview/dim/internal/tenant"
 	"github.com/spf13/cobra"
 )
 
@@ -161,13 +162,17 @@ func runDaemon(configPath string) error {
 	log.Printf("[INFO] Tier 1 viewer enabled on http://localhost:8081/debug/routes")
 	_ = viewerSrv
 
+	// Initialize tenant manager for multi-tenant isolation (M3.4+)
+	tenantManager := tenant.NewManager()
+	log.Printf("[INFO] tenant manager initialized with default quotas")
+
 	// Build and start pipeline
 	if len(cfg.Routes) == 1 {
-		if err := runSingleRoute(ctx, cfg, tracingProvider, metricsCollector, viewerSrv); err != nil {
+		if err := runSingleRoute(ctx, cfg, tracingProvider, metricsCollector, viewerSrv, tenantManager); err != nil {
 			return err
 		}
 	} else {
-		if err := runMultiRoute(ctx, cfg, configPath, tracingProvider, metricsCollector, viewerSrv); err != nil {
+		if err := runMultiRoute(ctx, cfg, configPath, tracingProvider, metricsCollector, viewerSrv, tenantManager); err != nil {
 			return err
 		}
 	}
@@ -184,8 +189,8 @@ func runDaemon(configPath string) error {
 }
 
 // runSingleRoute runs a single-route configuration
-func runSingleRoute(ctx context.Context, cfg *config.RouteConfig, tracingProvider *observability.TracingProvider, metricsCollector *observability.MetricsCollector, viewerSrv *viewer.ViewerServer) error {
-	executor, _, _, _, sources, sinks, err := factory.BuildSingleRoutePipelineWithTracing(ctx, cfg, tracingProvider)
+func runSingleRoute(ctx context.Context, cfg *config.RouteConfig, tracingProvider *observability.TracingProvider, metricsCollector *observability.MetricsCollector, viewerSrv *viewer.ViewerServer, tenantManager *tenant.Manager) error {
+	executor, _, _, _, sources, sinks, err := factory.BuildSingleRoutePipelineWithTracing(ctx, cfg, tracingProvider, tenantManager)
 	if err != nil {
 		return fmt.Errorf("failed to build pipeline: %w", err)
 	}
@@ -226,8 +231,8 @@ func runSingleRoute(ctx context.Context, cfg *config.RouteConfig, tracingProvide
 }
 
 // runMultiRoute runs a multi-route configuration
-func runMultiRoute(ctx context.Context, cfg *config.RouteConfig, configPath string, tracingProvider *observability.TracingProvider, metricsCollector *observability.MetricsCollector, viewerSrv *viewer.ViewerServer) error {
-	_, _, sources, sinks, err := factory.BuildMultiRoutePipelineWithTracing(ctx, cfg, tracingProvider)
+func runMultiRoute(ctx context.Context, cfg *config.RouteConfig, configPath string, tracingProvider *observability.TracingProvider, metricsCollector *observability.MetricsCollector, viewerSrv *viewer.ViewerServer, tenantManager *tenant.Manager) error {
+	_, _, sources, sinks, err := factory.BuildMultiRoutePipelineWithTracing(ctx, cfg, tracingProvider, tenantManager)
 	if err != nil {
 		return fmt.Errorf("failed to build multi-route pipeline: %w", err)
 	}

@@ -13,6 +13,7 @@ import (
 	"github.com/naren-chakraview/dim/internal/observability"
 	"github.com/naren-chakraview/dim/internal/ordering"
 	"github.com/naren-chakraview/dim/internal/steps"
+	"github.com/naren-chakraview/dim/internal/tenant"
 )
 
 // SourceAdapter wraps a source adapter with lifecycle methods
@@ -218,13 +219,14 @@ func BuildSingleRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 	[]SinkAdapter,
 	error,
 ) {
-	return BuildSingleRoutePipelineWithTracing(ctx, cfg, nil)
+	return BuildSingleRoutePipelineWithTracing(ctx, cfg, nil, nil)
 }
 
 // BuildSingleRoutePipelineWithTracing constructs the pipeline for a single route with tracing support (M0.5.1+).
 // tracingProvider may be nil (no tracing).
+// tenantManager may be nil (no multi-tenant isolation); if provided, enables per-domain rate limiting and worker slot allocation (M3.4+).
 // Exported for use in testing and direct single-route scenarios.
-func BuildSingleRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteConfig, tracingProvider *observability.TracingProvider) (
+func BuildSingleRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteConfig, tracingProvider *observability.TracingProvider, tenantManager *tenant.Manager) (
 	*engine.Executor,
 	*engine.Channel,
 	*engine.Channel,
@@ -291,9 +293,25 @@ func BuildSingleRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteC
 		}
 	}
 
-	// Create executor with appropriate worker count, error channel, and tracing (M0.5.1+)
+	// Extract domain for multi-tenant isolation (M3.4+)
+	domain := routeSpec.Domain
+	var rateLimiter *tenant.MessageRateLimiter
+	var slotManager *tenant.WorkerSlotManager
+
+	// Create tenant limiters if tenant manager is provided (M3.4+)
+	if tenantManager != nil && domain != "" {
+		tenantCfg := tenantManager.GetTenant(domain)
+		rateLimiter = tenant.NewMessageRateLimiter(tenantManager)
+		slotManager = tenant.NewWorkerSlotManager(tenantManager)
+		log.Printf("[INFO] Route %q: tenant isolation enabled for domain %q (rate_limit=%d msg/sec, worker_slots=%d)", routeName, domain, tenantCfg.MessageRateLimit, tenantCfg.WorkerSlots)
+	}
+
+	// Create executor with appropriate worker count, error channel, tracing, and tenant isolation (M0.5.1+, M3.4+)
 	var executor *engine.Executor
-	if routeSpec.ErrorPath != nil {
+	if rateLimiter != nil || slotManager != nil {
+		// Use tenant-aware executor
+		executor = engine.NewExecutorWithTenantLimiting(routeName, inputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers, retryPolicy, tracingProvider, rateLimiter, slotManager, domain)
+	} else if routeSpec.ErrorPath != nil {
 		executor = engine.NewExecutorWithTracing(routeName, inputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers, retryPolicy, tracingProvider)
 	} else {
 		executor = engine.NewExecutorWithTracing(routeName, inputCh, outputCh, nil, stepsInstances, stepNames, numWorkers, retryPolicy, tracingProvider)
@@ -357,7 +375,7 @@ func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 	[]SinkAdapter,
 	error,
 ) {
-	return BuildMultiRoutePipelineWithTracing(ctx, cfg, nil)
+	return BuildMultiRoutePipelineWithTracing(ctx, cfg, nil, nil)
 }
 
 // BuildMultiRoutePipelineWithTracing constructs an end-to-end pipeline with multiple independent routes (M0.5.1+).
@@ -367,9 +385,11 @@ func BuildMultiRoutePipeline(ctx context.Context, cfg *config.RouteConfig) (
 // Returns (generationManagers, router, sources, sinks, error)
 // M0.2.10: Updated to use GenerationManager for hot reload support (SIGHUP).
 // M0.5.1+: Added tracing support
+// M3.4+: Added multi-tenant isolation support
 // tracingProvider may be nil (no tracing).
+// tenantManager may be nil (no multi-tenant isolation); if provided, enables per-domain rate limiting and worker slot allocation (M3.4+).
 // Callers should manage the lifecycle of returned sources, sinks, managers, and router.
-func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteConfig, tracingProvider *observability.TracingProvider) (
+func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteConfig, tracingProvider *observability.TracingProvider, tenantManager *tenant.Manager) (
 	map[string]*engine.GenerationManager,
 	*MessageRouter,
 	[]SourceAdapter,
@@ -444,9 +464,28 @@ func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteCo
 			}
 		}
 
-		// Create executor with its own input channel and appropriate worker count (M0.5.1+: with tracing)
+		// Extract domain for multi-tenant isolation (M3.4+)
+		domain := routeSpec.Domain
+		var rateLimiter *tenant.MessageRateLimiter
+		var slotManager *tenant.WorkerSlotManager
+
+		// Create tenant limiters if tenant manager is provided (M3.4+)
+		if tenantManager != nil && domain != "" {
+			tenantCfg := tenantManager.GetTenant(domain)
+			rateLimiter = tenant.NewMessageRateLimiter(tenantManager)
+			slotManager = tenant.NewWorkerSlotManager(tenantManager)
+			log.Printf("[INFO] Route %q: tenant isolation enabled for domain %q (rate_limit=%d msg/sec, worker_slots=%d)", routeName, domain, tenantCfg.MessageRateLimit, tenantCfg.WorkerSlots)
+		}
+
+		// Create executor with its own input channel and appropriate worker count (M0.5.1+: with tracing, M3.4+: with tenant isolation)
 		executorInputCh := engine.NewChannel(fmt.Sprintf("router-to-executor-%s", routeName), 100)
-		executor := engine.NewExecutorWithTracing(routeName, executorInputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers, retryPolicy, tracingProvider)
+		var executor *engine.Executor
+		if rateLimiter != nil || slotManager != nil {
+			// Use tenant-aware executor
+			executor = engine.NewExecutorWithTenantLimiting(routeName, executorInputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers, retryPolicy, tracingProvider, rateLimiter, slotManager, domain)
+		} else {
+			executor = engine.NewExecutorWithTracing(routeName, executorInputCh, outputCh, errorCh, stepsInstances, stepNames, numWorkers, retryPolicy, tracingProvider)
+		}
 
 		// Wrap executor in a GenerationManager with concurrent-draining cap of 3
 		generationMgr := engine.NewGenerationManager(routeName, executor, routeSpec.RouteVersion, 3)
