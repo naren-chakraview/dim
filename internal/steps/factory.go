@@ -3,6 +3,7 @@ package steps
 import (
 	"fmt"
 
+	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
 	"github.com/naren-chakraview/dim/internal/cluster"
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
@@ -53,6 +54,12 @@ func BuildStepsFromSpec(stepSpecs []config.StepSpec, contractStore *config.Contr
 			stepTypeCount++
 		}
 		if spec.Contract != nil {
+			stepTypeCount++
+		}
+		if spec.ClaimCheck != nil {
+			stepTypeCount++
+		}
+		if spec.ClaimResolve != nil {
 			stepTypeCount++
 		}
 
@@ -139,6 +146,22 @@ func BuildStepsFromSpec(stepSpecs []config.StepSpec, contractStore *config.Contr
 				return nil, nil, fmt.Errorf("step %d (contract): %w", i, err)
 			}
 			stepNames = append(stepNames, "contract")
+		case spec.ClaimCheck != nil:
+			// Use in-memory claim check store for now (M3.2 - S3 backend coming next)
+			claimStore := claimcheck.NewInMemoryClaimCheckStore()
+			step, err = NewClaimCheckStep(spec.ClaimCheck, claimStore)
+			if err != nil {
+				return nil, nil, fmt.Errorf("step %d (claim_check): %w", i, err)
+			}
+			stepNames = append(stepNames, "claim_check")
+		case spec.ClaimResolve != nil:
+			// Use in-memory claim check store for now (M3.2 - S3 backend coming next)
+			claimStore := claimcheck.NewInMemoryClaimCheckStore()
+			step, err = NewClaimResolveStep(spec.ClaimResolve, claimStore)
+			if err != nil {
+				return nil, nil, fmt.Errorf("step %d (claim_resolve): %w", i, err)
+			}
+			stepNames = append(stepNames, "claim_resolve")
 		}
 
 		steps = append(steps, step)
