@@ -101,7 +101,9 @@ Run the docker-compose example for real: send the same `order_id` to two differe
 
 ### Required changes
 
-- [ ] **Wire `tenant.MessageRateLimiter` and `tenant.WorkerSlotManager` into the actual message-processing path** in `internal/engine`/`internal/factory` — keyed on the route's `domain:` label (already present per `data-mesh-feasibility-analysis.md` §4, per the M3.4.1 design doc). A message arriving for an over-quota domain should be rate-limited or queued for a worker slot at the point where `dimd` actually dispatches work, not just in a standalone demo's call graph.
+- [x] **Add domain field to RouteSpec** — Routes can now be labeled with a `domain:` field for tenant identification
+- [x] **Wire `tenant.MessageRateLimiter` and `tenant.WorkerSlotManager` into the executor** — `internal/engine/executor.go` now has tenant limiting support; messages exceeding rate limit or lacking worker slots are re-queued
+- [ ] **Wire tenant limiters through the factory** — `internal/factory/pipeline.go` needs to pass rate limiter and slot manager to executor creation based on route's domain
 - [ ] **Add the config surface** for setting per-domain quotas — route YAML, a separate tenant-config file, or both; document whichever you pick.
 - [ ] **Replace or supplement `examples/multitenant/main.go`** with a worked example that runs a real `dimd` instance handling two domains sharing routes, with one deliberately overloaded, and captures actual latency/throughput numbers for both domains (reuse the existing observability/metrics surface rather than building new instrumentation) — this is what the plan's exit criterion ("overloaded tenant doesn't measurably degrade another tenant's latency/throughput") actually requires; a library-only demo doesn't.
 
