@@ -159,19 +159,26 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	}
 	conn.Close()
 
-	// Step 2: Create a reader to trigger topic initialization
-	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:        []string{"localhost:9092"},
-		Topic:          testTopic,
-		Partition:      0,
-		StartOffset:    kafka.LastOffset,
-		MaxBytes:       1e6,
-		CommitInterval: time.Second,
-	})
-	defer reader.Close()
-
-	// Give topic time to initialize
-	time.Sleep(2 * time.Second)
+	// Step 2: Wait for topic to exist (kafka-init may still be running)
+	// Poll for up to 10 seconds for the topic to be created
+	topicFound := false
+	for attempt := 0; attempt < 20; attempt++ {
+		conn, err := kafka.Dial("tcp", "localhost:9092")
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		partitions, err := conn.ReadPartitions(testTopic)
+		conn.Close()
+		if err == nil && len(partitions) > 0 {
+			topicFound = true
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !topicFound {
+		t.Fatalf("topic %q was not created by kafka-init service", testTopic)
+	}
 
 	// Step 3: Produce a test message with retry
 	writer := &kafka.Writer{
