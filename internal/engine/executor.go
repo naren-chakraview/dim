@@ -446,6 +446,11 @@ func (e *Executor) GetInputChannel() *Channel {
 	return e.inputCh
 }
 
+// GetDomain returns the tenant domain for this executor (M3.4+)
+func (e *Executor) GetDomain() string {
+	return e.domain
+}
+
 // executeStepWithRetry executes a step with configurable retry logic.
 // On transient errors: retries with exponential backoff
 // On permanent errors: returns immediately (no retry)
