@@ -1,7 +1,7 @@
 # Declarative Integration Middleware — Design Document
 
-**Status:** Draft v10 — open for review
-**Date:** 2026-09-05
+**Status:** Draft v11 — open for review
+**Date:** 2026-09-09
 
 ## Revision history
 
@@ -10,11 +10,12 @@
 - **v3 (2026-09-01):** Resolved v2's four open questions (built-in OTEL viewer, both plugin and WASM function runtimes, fragment parameterization deferred, background-draining hot reload). Added Data lineage & DAG versioning (§10) and Authorization, plus two new tenets. Four new open questions posed.
 - **v4 (2026-09-01):** Resolved v3's four open questions (single-instance built-in viewer confirmed sufficient; lineage gets a durable embedded store with OpenLineage-based export; OPA confirmed as reference PDP with BYO explicitly supported; `auth:` declaration enforced as a warning during migration). Added Mermaid system, DAG, sequence, and state diagrams throughout. Four new open questions posed.
 - **v5 (2026-09-01):** Resolved v4's four open questions. Lineage storage stays per-instance-local, with an on-demand CSV/NDJSON export command covering cross-instance aggregation. Retention became a named, configurable policy system. The PDP contract specified as neutral and engine-agnostic, with OPA fronted by its own adapter. The `auth:` enforcement flip is purely an explicit, per-team opt-in flag. Four new open questions posed.
-- **v6 (2026-09-01):** Resolved v5's four open questions. The CSV/NDJSON export pairing confirmed as-is. Retention-policy assignment supports both static and dynamic (per-message) selection. Purge gets both an automatic background reaper and a manual `midctl lineage purge` trigger, both writing to an append-only purge evidence log. The neutral PDP contract committed to a formal, independently versioned spec, moved up to Phase 1. Four new open questions posed.
+- **v6 (2026-09-01):** Resolved v5's four open questions. The CSV/NDJSON export pairing confirmed as-is. Retention-policy assignment supports both static and dynamic (per-message) selection. Purge gets both an automatic background reaper and a manual `dimctl lineage purge` trigger, both writing to an append-only purge evidence log. The neutral PDP contract committed to a formal, independently versioned spec, moved up to Phase 1. Four new open questions posed.
 - **v7 (2026-09-01):** Resolved v6's four open questions. An unresolved dynamic retention policy fails open. The purge log stays a bounded long window, paired with a new expiry-warning mechanism. Subject-targeted purge confirmed, introducing `subject_id_expr` and a store-level subject index. Reaper cadence configurable per retention policy. Two new, narrower open questions posed. A standalone data mesh feasibility analysis was produced separately (not folded in), evaluating this design against the four data mesh principles — headline finding: strong operational fit, but no first-class **data contract** distinct from `route_version`, and no domain/namespace concept.
 - **v8 (2026-09-01):** Added **§11, Data contracts & schema conformance** — directly closing the feasibility analysis's largest gap. Contracts are provided inline (alongside config, no infrastructure required) or via a pluggable schema-registry contract, with **Apicurio Registry** (Apache 2.0) as the reference implementation and Confluent Schema Registry / commercial registries (AWS Glue, Azure, ...) supported as bring-your-own. Enforcement happens at source/sink boundaries with a new `contract_violation` failure classification. `contract_version` is tracked as an axis independent of `route_version` throughout lineage and dead-letter records. A new tenet 12 was added. Sections §11 onward renumbered accordingly. Four new open questions posed. The feasibility analysis's other two findings — the organizational/domain-namespace gap, and formalizing a data mesh reference use case — are addressed separately in a new companion document, `data-mesh-reference-architecture.md`, deliberately kept out of this core spec per how the request was scoped.
 - **v9 (2026-09-05):** Housekeeping fix, no open questions involved. §4's EIP mapping table still grouped Claim Check as "same phase as Splitter/Aggregator," left over from v2 when all three were deferred together as one undifferentiated bucket. §19's roadmap has since split them — Splitter and Aggregator went to Phase 2, Claim Check stayed in Phase 3 — and the table was never updated to match, an inconsistency the Phase 2→3 implementation review surfaced. The three rows now name their actual phase instead of cross-referencing each other's, matching §19 exactly.
-- **v10 (2026-09-05):** Added a **Phase 4 — self-service and visual tooling** entry to §19, folding in the not-yet-adopted proposals from `self-service-feasibility-study.md` (its GitOps pipeline, `midctl scaffold`, the pre-deployment discovery surface, domain-scoped secrets) alongside a local, file-based visual route-authoring interface per `visual-route-builder-feasibility-analysis.md`'s recommended scope — confirmed after review, not added speculatively. §1.1's non-goals bullet on UI-first authoring was clarified alongside it: the non-goal was always about config staying the source of truth and not becoming a separate system of record, not a blanket ban on any authoring tool whatsoever, and the original wording ("not a drag-and-drop route designer") read as the latter, which would have contradicted the new Phase 4 entry outright. No open questions posed; Phase 4 itself is not yet scoped to subtask grain — that's for whenever a round actually plans it, the same way Phase 0 through 3 each got their own implementation-plan document only once their turn came.
+- **v10 (2026-09-05):** Added a **Phase 4 — self-service and visual tooling** entry to §19, folding in the not-yet-adopted proposals from `self-service-feasibility-study.md` (its GitOps pipeline, `dimctl scaffold`, the pre-deployment discovery surface, domain-scoped secrets) alongside a local, file-based visual route-authoring interface per `visual-route-builder-feasibility-analysis.md`'s recommended scope — confirmed after review, not added speculatively. §1.1's non-goals bullet on UI-first authoring was clarified alongside it: the non-goal was always about config staying the source of truth and not becoming a separate system of record, not a blanket ban on any authoring tool whatsoever, and the original wording ("not a drag-and-drop route designer") read as the latter, which would have contradicted the new Phase 4 entry outright. No open questions posed; Phase 4 itself is not yet scoped to subtask grain — that's for whenever a round actually plans it, the same way Phase 0 through 3 each got their own implementation-plan document only once their turn came.
+- **v11 (2026-09-09):** Broadened Phase 4's scope (§19) to a third pillar — **AI-agent consumability** (coding, architectural, and design-assistant agents) — alongside self-service and visual tooling, per direct instruction rather than a preceding feasibility study the way the other two pillars each got one; the design reasoning for this pillar is folded into the new `phase-4-implementation-plan.md` itself rather than a standalone companion document. §1.1's non-goals bullet is extended to state explicitly that an agent operates through the same declarative surface and the same PR-gated review path as a human author (per `self-service-feasibility-study.md` §4) — never a parallel API, never a special trust tier, never a bypass around validation/contract/authorization enforcement (§6.3, §11, §13). No open questions posed.
 
 ## 1. Purpose and scope
 
@@ -31,7 +32,7 @@ It sits in the same conceptual space as Apache Camel, Apache NiFi, Benthos/Redpa
 
 - Not a general-purpose workflow orchestrator (Airflow/Temporal territory).
 - Not a BPM/ESB suite with a process modeler.
-- Not UI-first for *authoring* — config stays the source of truth (§2), and any authoring tool must operate on that same config rather than become a separate system of record. The visualization surfaces in §9 are read-only observability tools. A local, file-based visual route-authoring tool — generating and re-parsing the same route YAML `midctl validate`/`midctl test` already operate on, not a parallel format — is Phase 4 scope (§19); a hosted, multi-user design surface that becomes its own system of record is not, since that would undermine tenet 1 rather than serve it.
+- Not UI-first for *authoring* — config stays the source of truth (§2), and any authoring tool must operate on that same config rather than become a separate system of record. The visualization surfaces in §9 are read-only observability tools. A local, file-based visual route-authoring tool — generating and re-parsing the same route YAML `dimctl validate`/`dimctl test` already operate on, not a parallel format — is Phase 4 scope (§19); a hosted, multi-user design surface that becomes its own system of record is not, since that would undermine tenet 1 rather than serve it. The same principle governs AI-agent access, also Phase 4 scope (§19): a coding, architectural, or design-assistant agent operates through the same declarative surface a human does — the published schema (§6.3), `dimctl validate`/`dimctl test`, and the same PR-gated review path (`self-service-feasibility-study.md` §4) — never a parallel API carrying elevated trust or a bypass around review and enforcement. An agent can validate, test, scaffold, and query; it does not get a direct-to-production deployment path a human author wouldn't also have.
 - No transactional/exactly-once delivery mode. At-least-once delivery plus optional idempotent-consumer dedup is the whole reliability promise (§7.4).
 - Not an identity provider, policy engine, data-catalog product, or schema registry. Authorization (§13), lineage (§10), and contract conformance (§11) are enforced/recorded by the middleware at defined points, but authentication, policy decisions, long-term cataloging, and schema storage/compatibility rules are delegated to external systems the middleware integrates with via standard, formally specified contracts (OIDC/OAuth for identity, a versioned neutral PDP spec, OpenLineage for catalogs, a neutral registry contract with Apicurio as the reference) — consistent with the "compose, don't build" approach already taken for observability.
 
@@ -279,16 +280,16 @@ Fragments are literal, unparameterized reuse in this phase (confirmed deferred, 
 
 ### 6.3 Validation
 
-The route config format is a versioned JSON Schema, validated post-`imports`-resolution. `midctl validate <file>` runs it in CI; a `$schema` reference gives IDEs inline validation. The schema requires an `error_path` (inherited or explicit, §7.1). It also checks for the `auth:` declaration (§13.5), but a missing one is a **warning**, not a hard failure, by default:
+The route config format is a versioned JSON Schema, validated post-`imports`-resolution. `dimctl validate <file>` runs it in CI; a `$schema` reference gives IDEs inline validation. The schema requires an `error_path` (inherited or explicit, §7.1). It also checks for the `auth:` declaration (§13.5), but a missing one is a **warning**, not a hard failure, by default:
 
 ```
-$ midctl validate order-processing.yaml
+$ dimctl validate order-processing.yaml
 WARN  route "ingest-orders": no `auth:` declaration (warning-level under the
       current validation.auth_declaration setting; set it to `enforce` when
       your team is ready — see §13.5)
 ```
 
-`midctl validate --strict`, or setting `validation.auth_declaration: enforce` in the engine's own config, opts a team into the hard-failure behavior on their own schedule (§13.5) — there is no engine-driven default change over time.
+`dimctl validate --strict`, or setting `validation.auth_declaration: enforce` in the engine's own config, opts a team into the hard-failure behavior on their own schedule (§13.5) — there is no engine-driven default change over time.
 
 ## 7. Reliability model
 
@@ -303,7 +304,7 @@ Every route has an `error_path`: a dead-letter `target` sink plus a `retry` poli
 ### 7.3 Replay
 
 ```
-midctl replay --from dlq:orders-dlq --to orders-in --filter 'error_type == "timeout"'
+dimctl replay --from dlq:orders-dlq --to orders-in --filter 'error_type == "timeout"'
 ```
 
 For durable sources exposing offsets, replay can also mean rewinding the source's committed position.
@@ -342,7 +343,7 @@ Every message gets a correlation ID at ingest, carried as OTel trace context; ea
 
 ### 9.3 Live pipeline visualization — two tiers
 
-**Tier 1 — built-in, zero-dependency viewer.** Bundled and opt-in (`midctl serve viewer`). Taps the engine's own span/metric stream into a bounded in-memory ring buffer; serves a small web UI with a live-updating node graph of the route topology and a per-message lookup by correlation ID. Single-instance scope, confirmed sufficient.
+**Tier 1 — built-in, zero-dependency viewer.** Bundled and opt-in (`dimctl serve viewer`). Taps the engine's own span/metric stream into a bounded in-memory ring buffer; serves a small web UI with a live-updating node graph of the route topology and a per-message lookup by correlation ID. Single-instance scope, confirmed sufficient.
 
 ```mermaid
 flowchart LR
@@ -355,8 +356,8 @@ flowchart LR
 
 ### 9.4 Local dev debugging
 
-- `midctl explain <route>` — static compiled DAG as Graphviz DOT / ASCII.
-- `midctl trace tail <route> [--stage <name>]` — live sampled message metadata to the terminal.
+- `dimctl explain <route>` — static compiled DAG as Graphviz DOT / ASCII.
+- `dimctl trace tail <route> [--stage <name>]` — live sampled message metadata to the terminal.
 - `wiretap` pointed at a local file sink for ad hoc inspection.
 
 ### 9.5 Logs
@@ -403,8 +404,8 @@ Both **static** and **dynamic** assignment are supported, with static preferred 
 ### 10.3 On-demand export (CSV / NDJSON)
 
 ```
-midctl lineage export --route card-payments --since 2026-08-01 --format csv    > card-payments-lineage.csv
-midctl lineage export --route card-payments --since 2026-08-01 --format ndjson > card-payments-lineage.ndjson
+dimctl lineage export --route card-payments --since 2026-08-01 --format csv    > card-payments-lineage.csv
+dimctl lineage export --route card-payments --since 2026-08-01 --format ndjson > card-payments-lineage.ndjson
 ```
 
 CSV and NDJSON side by side: CSV for the direct "hand this to an auditor" case, NDJSON for records whose nested structure doesn't flatten cleanly into columns. Aggregating exports across a fleet of instances is an external concern, consistent with the store staying per-instance by design.
@@ -414,12 +415,12 @@ CSV and NDJSON side by side: CSV for the direct "hand this to an auditor" case, 
 A retention policy is only real if something actually deletes data at the end of its window and can prove it did (tenet 11). Two required, complementary mechanisms:
 
 - **Automatic reaper.** Each instance runs a background job that scans its local store for lineage records past their assigned policy's `retention` window and deletes them. Cadence is configurable per retention policy, not just globally.
-- **Manual/triggered purge.** `midctl lineage purge`, including subject targeting for right-to-erasure requests:
+- **Manual/triggered purge.** `dimctl lineage purge`, including subject targeting for right-to-erasure requests:
 
 ```
-midctl lineage purge --route card-payments --before 2020-01-01
-midctl lineage purge --route card-payments --policy pci --reason "right-to-erasure request #4821"
-midctl lineage purge --subject cust-48213 --reason "right-to-erasure request #4821"
+dimctl lineage purge --route card-payments --before 2020-01-01
+dimctl lineage purge --route card-payments --policy pci --reason "right-to-erasure request #4821"
+dimctl lineage purge --subject cust-48213 --reason "right-to-erasure request #4821"
 ```
 
 Every purge writes to an **append-only purge evidence log**, distinct from the lineage data being deleted, recording only what's needed to prove the deletion happened (route, policy, subject when subject-scoped, record count, criteria, timestamp, trigger) — never the deleted content itself.
@@ -437,7 +438,7 @@ lineage:
     pci:     { retention: 7y,  include_body_sample: false, reaper_interval: 24h }
 ```
 
-The purge log's own retention is a bounded long window, not "indefinite," paired with an expiry warning (metric, log, `midctl lineage purge-log status`) as entries approach their own retention boundary, so evidence is never lost silently.
+The purge log's own retention is a bounded long window, not "indefinite," paired with an expiry warning (metric, log, `dimctl lineage purge-log status`) as entries approach their own retention boundary, so evidence is never lost silently.
 
 ### 10.5 Long-term integration: OpenLineage export
 
@@ -455,7 +456,7 @@ Sink adapters can optionally stamp outgoing headers (`x-mid-route`, `x-mid-route
 
 ### 10.7 Provenance query
 
-`midctl provenance <correlation-id>` reconstructs a message's full lineage — source, `route_version`, `contract_version` where applicable, each step and `function.*.version` invoked, any `authorize` decision and policy version, final sink(s) or dead-letter/denial/violation outcome — reading from the local embedded store, with a fall-through to the trace backend for full per-hop span detail while it's still within its own retention window.
+`dimctl provenance <correlation-id>` reconstructs a message's full lineage — source, `route_version`, `contract_version` where applicable, each step and `function.*.version` invoked, any `authorize` decision and policy version, final sink(s) or dead-letter/denial/violation outcome — reading from the local embedded store, with a fall-through to the trace backend for full per-hop span detail while it's still within its own retention window.
 
 ```mermaid
 flowchart LR
@@ -463,14 +464,14 @@ flowchart LR
     MSG --> EVT["Lineage event -- route_version, contract_version, function versions, authz decision, outcome"]
     SPAN --> TRC["Tempo / Jaeger"]
     EVT --> LDB["Embedded lineage store, per instance, policy-driven retention"]
-    LDB --> PROV["midctl provenance -- in-product query"]
-    LDB --> CSV["midctl lineage export -- CSV / NDJSON, on demand"]
+    LDB --> PROV["dimctl provenance -- in-product query"]
+    LDB --> CSV["dimctl lineage export -- CSV / NDJSON, on demand"]
     LDB --> OLEXP["OpenLineage event export -- optional, continuous"]
     OLEXP --> MARQ["Marquez -- OSS reference catalog"]
     OLEXP --> COMM["Commercial catalog -- Collibra, Atlan, Purview, ..."]
     REAPER["Automatic reaper"] --> LDB
     REAPER --> PLOG["Purge evidence log -- own, longer retention"]
-    MANUAL["midctl lineage purge"] --> LDB
+    MANUAL["dimctl lineage purge"] --> LDB
     MANUAL --> PLOG
 ```
 
@@ -537,11 +538,11 @@ Compatibility rules (backward/forward/full evolution) are deliberately **not rei
 
 ### 11.4 Two independent version axes
 
-A message's lineage event and dead-letter envelope (§7.2, §10.2) now carry **both** `route_version` (which compiled DAG, and therefore which transformation logic, processed the message) **and** `contract_version` (which version of the source's or sink's declared schema the message was checked against) as separate fields. They change independently: a `translate` step can be edited (new `route_version`) without the sink's published contract changing at all, and a sink's contract can gain a new optional field (new `contract_version`, registry-permitting under its compatibility mode) without anyone touching the route's steps. `midctl provenance` (§10.7) surfaces both, so "what logic touched this" and "what shape was this data supposed to be" are always answerable separately.
+A message's lineage event and dead-letter envelope (§7.2, §10.2) now carry **both** `route_version` (which compiled DAG, and therefore which transformation logic, processed the message) **and** `contract_version` (which version of the source's or sink's declared schema the message was checked against) as separate fields. They change independently: a `translate` step can be edited (new `route_version`) without the sink's published contract changing at all, and a sink's contract can gain a new optional field (new `contract_version`, registry-permitting under its compatibility mode) without anyone touching the route's steps. `dimctl provenance` (§10.7) surfaces both, so "what logic touched this" and "what shape was this data supposed to be" are always answerable separately.
 
 ### 11.5 Static conformance checking: real, but limited
 
-Where a `translate` step's JSONata is a simple, statically analyzable object construction — the same subset already identified as capable of producing column-lineage facets automatically (§10.5) — `midctl validate` can opportunistically check the constructed shape against the target sink's declared contract at config-validation time, catching some mistakes before deployment rather than only at runtime. This is explicitly a best-effort, partial check: JSONata can be arbitrarily dynamic, and most real transformations will fall outside what can be checked without executing them. The runtime `enforce: true` check (§11.2) is the actual guarantee; the static check is a convenience on top of it, not a substitute — whether it's worth shipping given the false-confidence risk of a partial check is an open question (§18.3).
+Where a `translate` step's JSONata is a simple, statically analyzable object construction — the same subset already identified as capable of producing column-lineage facets automatically (§10.5) — `dimctl validate` can opportunistically check the constructed shape against the target sink's declared contract at config-validation time, catching some mistakes before deployment rather than only at runtime. This is explicitly a best-effort, partial check: JSONata can be arbitrarily dynamic, and most real transformations will fall outside what can be checked without executing them. The runtime `enforce: true` check (§11.2) is the actual guarantee; the static check is a convenience on top of it, not a substitute — whether it's worth shipping given the false-confidence risk of a partial check is an open question (§18.3).
 
 ### 11.6 Reinforcing OpenLineage discoverability
 
@@ -667,7 +668,7 @@ Token exchange happens per send, not once at ingest, with a short-lived cache ke
 
 ### 13.5 Declaration is mandatory; enforcement is an explicit, per-team opt-in
 
-Per tenet 9, a route must declare either `auth: none` or carry at least one `authorize` step — there is no silent default. The declaration is validated at the **warning** level by default, and the *only* way it becomes a hard failure is a team explicitly setting `validation.auth_declaration: enforce` (or `midctl validate --strict`) for itself — no engine-driven timeline, version bump, or coverage threshold flips it automatically.
+Per tenet 9, a route must declare either `auth: none` or carry at least one `authorize` step — there is no silent default. The declaration is validated at the **warning** level by default, and the *only* way it becomes a hard failure is a team explicitly setting `validation.auth_declaration: enforce` (or `dimctl validate --strict`) for itself — no engine-driven timeline, version bump, or coverage threshold flips it automatically.
 
 ## 14. Deployment and scaling model
 
@@ -743,7 +744,7 @@ cases:
       orders-dlq: [{ error_type: "contract_violation" }]
 ```
 
-Run via `midctl test`; adapters, the PDP (for `pbac` steps), and the schema registry (for registry-backed contracts) are mocked/stubbed.
+Run via `dimctl test`; adapters, the PDP (for `pbac` steps), and the schema registry (for registry-backed contracts) are mocked/stubbed.
 
 ## 16. Full example: imports, functions, authorization, contracts, wire tap, dead-letter
 
@@ -885,16 +886,21 @@ sequenceDiagram
 
 1. **`subject_id` derivation: automatic vs. always-explicit.** Should the engine infer a sensible default automatically (`principal.subject` when present), with an explicit expression only needed when the subject differs from the caller, or should every route with a retention policy be required to set `subject_id_expr` explicitly?
 2. **Purge-log expiry warning: alert-only vs. auto-export.** Is alerting sufficient, leaving an operator to decide whether and how to archive, or should the engine automatically export expiring entries ahead of deletion?
-3. **Static contract conformance checking.** §11.5's `midctl validate`-time check is real but necessarily partial (only statically-analyzable `translate` expressions can be checked at all). Is a best-effort partial check worth shipping, or does its false-confidence risk (it can say nothing about most real transformations) outweigh the value of catching the easy cases?
+3. **Static contract conformance checking.** §11.5's `dimctl validate`-time check is real but necessarily partial (only statically-analyzable `translate` expressions can be checked at all). Is a best-effort partial check worth shipping, or does its false-confidence risk (it can say nothing about most real transformations) outweigh the value of catching the easy cases?
 4. **The `subject` naming collision.** §11.3's schema-registry `subject` and §10.2's privacy-oriented `subject_id` are unrelated concepts sharing a word. Rename the schema-registry key (e.g. to `schema_subject`) to remove the ambiguity outright, or is the fact that they live under different config blocks (`contract:` vs. `lineage:`) sufficient disambiguation in practice?
 
 ## 19. Proposed phased roadmap (post-design-freeze)
 
-- **Phase 0 — core engine, v1 reliability, observability, lineage, contracts, and authorization baseline.** In-memory channels; HTTP + file/SFTP adapters; `filter` / `translate` / `route` / `wiretap` / `idempotent` / `authorize` (RBAC + ABAC) steps on JSONata plus the `functions` registry (plugin and WASM); dead-letter + retry; principal propagation from the HTTP adapter; mandatory `auth:`/`error_path` schema validation (warning-level for `auth:`, opt-in `enforce`, §13.5); `imports`/`fragments`; drain-with-background-stragglers hot reload (§14.1); `route_version` stamping; **inline data contracts with `enforce`/`on_violation` and the `contract_violation` failure classification, plus `contract_version` tagging on lineage and dead-letter records (§11.1, §11.2, §11.4)**; the per-instance embedded lineage store with static and dynamic retention-policy assignment and `subject_id` indexing (§10.2); the automatic reaper with per-policy cadence, manual `midctl lineage purge` including subject targeting, and the purge evidence log with its expiry-warning mechanism (§10.4); `midctl lineage export` (§10.3); CLI runner + route tests; Prometheus metrics, OTel tracing, the built-in Tier 1 viewer, a shipped example Grafana Tier 2 dashboard; `midctl explain` / `midctl trace tail` / `midctl provenance`.
+- **Phase 0 — core engine, v1 reliability, observability, lineage, contracts, and authorization baseline.** In-memory channels; HTTP + file/SFTP adapters; `filter` / `translate` / `route` / `wiretap` / `idempotent` / `authorize` (RBAC + ABAC) steps on JSONata plus the `functions` registry (plugin and WASM); dead-letter + retry; principal propagation from the HTTP adapter; mandatory `auth:`/`error_path` schema validation (warning-level for `auth:`, opt-in `enforce`, §13.5); `imports`/`fragments`; drain-with-background-stragglers hot reload (§14.1); `route_version` stamping; **inline data contracts with `enforce`/`on_violation` and the `contract_violation` failure classification, plus `contract_version` tagging on lineage and dead-letter records (§11.1, §11.2, §11.4)**; the per-instance embedded lineage store with static and dynamic retention-policy assignment and `subject_id` indexing (§10.2); the automatic reaper with per-policy cadence, manual `dimctl lineage purge` including subject targeting, and the purge evidence log with its expiry-warning mechanism (§10.4); `dimctl lineage export` (§10.3); CLI runner + route tests; Prometheus metrics, OTel tracing, the built-in Tier 1 viewer, a shipped example Grafana Tier 2 dashboard; `dimctl explain` / `dimctl trace tail` / `dimctl provenance`.
 - **Phase 1 — ecosystem breadth.** Kafka and AMQP adapters, replay tooling, additional secret providers, additional idempotent-store backends, PBAC mode with the OPA reference adapter, the formally versioned PDP contract spec published alongside it (§13.3), OBO token exchange, OpenLineage export with Marquez as the validated first target including `SchemaDatasetFacet` publication (§10.5, §11.6), **and schema-registry-backed contracts with the Apicurio reference adapter, plus BYO support for Confluent/commercial registries (§11.3)**.
 - **Phase 2 — advanced EIPs and lineage refinement.** `aggregate` / `split`, database (JDBC, then CDC) adapters, fragment parameterization, auto-export-on-expiry-warning if §18.2 confirms it's needed, static contract conformance checking if §18.3 confirms it's worth shipping, authorization obligations/redaction.
 - **Phase 3 — scale-out.** Distributed/clustered mode, claim check, formal third-party plugin SDK, multi-tenant policy isolation.
-- **Phase 4 — self-service and visual tooling.** A GitOps deployment pipeline wiring the guardrails that already exist rather than building new ones (`self-service-feasibility-study.md`'s §4, that document's own highest-leverage recommendation); a `midctl scaffold` command for a starter data-product layout (`self-service-feasibility-study.md`'s §5.1); a pre-deployment discovery surface over the existing registry/catalog (`self-service-feasibility-study.md`'s §5.2); domain-scoped secrets (`self-service-feasibility-study.md`'s §5.3); and a local, file-based visual route-authoring interface that generates and re-parses the same route YAML, reusing `midctl validate`/`midctl test` rather than becoming a hosted or multi-user design surface (`visual-route-builder-feasibility-analysis.md`, confirmed after review — see §1.1). A control-plane API and multi-tenant runtime isolation remain explicitly out of this phase too: the former stays deferred past any named phase per `self-service-feasibility-study.md`'s own §6, and the latter is already Phase 3's to solve, not duplicated here.
+- **Phase 4 — self-service, visual tooling, and AI-agent consumability.** Three pillars:
+  - *Self-service:* a GitOps deployment pipeline wiring the guardrails that already exist rather than building new ones (`self-service-feasibility-study.md`'s §4, that document's own highest-leverage recommendation); a `dimctl scaffold` command for a starter data-product layout (`self-service-feasibility-study.md`'s §5.1); a pre-deployment discovery surface over the existing registry/catalog (`self-service-feasibility-study.md`'s §5.2); domain-scoped secrets (`self-service-feasibility-study.md`'s §5.3).
+  - *Visual tooling:* a local, file-based visual route-authoring interface that generates and re-parses the same route YAML, reusing `dimctl validate`/`dimctl test` rather than becoming a hosted or multi-user design surface (`visual-route-builder-feasibility-analysis.md`, confirmed after review — see §1.1).
+  - *AI-agent consumability:* the same declarative surface exposed as a published, versioned agent-facing interface wrapping `dimctl validate`/`test`/`scaffold`/lineage export/provenance — not a parallel API, not a bypass around enforcement (§1.1) — so a coding agent can build and verify routes programmatically; a machine-readable capability manifest (adapters, step types, EIP catalog, config schemas) generated from `schemas/route.schema.json` rather than hand-maintained separately, for an architectural agent reasoning about what's buildable; agent-assisted route design building on the scaffold command above and, where present, the visual tool; and structured lineage/impact-analysis queries over the existing per-instance store (§10) so an architectural agent can answer "what's affected if I change this" without a human reading a dashboard. Agent-authored or agent-modified config is validated, tested, and enforced identically to human-authored config (§6.3, §11, §13) — no separate trust tier, and deployment still goes through the same PR-gated path §4 of `self-service-feasibility-study.md` establishes for humans, not a direct-to-production shortcut.
+
+  A control-plane API and multi-tenant runtime isolation remain explicitly out of this phase: the former stays deferred past any named phase per `self-service-feasibility-study.md`'s own §6, and the latter is already Phase 3's to solve, not duplicated here. Full breakdown, sequencing, and exit criteria in `phase-4-implementation-plan.md`.
 
 Language/runtime selection remains deferred until this design is settled.
 
