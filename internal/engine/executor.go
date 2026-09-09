@@ -280,125 +280,132 @@ func (e *Executor) worker(ctx context.Context, workerID int, wg *sync.WaitGroup)
 			return
 		}
 
-		// Increment in-flight counter
-		atomic.AddInt32(&e.inFlightCount, 1)
+		// Process message within a closure so defers execute per-iteration, not per-function
+		e.processMessageIteration(ctx, workerID, msg)
+	}
+}
 
-		// Apply tenant rate limiting (M3.4+)
-		if e.rateLimiter != nil {
-			allowed, rate := e.rateLimiter.AllowMessage(e.domain)
-			if !allowed {
-				log.Printf("[DEBUG] Executor %q domain %q rate limited (current: %.2f msgs/sec)", e.name, e.domain, rate)
-				// Decrement in-flight for re-queued message
-				atomic.AddInt32(&e.inFlightCount, -1)
-				// Re-queue message for later processing
-				if err := e.inputCh.Send(ctx, msg); err != nil {
-					log.Printf("[ERROR] Executor %q failed to re-queue rate-limited message: %v", e.name, err)
-					continue
-				}
-				continue
+// processMessageIteration processes a single message with proper defer handling.
+// Defers in this function execute after each message, not when worker() returns.
+func (e *Executor) processMessageIteration(ctx context.Context, workerID int, msg *Message) {
+	// Increment in-flight counter
+	atomic.AddInt32(&e.inFlightCount, 1)
+
+	// Apply tenant rate limiting (M3.4+)
+	if e.rateLimiter != nil {
+		allowed, rate := e.rateLimiter.AllowMessage(e.domain)
+		if !allowed {
+			log.Printf("[DEBUG] Executor %q domain %q rate limited (current: %.2f msgs/sec)", e.name, e.domain, rate)
+			// Decrement in-flight for re-queued message
+			atomic.AddInt32(&e.inFlightCount, -1)
+			// Re-queue message for later processing
+			if err := e.inputCh.Send(ctx, msg); err != nil {
+				log.Printf("[ERROR] Executor %q failed to re-queue rate-limited message: %v", e.name, err)
+				return
 			}
-		}
-
-		// Acquire worker slot for domain (M3.4+)
-		slotAcquired := true
-		if e.slotManager != nil {
-			slotAcquired = e.slotManager.AcquireSlot(e.domain)
-			if !slotAcquired {
-				log.Printf("[DEBUG] Executor %q domain %q no available worker slots, queueing", e.name, e.domain)
-				// Decrement in-flight for re-queued message
-				atomic.AddInt32(&e.inFlightCount, -1)
-				// Re-queue message for later processing
-				if err := e.inputCh.Send(ctx, msg); err != nil {
-					log.Printf("[ERROR] Executor %q failed to re-queue message waiting for slot: %v", e.name, err)
-					continue
-				}
-				continue
-			}
-		}
-
-		// Release slot when done (M3.4+)
-		defer func() {
-			if slotAcquired && e.slotManager != nil {
-				e.slotManager.ReleaseSlot(e.domain)
-			}
-		}()
-
-		// Defer decrement of in-flight counter for actually-processed messages
-		defer atomic.AddInt32(&e.inFlightCount, -1)
-
-		// Start message processing span for tracing
-		var msgSpan *observability.Span
-		if e.tracingProvider != nil {
-			principal := convertPrincipal(msg.Metadata.Principal)
-			ctx, msgSpan = e.tracingProvider.StartMessageSpan(
-				ctx,
-				msg.Metadata.Route,
-				msg.Metadata.RouteVersion,
-				msg.Metadata.CorrelationID,
-				msg.Metadata.ContractVersion,
-				principal,
-			)
-		}
-
-		// Process the message through all steps
-		result, procErr, failedStepIndex := e.processMessageWithErrorTracking(ctx, msg)
-
-		// Close message span with appropriate status
-		if msgSpan != nil {
-			e.tracingProvider.RecordMessageComplete(msgSpan, procErr == nil && result != nil, procErr)
-		}
-
-		// Handle errors
-		if procErr != nil {
-			// If we have an error channel, send a dead-letter envelope
-			if e.errorCh != nil {
-				stepType := "unknown"
-				if failedStepIndex >= 0 && failedStepIndex < len(e.stepNames) {
-					stepType = e.stepNames[failedStepIndex]
-				}
-
-				// Extract retry attempt count and original error
-				retryAttempt := 0
-				actualErr := procErr
-				if see, ok := procErr.(*stepExecutionError); ok {
-					retryAttempt = see.retryAttempt
-					actualErr = see.originalError
-				}
-
-				envelope := NewDeadLetterEnvelopeWithRetryAttempt(msg, actualErr, failedStepIndex, stepType, retryAttempt)
-				// Wrap envelope in a Message for the channel
-				envelopeMsg := &Message{
-					Headers: make(map[string]interface{}),
-					Body:    envelope,
-					Metadata: Metadata{
-						CorrelationID:   msg.Metadata.CorrelationID,
-						IngestedAt:      msg.Metadata.IngestedAt,
-						Route:           msg.Metadata.Route,
-						RouteVersion:    msg.Metadata.RouteVersion,
-						ContractVersion: msg.Metadata.ContractVersion,
-						Stage:           "error_path",
-						Principal:       msg.Metadata.Principal,
-					},
-				}
-
-				if sendErr := e.errorCh.Send(ctx, envelopeMsg); sendErr != nil {
-					log.Printf("[DEBUG] Executor %q worker %d error send failed: %v", e.name, workerID, sendErr)
-					return
-				}
-			}
-			continue
-		}
-
-		// If a step returned nil (e.g., filter rejection), don't send to output
-		if result == nil {
-			continue
-		}
-
-		// Send successful result to output
-		if err := e.outputCh.Send(ctx, result); err != nil {
-			log.Printf("[DEBUG] Executor %q worker %d output send failed: %v", e.name, workerID, err)
 			return
 		}
+	}
+
+	// Acquire worker slot for domain (M3.4+)
+	slotAcquired := true
+	if e.slotManager != nil {
+		slotAcquired = e.slotManager.AcquireSlot(e.domain)
+		if !slotAcquired {
+			log.Printf("[DEBUG] Executor %q domain %q no available worker slots, queueing", e.name, e.domain)
+			// Decrement in-flight for re-queued message
+			atomic.AddInt32(&e.inFlightCount, -1)
+			// Re-queue message for later processing
+			if err := e.inputCh.Send(ctx, msg); err != nil {
+				log.Printf("[ERROR] Executor %q failed to re-queue message waiting for slot: %v", e.name, err)
+				return
+			}
+			return
+		}
+	}
+
+	// Release slot when done (M3.4+)
+	defer func() {
+		if slotAcquired && e.slotManager != nil {
+			e.slotManager.ReleaseSlot(e.domain)
+		}
+	}()
+
+	// Defer decrement of in-flight counter
+	defer atomic.AddInt32(&e.inFlightCount, -1)
+
+	// Start message processing span for tracing
+	var msgSpan *observability.Span
+	if e.tracingProvider != nil {
+		principal := convertPrincipal(msg.Metadata.Principal)
+		ctx, msgSpan = e.tracingProvider.StartMessageSpan(
+			ctx,
+			msg.Metadata.Route,
+			msg.Metadata.RouteVersion,
+			msg.Metadata.CorrelationID,
+			msg.Metadata.ContractVersion,
+			principal,
+		)
+	}
+
+	// Process the message through all steps
+	result, procErr, failedStepIndex := e.processMessageWithErrorTracking(ctx, msg)
+
+	// Close message span with appropriate status
+	if msgSpan != nil {
+		e.tracingProvider.RecordMessageComplete(msgSpan, procErr == nil && result != nil, procErr)
+	}
+
+	// Handle errors
+	if procErr != nil {
+		// If we have an error channel, send a dead-letter envelope
+		if e.errorCh != nil {
+			stepType := "unknown"
+			if failedStepIndex >= 0 && failedStepIndex < len(e.stepNames) {
+				stepType = e.stepNames[failedStepIndex]
+			}
+
+			// Extract retry attempt count and original error
+			retryAttempt := 0
+			actualErr := procErr
+			if see, ok := procErr.(*stepExecutionError); ok {
+				retryAttempt = see.retryAttempt
+				actualErr = see.originalError
+			}
+
+			envelope := NewDeadLetterEnvelopeWithRetryAttempt(msg, actualErr, failedStepIndex, stepType, retryAttempt)
+			// Wrap envelope in a Message for the channel
+			envelopeMsg := &Message{
+				Headers: make(map[string]interface{}),
+				Body:    envelope,
+				Metadata: Metadata{
+					CorrelationID:   msg.Metadata.CorrelationID,
+					IngestedAt:      msg.Metadata.IngestedAt,
+					Route:           msg.Metadata.Route,
+					RouteVersion:    msg.Metadata.RouteVersion,
+					ContractVersion: msg.Metadata.ContractVersion,
+					Stage:           "error_path",
+					Principal:       msg.Metadata.Principal,
+				},
+			}
+
+			if sendErr := e.errorCh.Send(ctx, envelopeMsg); sendErr != nil {
+				log.Printf("[DEBUG] Executor %q worker %d error send failed: %v", e.name, workerID, sendErr)
+				return
+			}
+		}
+		return
+	}
+
+	// If a step returned nil (e.g., filter rejection), don't send to output
+	if result == nil {
+		return
+	}
+
+	// Send successful result to output
+	if err := e.outputCh.Send(ctx, result); err != nil {
+		log.Printf("[DEBUG] Executor %q worker %d output send failed: %v", e.name, workerID, err)
+		return
 	}
 }
 
