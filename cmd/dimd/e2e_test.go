@@ -3,15 +3,18 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"net"
-	"net/http"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
 	_ "github.com/lib/pq"
 	"github.com/segmentio/kafka-go"
 )
@@ -103,7 +106,7 @@ func waitForPostgres(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			conn, err := net.DialTimeout("tcp", "localhost:5432", 2*time.Second)
+			conn, err := net.DialTimeout("tcp", "localhost:5433", 2*time.Second)
 			if err != nil {
 				continue
 			}
@@ -128,87 +131,162 @@ func dialWithRetry(addr string, retries int) error {
 	return fmt.Errorf("failed to dial after %d retries", retries)
 }
 
-// TestKafkaAdapterRoundTrip tests Kafka adapter connectivity and message wire protocol
+// TestKafkaAdapterRoundTrip tests Kafka adapter connectivity and wire protocol
 func TestKafkaAdapterRoundTrip(t *testing.T) {
-	// Verify Kafka broker is operational by fetching metadata
+	// Test Kafka adapter via actual produce/consume operations
+	// Uses a well-known topic that should exist or be created
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	testTopic := "e2e-test-messages"
+	testMessage := []byte(`{"order_id": "test-123", "amount": 99.99}`)
+
+	// Step 1: Verify broker connectivity by fetching metadata
 	conn, err := kafka.Dial("tcp", "localhost:9092")
 	if err != nil {
 		t.Fatalf("failed to dial kafka broker: %v", err)
 	}
-	defer conn.Close()
-
-	// Get broker metadata to verify broker is ready and can serve requests
 	brokers, err := conn.Brokers()
 	if err != nil {
+		conn.Close()
 		t.Fatalf("failed to fetch brokers: %v", err)
 	}
 	if len(brokers) == 0 {
+		conn.Close()
 		t.Fatalf("no brokers available")
 	}
+	conn.Close()
 
-	// Fetch controller info to verify broker leadership
-	controller, err := conn.Controller()
-	if err != nil {
-		t.Fatalf("failed to fetch controller: %v", err)
+	// Step 2: Wait for topic to exist (kafka-init may still be running)
+	// Poll for up to 10 seconds for the topic to be created
+	topicFound := false
+	for attempt := 0; attempt < 20; attempt++ {
+		conn, err := kafka.Dial("tcp", "localhost:9092")
+		if err != nil {
+			time.Sleep(500 * time.Millisecond)
+			continue
+		}
+		partitions, err := conn.ReadPartitions(testTopic)
+		conn.Close()
+		if err == nil && len(partitions) > 0 {
+			topicFound = true
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if !topicFound {
+		t.Fatalf("topic %q was not created by kafka-init service", testTopic)
 	}
 
-	// Get metadata for partitions (verifies wire protocol and broker connectivity)
-	partitions, err := conn.ReadPartitions()
-	if err != nil {
-		// Partitions may be empty initially, that's OK - we're just testing connectivity
-		t.Logf("ReadPartitions returned (may be empty initially): %v", err)
-	} else if len(partitions) > 0 {
-		t.Logf("Found %d partitions across topics", len(partitions))
+	// Step 3: Produce a test message with retry
+	writer := &kafka.Writer{
+		Addr:     kafka.TCP("localhost:9092"),
+		Topic:    testTopic,
+		Balancer: &kafka.LeastBytes{},
+	}
+	defer writer.Close()
+
+	var writeErr error
+	for attempt := 0; attempt < 20; attempt++ {
+		writeErr = writer.WriteMessages(ctx, kafka.Message{Value: testMessage})
+		if writeErr == nil {
+			break
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	if writeErr != nil {
+		t.Fatalf("failed to produce message: %v", writeErr)
 	}
 
-	t.Logf("✓ Kafka adapter: broker connectivity verified (controller: %s:%d)", controller.Host, controller.Port)
+	// Step 4: Consume the message with fresh reader starting from beginning
+	reader2 := kafka.NewReader(kafka.ReaderConfig{
+		Brokers:     []string{"localhost:9092"},
+		Topic:       testTopic,
+		Partition:   0,
+		StartOffset: 0,
+		MaxBytes:    1e6,
+	})
+	defer reader2.Close()
+
+	msg, err := reader2.ReadMessage(ctx)
+	if err != nil {
+		t.Fatalf("failed to consume message: %v", err)
+	}
+
+	if !bytes.Equal(msg.Value, testMessage) {
+		t.Fatalf("message content mismatch: got %q, want %q", string(msg.Value), string(testMessage))
+	}
+
+	t.Logf("✓ Kafka adapter: broker connectivity verified, message produced and consumed")
 }
 
-// TestS3AdapterRoundTrip tests S3 adapter connectivity to MinIO
+// TestS3AdapterRoundTrip tests S3ClaimCheckStore adapter with MinIO
 func TestS3AdapterRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
-	// Test MinIO connectivity via HTTP (no AWS SDK complexity)
-	// MinIO health check endpoint
-	healthURL := "http://localhost:9000/minio/health/live"
-	httpClient := &http.Client{Timeout: 5 * time.Second}
+	// Configure environment for MinIO
+	os.Setenv("S3_ENDPOINT", "http://localhost:9000")
+	os.Setenv("AWS_ACCESS_KEY_ID", "minioadmin")
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "minioadmin")
+	os.Setenv("S3_BUCKET", "e2e-test-bucket")
+	os.Setenv("S3_REGION", "us-east-1")
+	os.Setenv("S3_PREFIX", "e2e-test/")
 
-	resp, err := httpClient.Get(healthURL)
+	// Create S3ClaimCheckStore adapter with MinIO configuration
+	store, err := claimcheck.NewS3ClaimCheckStore(claimcheck.S3StoreConfig{
+		Bucket:    "e2e-test-bucket",
+		Region:    "us-east-1",
+		Prefix:    "e2e-test/",
+		Endpoint:  "http://localhost:9000",
+		AccessKey: "minioadmin",
+		SecretKey: "minioadmin",
+	})
 	if err != nil {
-		t.Fatalf("failed to reach MinIO health endpoint: %v", err)
+		t.Fatalf("failed to create S3 claim-check store: %v", err)
 	}
-	defer resp.Body.Close()
+	defer store.Close(ctx)
 
-	if resp.StatusCode != 200 {
-		t.Fatalf("MinIO health check failed with status %d", resp.StatusCode)
+	// Test data
+	testPayload := []byte("e2e-test-payload-data")
+	hash := sha256.Sum256(testPayload)
+	testMetadata := claimcheck.ClaimCheckMetadata{
+		ContentType: "application/json",
+		Size:        int64(len(testPayload)),
+		Hash:        hex.EncodeToString(hash[:]),
+		Timestamp:   time.Now(),
 	}
 
-	// Verify MinIO API connectivity via TCP
-	conn, err := net.DialTimeout("tcp", "localhost:9000", 5*time.Second)
+	// Store payload and get ticket
+	ticket, err := store.Store(ctx, testPayload, testMetadata)
 	if err != nil {
-		t.Fatalf("failed to connect to MinIO API: %v", err)
+		t.Fatalf("failed to store payload: %v", err)
 	}
-	defer conn.Close()
 
-	// Test object list endpoint (exercises S3 API)
-	listURL := "http://localhost:9000/"
-	req, err := http.NewRequestWithContext(ctx, "GET", listURL, nil)
+	// Retrieve payload
+	retrievedPayload, retrievedMetadata, err := store.Retrieve(ctx, ticket)
 	if err != nil {
-		t.Fatalf("failed to create request: %v", err)
-	}
-	req.Header.Set("User-Agent", "dim-e2e-test")
-
-	resp, err = httpClient.Do(req)
-	if err != nil {
-		t.Fatalf("failed to call MinIO list endpoint: %v", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 && resp.StatusCode != 403 {
-		t.Fatalf("MinIO API endpoint returned unexpected status %d", resp.StatusCode)
+		t.Fatalf("failed to retrieve payload: %v", err)
 	}
 
-	t.Logf("✓ S3 adapter: MinIO connectivity verified (health check passed)")
+	// Verify content
+	if !bytes.Equal(retrievedPayload, testPayload) {
+		t.Fatalf("payload content mismatch: got %q, want %q", string(retrievedPayload), string(testPayload))
+	}
+
+	// Verify metadata
+	if retrievedMetadata.ContentType != testMetadata.ContentType {
+		t.Fatalf("metadata content-type mismatch: got %q, want %q", retrievedMetadata.ContentType, testMetadata.ContentType)
+	}
+	if retrievedMetadata.Size != testMetadata.Size {
+		t.Fatalf("metadata size mismatch: got %d, want %d", retrievedMetadata.Size, testMetadata.Size)
+	}
+
+	t.Logf("✓ S3 adapter: claim-check store round-trip successful")
+}
+
+// contains checks if a string contains a substring
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && bytes.Contains([]byte(s), []byte(substr))
 }
 
 // TestPostgresAdapterRoundTrip tests Postgres adapter with real database operations
@@ -216,7 +294,7 @@ func TestPostgresAdapterRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	// Connect to Postgres
-	dbURL := "postgres://dim_test:test_password@localhost:5432/dim_e2e?sslmode=disable"
+	dbURL := "postgres://dim_test:test_password@localhost:5433/dim_e2e?sslmode=disable"
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		t.Fatalf("failed to open database connection: %v", err)

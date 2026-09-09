@@ -3,32 +3,39 @@
 # Services auto-start and health checks ensure readiness before tests run
 
 services:
-  # Message Queue: Kafka (KRaft mode - no Zookeeper needed)
-  kafka:
-    image: apache/kafka:3.9.0
-    container_name: dim-e2e-kafka
+  # Zookeeper for Kafka coordination (more stable than KRaft)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: dim-e2e-zookeeper
     environment:
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092,CONTROLLER://kafka:29093
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:29092,PLAINTEXT_HOST://0.0.0.0:9092,CONTROLLER://0.0.0.0:29093
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
-      KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_NODE_ID: 1
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
-      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      ZOOKEEPER_CLIENT_PORT: 2181
+    networks:
+      - dim-e2e
+
+  # Message Queue: Kafka with Zookeeper (more reliable than KRaft)
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: dim-e2e-kafka
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
-      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 100
-      KAFKA_LOG_RETENTION_HOURS: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'false'
+      KAFKA_DELETE_TOPIC_ENABLE: 'true'
     ports:
       - "9092:9092"
-      - "29093:29093"
+      - "29092:29092"
     healthcheck:
       test: kafka-broker-api-versions --bootstrap-server localhost:9092
       interval: 5s
       timeout: 10s
       retries: 5
+      start_period: 15s
     networks:
       - dim-e2e
 
@@ -40,9 +47,8 @@ services:
       POSTGRES_DB: dim_e2e
       POSTGRES_USER: dim_test
       POSTGRES_PASSWORD: test_password
-      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - postgres_e2e_data:/var/lib/postgresql/data
     healthcheck:
@@ -50,6 +56,20 @@ services:
       interval: 5s
       timeout: 10s
       retries: 5
+    networks:
+      - dim-e2e
+
+  # Topic initialization: create e2e test topic
+  kafka-init:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: dim-e2e-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - "kafka-topics --create --topic e2e-test-messages --bootstrap-server kafka:29092 --partitions 1 --replication-factor 1 --if-not-exists && echo 'Topic created successfully'"
     networks:
       - dim-e2e
 
@@ -61,8 +81,8 @@ services:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     command: server /data --console-address ":9001"
     volumes:
       - minio_e2e_data:/data
