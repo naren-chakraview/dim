@@ -1,46 +1,50 @@
 version: 1
-routes:
-  - name: order-processing-cluster
-    domain: orders
-    subjects: [order_id]
-    sources:
-      - type: http
-        endpoint: /message
-    steps:
-      - type: idempotent
-        keyExpr: $keys(body)[0]  # Use first body key as dedup key
-        ttlMinutes: 1440  # 24 hours
-      - type: translate
-        bodyExpr: |
-          {
-            "id": body.order_id,
-            "status": "received",
-            "timestamp": $now(),
-            "source_instance": $env("DIMD_INSTANCE_ID")
-          }
-    sinks:
-      - type: http
-        endpoint: http://example.com/webhook
-        method: POST
-    lineageEnabled: true
-    retentionPolicy: "30d"
 
-  # Test route for coordinated reload: echoes back with current generation
-  - name: health-check
-    domain: system
-    subjects: [check_id]
-    sources:
-      - type: http
-        endpoint: /health
+# M3.1 Cluster Demo: Multi-instance deduplication
+#
+# This configuration demonstrates how two dimd instances coordinate to prevent
+# duplicate message processing when sharing a PostgreSQL backend.
+#
+# Features demonstrated:
+# - Idempotent deduplication across cluster via PostgreSQL
+# - Unified lineage tracking (all instances log to same backend)
+# - No duplicate processing (same order_id processed only once)
+
+sources:
+  api:
+    type: http
+    port: 8080
+
+sinks:
+  output:
+    type: file
+    path: /tmp/dim/output/orders.jsonl
+
+routes:
+  # Order processing with cluster-wide deduplication (M3.1)
+  process-orders:
+    from: api
+
     steps:
-      - type: translate
-        bodyExpr: |
-          {
-            "status": "healthy",
-            "instance": $env("DIMD_INSTANCE_ID"),
-            "timestamp": $now()
-          }
+      # Step 1: Idempotent deduplication using cluster backend (PostgreSQL)
+      # Same order_id from either instance will be deduplicated
+      - idempotent:
+          key_expr: "body.order_id"
+
+      # Step 2: Transform message to show it was processed
+      - translate:
+          expr: |
+            {
+              order_id: body.order_id,
+              customer: body.customer,
+              amount: body.amount,
+              received_at: $now(),
+              processed_by: $env('DIMD_INSTANCE_ID', 'unknown'),
+              lineage_enabled: true
+            }
+
+    # Lineage: All instances write to shared PostgreSQL backend
+    retention_policy: "30d"
+
     sinks:
-      - type: http
-        endpoint: http://localhost:8080/health  # Echo response
-    lineageEnabled: false
+      - output

@@ -1,0 +1,72 @@
+version: '3.8'
+
+services:
+  # PostgreSQL database for cluster coordination (dedup + lineage)
+  postgres:
+    image: postgres:15-alpine
+    container_name: dim-cluster-postgres
+    environment:
+      POSTGRES_DB: dim_cluster
+      POSTGRES_USER: dim
+      POSTGRES_PASSWORD: dim_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - dim_postgres_data:/var/lib/postgresql/data
+      - ./init-cluster-db.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dim -d dim_cluster"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+    networks:
+      - dim-cluster
+
+  # First dimd instance (cluster-aware)
+  dimd-1:
+    image: dim:latest
+    container_name: dim-instance-1
+    environment:
+      DIMD_CLUSTER_HOSTS: "postgres://dim:dim_password@postgres:5432/dim_cluster"
+      DIMD_DEDUP_DSN: "postgres://dim:dim_password@postgres:5432/dim_cluster"
+      DIMD_INSTANCE_ID: "instance-1"
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    volumes:
+      - ./routes-cluster.yaml:/etc/dim/routes.yaml
+      - ./output-1:/tmp/dim/output
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: dimd start /etc/dim/routes.yaml
+    networks:
+      - dim-cluster
+
+  # Second dimd instance (cluster-aware)
+  dimd-2:
+    image: dim:latest
+    container_name: dim-instance-2
+    environment:
+      DIMD_CLUSTER_HOSTS: "postgres://dim:dim_password@postgres:5432/dim_cluster"
+      DIMD_DEDUP_DSN: "postgres://dim:dim_password@postgres:5432/dim_cluster"
+      DIMD_INSTANCE_ID: "instance-2"
+    ports:
+      - "8082:8080"
+      - "8083:8081"
+    volumes:
+      - ./routes-cluster.yaml:/etc/dim/routes.yaml
+      - ./output-2:/tmp/dim/output
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: dimd start /etc/dim/routes.yaml
+    networks:
+      - dim-cluster
+
+volumes:
+  dim_postgres_data:
+
+networks:
+  dim-cluster:
+    driver: bridge
