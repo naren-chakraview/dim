@@ -129,13 +129,26 @@ func dialWithRetry(addr string, retries int) error {
 
 // TestKafkaAdapterRoundTrip tests Kafka producer/consumer round trip
 func TestKafkaAdapterRoundTrip(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	testTopic := "e2e-test-" + fmt.Sprintf("%d", time.Now().UnixNano())
 	testMessage := `{"order_id": "test-123", "amount": 99.99}`
 
-	// Producer: write message to Kafka with retry for topic auto-creation
+	// Refresh broker metadata to trigger auto-creation
+	conn, err := kafka.Dial("tcp", "localhost:9092")
+	if err != nil {
+		t.Fatalf("failed to dial kafka: %v", err)
+	}
+	// Fetch brokers to trigger metadata refresh
+	if _, err := conn.Brokers(); err != nil {
+		conn.Close()
+		t.Fatalf("failed to fetch brokers: %v", err)
+	}
+	conn.Close()
+	time.Sleep(500 * time.Millisecond)
+
+	// Producer: write message to Kafka
 	writer := &kafka.Writer{
 		Addr:     kafka.TCP("localhost:9092"),
 		Topic:    testTopic,
@@ -143,21 +156,21 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	}
 	defer writer.Close()
 
-	// Retry writing with exponential backoff to allow broker auto-creation
-	var err error
-	for attempt := 0; attempt < 5; attempt++ {
-		err = writer.WriteMessages(ctx, kafka.Message{
+	// Retry writing with longer delays to allow topic auto-creation
+	var writeErr error
+	for attempt := 0; attempt < 10; attempt++ {
+		writeErr = writer.WriteMessages(ctx, kafka.Message{
 			Value: []byte(testMessage),
 		})
-		if err == nil {
+		if writeErr == nil {
 			break
 		}
-		if attempt < 4 {
-			time.Sleep(time.Duration((attempt+1)*100) * time.Millisecond)
+		if attempt < 9 {
+			time.Sleep(time.Duration((attempt+1)*200) * time.Millisecond)
 		}
 	}
-	if err != nil {
-		t.Fatalf("failed to produce Kafka message after retries: %v", err)
+	if writeErr != nil {
+		t.Fatalf("failed to produce Kafka message after retries: %v", writeErr)
 	}
 
 	// Consumer: read message from Kafka
