@@ -115,7 +115,7 @@ func TestClaimResolveStepRoundTrip(t *testing.T) {
 	}
 
 	// Step 1: Claim-check the payload
-	checkSpec := &ClaimCheckSpec{
+	checkSpec := &config.ClaimCheckSpec{
 		PayloadField:    "body",
 		RemovePayload:   true,
 		TicketFieldPath: "_claim_check",
