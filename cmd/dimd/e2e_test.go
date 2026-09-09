@@ -156,11 +156,10 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 
 	// Produce test message (with retries for topic auto-creation)
 	w := kafka.NewWriter(kafka.WriterConfig{
-		Brokers:       []string{"localhost:9092"},
-		Topic:         testTopic,
-		WriteTimeout:  10 * time.Second,
-		ReadTimeout:   10 * time.Second,
-		RequiredAcks:  kafka.RequireNone,
+		Brokers:      []string{"localhost:9092"},
+		Topic:        testTopic,
+		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  10 * time.Second,
 	})
 	defer w.Close()
 
