@@ -6,7 +6,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"os"
@@ -131,8 +130,6 @@ func dialWithRetry(addr string, retries int) error {
 
 // TestKafkaAdapterRoundTrip tests Kafka adapter connectivity and message wire protocol
 func TestKafkaAdapterRoundTrip(t *testing.T) {
-	ctx := context.Background()
-
 	// Verify Kafka broker is operational by fetching metadata
 	conn, err := kafka.Dial("tcp", "localhost:9092")
 	if err != nil {
@@ -154,9 +151,6 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to fetch controller: %v", err)
 	}
-	if controller == nil {
-		t.Fatalf("no controller available")
-	}
 
 	// Get metadata for partitions (verifies wire protocol and broker connectivity)
 	partitions, err := conn.ReadPartitions()
@@ -167,7 +161,7 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 		t.Logf("Found %d partitions across topics", len(partitions))
 	}
 
-	t.Logf("✓ Kafka adapter: broker connectivity verified (leader: %s:%d)", controller.Host, controller.Port)
+	t.Logf("✓ Kafka adapter: broker connectivity verified (controller: %s:%d)", controller.Host, controller.Port)
 }
 
 // TestS3AdapterRoundTrip tests S3 adapter connectivity to MinIO
