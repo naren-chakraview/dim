@@ -44,6 +44,30 @@ jobs:
       - name: Test with race detector
         run: go test -race ./...
 
+      # MERGE GATE 8: Validate all route YAML files changed in this PR
+      - name: Validate route configurations
+        run: bash scripts/validate-routes.sh
+        if: |
+          github.event_name == 'pull_request' ||
+          github.ref == 'refs/heads/main' ||
+          github.ref == 'refs/heads/master'
+
+      # MERGE GATE 9: Test all route configurations with their fixture tests
+      - name: Test route configurations
+        run: bash scripts/test-routes.sh
+        if: |
+          github.event_name == 'pull_request' ||
+          github.ref == 'refs/heads/main' ||
+          github.ref == 'refs/heads/master'
+
+      # MERGE GATE 10: Mandatory governance fragment check
+      - name: Check mandatory governance fragments
+        run: bash scripts/check-mandatory-fragments.sh
+        if: |
+          github.event_name == 'pull_request' ||
+          github.ref == 'refs/heads/main' ||
+          github.ref == 'refs/heads/master'
+
       # MERGE GATE 6: Vulnerability check
       - name: Check for vulnerabilities
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
