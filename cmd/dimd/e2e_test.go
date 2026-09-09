@@ -5,18 +5,16 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
 	_ "github.com/lib/pq"
 	"github.com/segmentio/kafka-go"
 )
@@ -222,66 +220,68 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	t.Logf("✓ Kafka adapter: broker connectivity verified, message produced and consumed")
 }
 
-// TestS3AdapterRoundTrip tests S3 adapter with real object PUT and GET
+// TestS3AdapterRoundTrip tests S3ClaimCheckStore adapter with MinIO
 func TestS3AdapterRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
-	// Create S3 client for MinIO
-	cfg, err := config.LoadDefaultConfig(ctx,
-		config.WithRegion("us-east-1"),
-		config.WithCredentialsProvider(aws.NewCredentialsCache(
-			credentials.NewStaticCredentialsProvider("minioadmin", "minioadmin", ""))),
-	)
-	if err != nil {
-		t.Fatalf("failed to load config: %v", err)
-	}
+	// Configure environment for MinIO
+	os.Setenv("S3_ENDPOINT", "http://localhost:9000")
+	os.Setenv("AWS_ACCESS_KEY_ID", "minioadmin")
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "minioadmin")
+	os.Setenv("S3_BUCKET", "e2e-test-bucket")
+	os.Setenv("S3_REGION", "us-east-1")
+	os.Setenv("S3_PREFIX", "e2e-test/")
 
-	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
-		o.BaseEndpoint = aws.String("http://localhost:9000")
-		o.UsePathStyle = true
-	})
-
-	bucketName := "e2e-test-bucket"
-	objectKey := "e2e-test-object"
-	testData := []byte("e2e-test-payload-data")
-
-	// Create bucket (ignore error if it already exists)
-	_, err = client.CreateBucket(ctx, &s3.CreateBucketInput{Bucket: aws.String(bucketName)})
-	if err != nil && !contains(err.Error(), "BucketAlreadyExists") {
-		t.Logf("bucket creation (may already exist): %v", err)
-	}
-
-	// Put object
-	_, err = client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(bucketName),
-		Key:    aws.String(objectKey),
-		Body:   bytes.NewReader(testData),
+	// Create S3ClaimCheckStore adapter with MinIO configuration
+	store, err := claimcheck.NewS3ClaimCheckStore(claimcheck.S3StoreConfig{
+		Bucket:    "e2e-test-bucket",
+		Region:    "us-east-1",
+		Prefix:    "e2e-test/",
+		Endpoint:  "http://localhost:9000",
+		AccessKey: "minioadmin",
+		SecretKey: "minioadmin",
 	})
 	if err != nil {
-		t.Fatalf("failed to put object: %v", err)
+		t.Fatalf("failed to create S3 claim-check store: %v", err)
+	}
+	defer store.Close(ctx)
+
+	// Test data
+	testPayload := []byte("e2e-test-payload-data")
+	hash := sha256.Sum256(testPayload)
+	testMetadata := claimcheck.ClaimCheckMetadata{
+		ContentType: "application/json",
+		Size:        int64(len(testPayload)),
+		Hash:        hex.EncodeToString(hash[:]),
+		Timestamp:   time.Now(),
 	}
 
-	// Get object
-	output, err := client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(bucketName),
-		Key:    aws.String(objectKey),
-	})
+	// Store payload and get ticket
+	ticket, err := store.Store(ctx, testPayload, testMetadata)
 	if err != nil {
-		t.Fatalf("failed to get object: %v", err)
+		t.Fatalf("failed to store payload: %v", err)
 	}
-	defer output.Body.Close()
+
+	// Retrieve payload
+	retrievedPayload, retrievedMetadata, err := store.Retrieve(ctx, ticket)
+	if err != nil {
+		t.Fatalf("failed to retrieve payload: %v", err)
+	}
 
 	// Verify content
-	data, err := io.ReadAll(output.Body)
-	if err != nil {
-		t.Fatalf("failed to read object body: %v", err)
+	if !bytes.Equal(retrievedPayload, testPayload) {
+		t.Fatalf("payload content mismatch: got %q, want %q", string(retrievedPayload), string(testPayload))
 	}
 
-	if !bytes.Equal(data, testData) {
-		t.Fatalf("object content mismatch: got %q, want %q", string(data), string(testData))
+	// Verify metadata
+	if retrievedMetadata.ContentType != testMetadata.ContentType {
+		t.Fatalf("metadata content-type mismatch: got %q, want %q", retrievedMetadata.ContentType, testMetadata.ContentType)
+	}
+	if retrievedMetadata.Size != testMetadata.Size {
+		t.Fatalf("metadata size mismatch: got %d, want %d", retrievedMetadata.Size, testMetadata.Size)
 	}
 
-	t.Logf("✓ S3 adapter: object PUT and GET successful")
+	t.Logf("✓ S3 adapter: claim-check store round-trip successful")
 }
 
 // contains checks if a string contains a substring

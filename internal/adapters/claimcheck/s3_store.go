@@ -5,11 +5,13 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
@@ -29,10 +31,13 @@ type S3ClaimCheckStore struct {
 
 // S3StoreConfig configures the S3-backed claim-check store
 type S3StoreConfig struct {
-	Bucket    string        // S3 bucket name (required)
-	Region    string        // AWS region (e.g., "us-east-1")
-	Prefix    string        // Key prefix for claim-check objects (e.g., "claim-check/")
-	DefaultTTL time.Duration // Default TTL for stored payloads (e.g., 30 days)
+	Bucket      string        // S3 bucket name (required)
+	Region      string        // AWS region (e.g., "us-east-1")
+	Prefix      string        // Key prefix for claim-check objects (e.g., "claim-check/")
+	DefaultTTL  time.Duration // Default TTL for stored payloads (e.g., 30 days)
+	Endpoint    string        // Optional: custom S3 endpoint (for MinIO testing)
+	AccessKey   string        // Optional: S3 access key (for custom endpoints)
+	SecretKey   string        // Optional: S3 secret key (for custom endpoints)
 }
 
 // NewS3ClaimCheckStore creates a new S3-backed claim-check store (M3.2)
@@ -54,12 +59,52 @@ func NewS3ClaimCheckStore(cfg S3StoreConfig) (*S3ClaimCheckStore, error) {
 	}
 
 	// Load AWS SDK configuration
-	sdkConfig, err := config.LoadDefaultConfig(context.Background(), config.WithRegion(cfg.Region))
+	ctx := context.Background()
+	opts := []func(*config.LoadOptions) error{
+		config.WithRegion(cfg.Region),
+	}
+
+	// Support custom S3 endpoint for MinIO in tests
+	endpoint := cfg.Endpoint
+	if endpoint == "" {
+		endpoint = os.Getenv("S3_ENDPOINT")
+	}
+
+	accessKey := cfg.AccessKey
+	if accessKey == "" {
+		accessKey = os.Getenv("AWS_ACCESS_KEY_ID")
+		if accessKey == "" {
+			accessKey = os.Getenv("S3_ACCESS_KEY")
+		}
+	}
+
+	secretKey := cfg.SecretKey
+	if secretKey == "" {
+		secretKey = os.Getenv("AWS_SECRET_ACCESS_KEY")
+		if secretKey == "" {
+			secretKey = os.Getenv("S3_SECRET_KEY")
+		}
+	}
+
+	if endpoint != "" && accessKey != "" && secretKey != "" {
+		opts = append(opts, config.WithCredentialsProvider(aws.NewCredentialsCache(
+			credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""))))
+	}
+
+	sdkConfig, err := config.LoadDefaultConfig(ctx, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}
 
-	client := s3.NewFromConfig(sdkConfig)
+	// Configure custom endpoint for MinIO if provided
+	clientOpts := func(o *s3.Options) {
+		if endpoint != "" {
+			o.BaseEndpoint = aws.String(endpoint)
+			o.UsePathStyle = true
+		}
+	}
+
+	client := s3.NewFromConfig(sdkConfig, clientOpts)
 
 	store := &S3ClaimCheckStore{
 		client:         client,
