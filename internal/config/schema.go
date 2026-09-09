@@ -28,6 +28,7 @@ type SinkSpec struct {
 // RouteSpec defines a pipeline (from source to sinks via steps)
 type RouteSpec struct {
 	From      string            `yaml:"from" json:"from"`
+	Domain    string            `yaml:"domain,omitempty" json:"domain,omitempty"` // Multi-tenant domain label (M3.4)
 	Auth      interface{}       `yaml:"auth" json:"auth"` // can be string "none" or object with steps
 	ErrorPath *ErrorPathSpec    `yaml:"error_path" json:"error_path"`
 	Steps     []StepSpec        `yaml:"steps" json:"steps"`

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/observability"
+	"github.com/naren-chakraview/dim/internal/tenant"
 )
 
 // Step is the interface that all pipeline steps must implement.
@@ -71,6 +72,18 @@ type Executor struct {
 	// nil if tracing is not configured
 	tracingProvider *observability.TracingProvider
 
+	// rateLimiter enforces per-domain rate limits (M3.4+)
+	// nil if tenant isolation is not configured
+	rateLimiter *tenant.MessageRateLimiter
+
+	// slotManager manages per-domain worker slot allocation (M3.4+)
+	// nil if tenant isolation is not configured
+	slotManager *tenant.WorkerSlotManager
+
+	// domain is the tenant domain for this executor's messages (M3.4+)
+	// empty string if not using tenant isolation
+	domain string
+
 	// inFlightCount tracks active messages across all workers
 	// Incremented on message receipt, decremented on completion
 	inFlightCount int32
@@ -112,6 +125,12 @@ func NewExecutorWithRetry(name string, inputCh, outputCh, errorCh *Channel, step
 // NewExecutorWithTracing creates an executor with tracing support (M0.5.1+).
 // tracingProvider may be nil (no tracing).
 func NewExecutorWithTracing(name string, inputCh, outputCh, errorCh *Channel, steps []Step, stepNames []string, numWorkers int, retryPolicy *RetryPolicy, tracingProvider *observability.TracingProvider) *Executor {
+	return NewExecutorWithTenantLimiting(name, inputCh, outputCh, errorCh, steps, stepNames, numWorkers, retryPolicy, tracingProvider, nil, nil, "")
+}
+
+// NewExecutorWithTenantLimiting creates an executor with multi-tenant isolation (M3.4+).
+// rateLimiter, slotManager, and domain may be nil/"" if tenant isolation is not configured.
+func NewExecutorWithTenantLimiting(name string, inputCh, outputCh, errorCh *Channel, steps []Step, stepNames []string, numWorkers int, retryPolicy *RetryPolicy, tracingProvider *observability.TracingProvider, rateLimiter *tenant.MessageRateLimiter, slotManager *tenant.WorkerSlotManager, domain string) *Executor {
 	if numWorkers < 1 {
 		numWorkers = 1
 	}
@@ -141,6 +160,9 @@ func NewExecutorWithTracing(name string, inputCh, outputCh, errorCh *Channel, st
 		numWorkers:       numWorkers,
 		retryPolicy:      normalizedPolicy,
 		tracingProvider:  tracingProvider,
+		rateLimiter:      rateLimiter,
+		slotManager:      slotManager,
+		domain:           domain,
 	}
 }
 
@@ -260,6 +282,43 @@ func (e *Executor) worker(ctx context.Context, workerID int, wg *sync.WaitGroup)
 
 		// Increment in-flight counter
 		atomic.AddInt32(&e.inFlightCount, 1)
+		defer atomic.AddInt32(&e.inFlightCount, -1)
+
+		// Apply tenant rate limiting (M3.4+)
+		if e.rateLimiter != nil {
+			allowed, rate := e.rateLimiter.AllowMessage(e.domain)
+			if !allowed {
+				log.Printf("[DEBUG] Executor %q domain %q rate limited (current: %.2f msgs/sec)", e.name, e.domain, rate)
+				// Re-queue message for later processing
+				if err := e.inputCh.Send(ctx, msg); err != nil {
+					log.Printf("[ERROR] Executor %q failed to re-queue rate-limited message: %v", e.name, err)
+					continue
+				}
+				continue
+			}
+		}
+
+		// Acquire worker slot for domain (M3.4+)
+		slotAcquired := true
+		if e.slotManager != nil {
+			slotAcquired = e.slotManager.AcquireSlot(e.domain)
+			if !slotAcquired {
+				log.Printf("[DEBUG] Executor %q domain %q no available worker slots, queueing", e.name, e.domain)
+				// Re-queue message for later processing
+				if err := e.inputCh.Send(ctx, msg); err != nil {
+					log.Printf("[ERROR] Executor %q failed to re-queue message waiting for slot: %v", e.name, err)
+					continue
+				}
+				continue
+			}
+		}
+
+		// Release slot when done (M3.4+)
+		defer func() {
+			if slotAcquired && e.slotManager != nil {
+				e.slotManager.ReleaseSlot(e.domain)
+			}
+		}()
 
 		// Start message processing span for tracing
 		var msgSpan *observability.Span
@@ -318,33 +377,22 @@ func (e *Executor) worker(ctx context.Context, workerID int, wg *sync.WaitGroup)
 
 				if sendErr := e.errorCh.Send(ctx, envelopeMsg); sendErr != nil {
 					log.Printf("[DEBUG] Executor %q worker %d error send failed: %v", e.name, workerID, sendErr)
-					// Decrement in-flight on error
-					atomic.AddInt32(&e.inFlightCount, -1)
 					return
 				}
 			}
-			// Decrement in-flight and continue processing next message
-			atomic.AddInt32(&e.inFlightCount, -1)
 			continue
 		}
 
 		// If a step returned nil (e.g., filter rejection), don't send to output
 		if result == nil {
-			// Decrement in-flight and continue
-			atomic.AddInt32(&e.inFlightCount, -1)
 			continue
 		}
 
 		// Send successful result to output
 		if err := e.outputCh.Send(ctx, result); err != nil {
 			log.Printf("[DEBUG] Executor %q worker %d output send failed: %v", e.name, workerID, err)
-			// Decrement in-flight on error
-			atomic.AddInt32(&e.inFlightCount, -1)
 			return
 		}
-
-		// Decrement in-flight on successful send
-		atomic.AddInt32(&e.inFlightCount, -1)
 	}
 }
 
