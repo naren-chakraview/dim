@@ -34,21 +34,3 @@ routes:
       retry: { max_attempts: 5, backoff: { type: exponential, initial: 1s, max: 30s, jitter: true } }
     steps:
       - filter: { expr: 'body.amount != null and body.order_id != null' }
-      - translate:
-          expr: |
-            {
-              "payment_id": body.order_id,
-              "amount_cents": body.amount,
-              "currency": body.currency ? body.currency : "USD",
-              "customer_id": body.customer_id
-            }
-      - idempotent:
-          key_expr: 'body.payment_id'
-      - route:
-          expr: 'body.amount_cents > 1000000 ? "high_value" : "standard"'
-          cases:
-            high_value:
-              target: payments-high-value
-            standard:
-              target: payments-processed
-          default: payments-processed
