@@ -1,4 +1,3 @@
-// Main initialization - placeholder for Task 1, expanded in later tasks
 let canvas;
 
 document.addEventListener("DOMContentLoaded", async () => {
@@ -16,4 +15,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 	} catch (error) {
 		document.getElementById("status").textContent = `Error loading routes: ${error.message}`;
 	}
+});
+
+document.addEventListener("nodeSelected", (e) => {
+	const { nodeId } = e.detail;
+	const inspector = document.getElementById("properties");
+	inspector.innerHTML = `<p>Selected: <strong>${nodeId}</strong></p>`;
 });
