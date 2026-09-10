@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-ROUTE_FILES=$(find domains -name "*.yaml" -not -name "*.route_test.yaml" -not -path "*/governance/*" 2>/dev/null || true)
+ROUTE_FILES=$(find domains -name "*.yaml" -not -name "*.route_test.yaml" -not -name "DOMAIN.yaml" -not -path "*/governance/*" 2>/dev/null || true)
 
 if [ -z "$ROUTE_FILES" ]; then
   echo "No route files found; fragment check skipped."
