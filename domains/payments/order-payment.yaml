@@ -1,0 +1,51 @@
+version: 1
+imports:
+  - ../governance/fragments.yaml
+
+sources:
+  orders-in:
+    type: file
+    path: ./orders.jsonl
+
+sinks:
+  payments-processed:
+    type: file
+    path: ./output/payments-processed.jsonl
+
+  payments-dlq:
+    type: file
+    path: ./output/payments-dlq.jsonl
+
+  payments-high-value:
+    type: file
+    path: ./output/payments-high-value.jsonl
+
+routes:
+  order-payment:
+    from: orders-in
+    auth: none
+    lineage: { retention_policy: default }
+    error_path:
+      target: payments-dlq
+      retry: { max_attempts: 5, backoff: { type: exponential, initial: 1s, max: 30s, jitter: true } }
+    steps:
+      - filter: { expr: 'body.amount != null and body.order_id != null' }
+      - translate:
+          expr: |
+            {
+              "payment_id": body.order_id,
+              "amount_cents": body.amount,
+              "currency": body.currency ? body.currency : "USD",
+              "customer_id": body.customer_id,
+              "timestamp": metadata.timestamp
+            }
+      - idempotent:
+          key_expr: 'body.payment_id'
+      - route:
+          expr: 'body.amount_cents > 1000000 ? "high_value" : "standard"'
+          cases:
+            high_value:
+              target: payments-high-value
+            standard:
+              target: payments-processed
+          default: payments-processed

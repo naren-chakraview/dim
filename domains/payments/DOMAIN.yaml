@@ -1,0 +1,7 @@
+# Domain metadata for the payments domain
+domain:
+  name: payments
+  owner: alice@example.com
+  slack_channel: "#payments-team"
+  description: Payment processing, fraud detection, and payout orchestration
+  owner_team: payments-platform
