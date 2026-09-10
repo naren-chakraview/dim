@@ -1,4 +1,9 @@
-# GitHub CODEOWNERS file for domain-scoped review.
-# Format: path @reviewer @backup
-# Example (added later):
-# domains/payments/ @alice @bob
+# GitHub CODEOWNERS file for domain-scoped route review.
+# Format: path  @owner  @backup
+#
+# Platform team reviews governance and cross-domain patterns:
+domains/governance/  @platform-team  @platform-lead
+
+# Each domain's lead reviews their own routes:
+# domains/payments/  @alice-payments-lead  @bob-payments-backup
+# domains/orders/    @carol-orders-lead    @diana-orders-backup
