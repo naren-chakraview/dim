@@ -941,6 +941,20 @@ func printStaticCheckCaveat(w io.Writer) {
 `)
 }
 
+var studioCmd = &cobra.Command{
+	Use:   "studio [dir]",
+	Short: "Launch visual route editor (local web UI)",
+	Long:  "Start a local web UI for editing routes visually at localhost:7070",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		workDir := "."
+		if len(args) > 0 {
+			workDir = args[0]
+		}
+		return StartServer(7070, workDir)
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(validateCmd)
 	rootCmd.AddCommand(runCmd)
@@ -948,6 +962,7 @@ func init() {
 	rootCmd.AddCommand(replayCmd)
 	rootCmd.AddCommand(lineageCmd)
 	rootCmd.AddCommand(traceCmd)
+	rootCmd.AddCommand(studioCmd)
 
 	// Add lineage subcommands
 	lineageCmd.AddCommand(lineagePurgeCmd)

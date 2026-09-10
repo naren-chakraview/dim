@@ -71,3 +71,4 @@ graphify-out/*.html
 # OS files
 Thumbs.db
 .DS_Store
+.worktrees/
