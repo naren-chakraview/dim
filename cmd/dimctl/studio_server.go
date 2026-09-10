@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -74,9 +75,19 @@ func (s *StudioServer) handleIndex(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *StudioServer) handleGetRoutes(w http.ResponseWriter, r *http.Request) {
+	routes, err := DiscoverRoutes(s.workDir)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert to JSON-serializable format
+	response := map[string]interface{}{
+		"routes": routes,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	// TODO: load routes from domains/*.yaml and return as JSON
-	fmt.Fprintf(w, `{"routes":[]}`)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (s *StudioServer) handleSaveRoute(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,9 @@
 package main
 
 import (
+	"log"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -104,4 +107,68 @@ func ReconstructYAML(data map[string]interface{}, comments map[string]string) (s
 	}
 
 	return result, nil
+}
+
+// RouteData represents a loaded route with its metadata and content
+type RouteData struct {
+	Name     string                 `json:"name"`
+	Domain   string                 `json:"domain"`
+	FilePath string                 `json:"filePath"`
+	Data     map[string]interface{} `json:"data"`
+	Comments map[string]string      `json:"comments"`
+}
+
+// DiscoverRoutes finds all *.yaml files in domains/ (not test files)
+func DiscoverRoutes(workDir string) (map[string]*RouteData, error) {
+	routes := make(map[string]*RouteData)
+
+	domainPath := filepath.Join(workDir, "domains")
+	entries, err := os.ReadDir(domainPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return routes, nil // domains dir doesn't exist yet
+		}
+		return nil, err
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		domain := entry.Name()
+		domainDir := filepath.Join(domainPath, domain)
+		files, _ := os.ReadDir(domainDir)
+
+		for _, file := range files {
+			if !strings.HasSuffix(file.Name(), ".yaml") || strings.HasSuffix(file.Name(), ".route_test.yaml") {
+				continue
+			}
+
+			filePath := filepath.Join(domainDir, file.Name())
+			routeName := strings.TrimSuffix(file.Name(), ".yaml")
+
+			content, err := os.ReadFile(filePath)
+			if err != nil {
+				log.Printf("Warning: failed to read %s: %v", filePath, err)
+				continue
+			}
+
+			data, comments, err := ParseYAMLWithComments(string(content))
+			if err != nil {
+				log.Printf("Warning: failed to parse %s: %v", filePath, err)
+				continue
+			}
+
+			routes[routeName] = &RouteData{
+				Name:     routeName,
+				Domain:   domain,
+				FilePath: filePath,
+				Data:     data,
+				Comments: comments,
+			}
+		}
+	}
+
+	return routes, nil
 }
