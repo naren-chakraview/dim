@@ -4,8 +4,11 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
@@ -91,13 +94,65 @@ func (s *StudioServer) handleGetRoutes(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *StudioServer) handleSaveRoute(w http.ResponseWriter, r *http.Request) {
-	// TODO: parse JSON edit from request body, reconstruct YAML, validate, write to file
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, `{"status":"ok"}`)
+
+	var editData map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&editData); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	routeName := r.URL.Query().Get("route")
+	if routeName == "" {
+		http.Error(w, "route parameter required", http.StatusBadRequest)
+		return
+	}
+
+	// Reconstruct YAML
+	yamlStr, err := ReconstructYAML(editData, make(map[string]string))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Write temp file and validate
+	tempPath := filepath.Join(s.workDir, ".studio_temp.yaml")
+	if err := ioutil.WriteFile(tempPath, []byte(yamlStr), 0644); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Run dimctl validate
+	cmd := exec.Command("go", "run", "./cmd/dimctl", "validate", tempPath)
+	cmd.Dir = s.workDir
+	if err := cmd.Run(); err != nil {
+		os.Remove(tempPath)
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"status":"validation_failed","error":"%s"}`, err.Error())
+		return
+	}
+
+	// Validation passed; write to actual file
+	// For now, we'll look for the route in the routes map and save to its file path
+	routes, _ := DiscoverRoutes(s.workDir)
+	if route, ok := routes[routeName]; ok {
+		if err := ioutil.WriteFile(route.FilePath, []byte(yamlStr), 0644); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"status":"error","error":"route not found"}`)
+		return
+	}
+
+	os.Remove(tempPath)
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"status":"ok","message":"Route saved and validated"}`)
 }
 
 func (s *StudioServer) watchFiles() {
