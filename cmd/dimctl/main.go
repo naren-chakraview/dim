@@ -946,6 +946,7 @@ func init() {
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(testCmd)
 	rootCmd.AddCommand(replayCmd)
+	rootCmd.AddCommand(scaffoldCmd)
 	rootCmd.AddCommand(lineageCmd)
 	rootCmd.AddCommand(traceCmd)
 
