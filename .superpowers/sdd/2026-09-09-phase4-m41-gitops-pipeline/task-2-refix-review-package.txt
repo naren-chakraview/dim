@@ -1,0 +1,32 @@
+# Task 2 Fix Round 1 Re-Review Package
+## Fix commits (scoped to the fix)
+8a6a818 fix: escape dot in validate-routes.sh regex pattern
+
+## Stat
+ scripts/validate-routes.sh | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+## Diff
+diff --git a/scripts/validate-routes.sh b/scripts/validate-routes.sh
+index a03ce03..de17a9b 100755
+--- a/scripts/validate-routes.sh
++++ b/scripts/validate-routes.sh
+@@ -1,17 +1,17 @@
+ #!/bin/bash
+ # Validate all route YAML files changed in this PR.
+ # Exit 0 if all valid, 1 if any fail.
+ 
+ set -euo pipefail
+ 
+-ROUTE_FILES=$(git diff --name-only --diff-filter=ACM origin/master...HEAD | grep -E '^domains/.*.yaml$' | grep -v '_test.yaml' || true)
++ROUTE_FILES=$(git diff --name-only --diff-filter=ACM origin/master...HEAD | grep -E '^domains/.*\.yaml$' | grep -v '_test.yaml' || true)
+ 
+ if [ -z "$ROUTE_FILES" ]; then
+   echo "No route files changed; validation skipped."
+   exit 0
+ fi
+ 
+ echo "Validating route files:"
+ echo "$ROUTE_FILES"
+ 
+ FAILED=0

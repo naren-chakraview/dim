@@ -1,0 +1,118 @@
+# Task 2 Review Package
+## Commit log
+c1e3a42 chore: add route validation and testing scripts for CI Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com> Claude-Session: https://claude.ai/code/session_01JFYQt4F9hnFAozv63oUwfv
+
+## Stat summary
+ scripts/check-mandatory-fragments.sh | 26 ++++++++++++++++++++++++++
+ scripts/test-routes.sh               | 35 +++++++++++++++++++++++++++++++++++
+ scripts/validate-routes.sh           | 28 ++++++++++++++++++++++++++++
+ 3 files changed, 89 insertions(+)
+
+## Full diff
+diff --git a/scripts/check-mandatory-fragments.sh b/scripts/check-mandatory-fragments.sh
+new file mode 100755
+index 0000000..c28a7ae
+--- /dev/null
++++ b/scripts/check-mandatory-fragments.sh
+@@ -0,0 +1,26 @@
++#!/bin/bash
++# Lint: Ensure all routes in domains/ import the governance fragments.
++# Exit 0 if all import governance fragments, 1 otherwise.
++
++set -euo pipefail
++
++ROUTE_FILES=$(find domains -name "*.yaml" -not -name "*.route_test.yaml" -not -path "*/governance/*" 2>/dev/null || true)
++
++if [ -z "$ROUTE_FILES" ]; then
++  echo "No route files found; fragment check skipped."
++  exit 0
++fi
++
++echo "Checking mandatory governance fragment imports:"
++
++FAILED=0
++for FILE in $ROUTE_FILES; do
++  if ! grep -q "governance/fragments" "$FILE"; then
++    echo "  FAIL: $FILE does not import governance/fragments"
++    FAILED=1
++  else
++    echo "  OK: $FILE"
++  fi
++done
++
++exit $FAILED
+diff --git a/scripts/test-routes.sh b/scripts/test-routes.sh
+new file mode 100755
+index 0000000..644a1dd
+--- /dev/null
++++ b/scripts/test-routes.sh
+@@ -0,0 +1,35 @@
++#!/bin/bash
++# Run fixture-based tests for all routes with corresponding .route_test.yaml files.
++# Exit 0 if all tests pass, 1 if any fail.
++
++set -euo pipefail
++
++ROUTE_FILES=$(git diff --name-only --diff-filter=ACM origin/master...HEAD | grep -E '^domains/.*\.yaml$' | grep -v '_test.yaml' || true)
++
++if [ -z "$ROUTE_FILES" ]; then
++  echo "No route files changed; testing skipped."
++  exit 0
++fi
++
++echo "Running route tests:"
++
++FAILED=0
++for ROUTE_FILE in $ROUTE_FILES; do
++  # Look for corresponding .route_test.yaml
++  TEST_FILE="${ROUTE_FILE%.yaml}.route_test.yaml"
++
++  if [ ! -f "$TEST_FILE" ]; then
++    echo "  Skipping: no test file for $ROUTE_FILE"
++    continue
++  fi
++
++  echo "  Testing: $TEST_FILE"
++  if ! go run ./cmd/dimctl test -c "$ROUTE_FILE" "$TEST_FILE" 2>&1; then
++    echo "    FAIL: $TEST_FILE"
++    FAILED=1
++  else
++    echo "    OK: $TEST_FILE"
++  fi
++done
++
++exit $FAILED
+diff --git a/scripts/validate-routes.sh b/scripts/validate-routes.sh
+new file mode 100755
+index 0000000..a03ce03
+--- /dev/null
++++ b/scripts/validate-routes.sh
+@@ -0,0 +1,28 @@
++#!/bin/bash
++# Validate all route YAML files changed in this PR.
++# Exit 0 if all valid, 1 if any fail.
++
++set -euo pipefail
++
++ROUTE_FILES=$(git diff --name-only --diff-filter=ACM origin/master...HEAD | grep -E '^domains/.*.yaml$' | grep -v '_test.yaml' || true)
++
++if [ -z "$ROUTE_FILES" ]; then
++  echo "No route files changed; validation skipped."
++  exit 0
++fi
++
++echo "Validating route files:"
++echo "$ROUTE_FILES"
++
++FAILED=0
++for FILE in $ROUTE_FILES; do
++  echo "  Validating: $FILE"
++  if ! go run ./cmd/dimctl validate "$FILE" 2>&1; then
++    echo "    FAIL: $FILE"
++    FAILED=1
++  else
++    echo "    OK: $FILE"
++  fi
++done
++
++exit $FAILED

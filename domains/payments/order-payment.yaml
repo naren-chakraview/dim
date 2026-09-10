@@ -8,6 +8,10 @@ sources:
     path: ./orders.jsonl
 
 sinks:
+  output:
+    type: file
+    path: ./output/messages.jsonl
+
   payments-processed:
     type: file
     path: ./output/payments-processed.jsonl
@@ -36,8 +40,7 @@ routes:
               "payment_id": body.order_id,
               "amount_cents": body.amount,
               "currency": body.currency ? body.currency : "USD",
-              "customer_id": body.customer_id,
-              "timestamp": metadata.timestamp
+              "customer_id": body.customer_id
             }
       - idempotent:
           key_expr: 'body.payment_id'

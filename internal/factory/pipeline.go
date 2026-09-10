@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 	"sync"
 
 	"github.com/naren-chakraview/dim/internal/adapters/file"
@@ -15,6 +17,16 @@ import (
 	"github.com/naren-chakraview/dim/internal/steps"
 	"github.com/naren-chakraview/dim/internal/tenant"
 )
+
+// getHTTPPort returns the port for HTTP source from DIM_HTTP_PORT env var, or 8080 as default
+func getHTTPPort() int {
+	if portStr := os.Getenv("DIM_HTTP_PORT"); portStr != "" {
+		if port, err := strconv.Atoi(portStr); err == nil && port > 0 && port < 65536 {
+			return port
+		}
+	}
+	return 8080
+}
 
 // SourceAdapter wraps a source adapter with lifecycle methods
 type SourceAdapter interface {
@@ -251,7 +263,7 @@ func BuildSingleRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteC
 
 	// Create HTTP source
 	var sources []SourceAdapter
-	httpSrc, err := http.NewHTTPSource(8080, "/ingest", inputCh)
+	httpSrc, err := http.NewHTTPSource(getHTTPPort(), "/ingest", inputCh)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to create HTTP source: %w", err)
 	}
@@ -406,7 +418,7 @@ func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteCo
 
 	// Create HTTP source (shared across all routes)
 	var sources []SourceAdapter
-	httpSrc, err := http.NewHTTPSource(8080, "/ingest", sourceOutCh)
+	httpSrc, err := http.NewHTTPSource(getHTTPPort(), "/ingest", sourceOutCh)
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("failed to create HTTP source: %w", err)
 	}

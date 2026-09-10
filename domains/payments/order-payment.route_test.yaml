@@ -9,32 +9,13 @@ fixtures:
         currency: "USD"
         customer_id: "cust-123"
       headers: {}
-    steps:
-      - filter: { expr: 'body.amount != null and body.order_id != null' }
-      - translate:
-          expr: |
-            {
-              "payment_id": body.order_id,
-              "amount_cents": body.amount,
-              "currency": body.currency ? body.currency : "USD",
-              "customer_id": body.customer_id,
-              "timestamp": metadata.timestamp
-            }
-      - idempotent:
-          key_expr: 'body.payment_id'
-      - route:
-          expr: 'body.amount_cents > 1000000 ? "high_value" : "standard"'
-          cases:
-            high_value:
-              target: payments-high-value
-            standard:
-              target: payments-processed
-          default: payments-processed
-    expect:
+    expected_output:
       body:
         payment_id: "ord-001"
         amount_cents: 500000
         currency: "USD"
+        customer_id: "cust-123"
+      headers: {}
 
   - name: high-value order triggers alert
     input:
@@ -44,32 +25,14 @@ fixtures:
         currency: "USD"
         customer_id: "cust-456"
       headers: {}
-    steps:
-      - filter: { expr: 'body.amount != null and body.order_id != null' }
-      - translate:
-          expr: |
-            {
-              "payment_id": body.order_id,
-              "amount_cents": body.amount,
-              "currency": body.currency ? body.currency : "USD",
-              "customer_id": body.customer_id,
-              "timestamp": metadata.timestamp
-            }
-      - idempotent:
-          key_expr: 'body.payment_id'
-      - route:
-          expr: 'body.amount_cents > 1000000 ? "high_value" : "standard"'
-          cases:
-            high_value:
-              target: payments-high-value
-            standard:
-              target: payments-processed
-          default: payments-processed
-    expect:
+    expected_route: payments-high-value
+    expected_output:
       body:
         payment_id: "ord-002"
         amount_cents: 1500000
         currency: "USD"
+        customer_id: "cust-456"
+      headers: {}
 
   - name: missing amount goes to error path
     input:
@@ -77,10 +40,7 @@ fixtures:
         order_id: "ord-003"
         customer_id: "cust-789"
       headers: {}
-    steps:
-      - filter: { expr: 'body.amount != null and body.order_id != null' }
-    expect:
-      output: []
+    expected_dropped: true
 
   - name: currency defaults to USD when not provided
     input:
@@ -89,19 +49,10 @@ fixtures:
         amount: 250000
         customer_id: "cust-999"
       headers: {}
-    steps:
-      - filter: { expr: 'body.amount != null and body.order_id != null' }
-      - translate:
-          expr: |
-            {
-              "payment_id": body.order_id,
-              "amount_cents": body.amount,
-              "currency": body.currency ? body.currency : "USD",
-              "customer_id": body.customer_id,
-              "timestamp": metadata.timestamp
-            }
-    expect:
+    expected_output:
       body:
         payment_id: "ord-004"
         amount_cents: 250000
         currency: "USD"
+        customer_id: "cust-999"
+      headers: {}

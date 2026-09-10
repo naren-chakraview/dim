@@ -1,0 +1,55 @@
+# Task 3 Review Package
+fefd5a6 ci: add route validation and testing gates for M4.1 Co-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com> Claude-Session: https://claude.ai/code/session_01JFYQt4F9hnFAozv63oUwfv
+
+ .github/workflows/ci.yml | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 7d68f46..b71cb68 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -37,20 +37,44 @@ jobs:
+       #     args: --timeout=5m
+ 
+       # MERGE GATE 4: All tests must pass
+       - name: Test
+         run: go test ./...
+ 
+       # MERGE GATE 5: Race detector must pass
+       - name: Test with race detector
+         run: go test -race ./...
+ 
++      # MERGE GATE 8: Validate all route YAML files changed in this PR
++      - name: Validate route configurations
++        run: bash scripts/validate-routes.sh
++        if: |
++          github.event_name == 'pull_request' ||
++          github.ref == 'refs/heads/main' ||
++          github.ref == 'refs/heads/master'
++
++      # MERGE GATE 9: Test all route configurations with their fixture tests
++      - name: Test route configurations
++        run: bash scripts/test-routes.sh
++        if: |
++          github.event_name == 'pull_request' ||
++          github.ref == 'refs/heads/main' ||
++          github.ref == 'refs/heads/master'
++
++      # MERGE GATE 10: Mandatory governance fragment check
++      - name: Check mandatory governance fragments
++        run: bash scripts/check-mandatory-fragments.sh
++        if: |
++          github.event_name == 'pull_request' ||
++          github.ref == 'refs/heads/main' ||
++          github.ref == 'refs/heads/master'
++
+       # MERGE GATE 6: Vulnerability check
+       - name: Check for vulnerabilities
+         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+ 
+       # MERGE GATE 7: Cross-compile for all supported platforms
+       - name: Cross-compile all platforms
+         run: |
+           GOOS=linux GOARCH=amd64 go build -o /tmp/dimd-linux-amd64 ./cmd/dimd
+           GOOS=linux GOARCH=arm64 go build -o /tmp/dimd-linux-arm64 ./cmd/dimd
+           GOOS=darwin GOARCH=amd64 go build -o /tmp/dimd-darwin-amd64 ./cmd/dimd
