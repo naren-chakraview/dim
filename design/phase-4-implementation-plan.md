@@ -23,6 +23,28 @@ Unchanged in substance from the self-service feasibility study; restated here at
 
 ### M4.1 — GitOps deployment pipeline
 
+**Status:** IMPLEMENTED (2026-09-09)
+
+**Summary:**
+- M4.1.1 ✅ CI pipeline config: `dimctl validate` + `dimctl test` + mandatory-fragment lint in `.github/workflows/ci.yml`
+- M4.1.2 ✅ Config delivery: `deploy/git-sync.sh` with systemd/cron setup docs
+- M4.1.3 ✅ Domain-scoped review: `domains/CODEOWNERS` configured with platform-team and per-domain leads
+- M4.1.4 ✅ Worked example: `domains/payments/order-payment.yaml` route, validated and tested
+
+**Exit Criteria Verification:**
+- ✅ Route changes in PRs are validated and tested automatically (CI gates M4.1.1)
+- ✅ Merging to main reaches running instances without manual restart (git-sync + hot-reload, M4.1.2)
+- ✅ Reviewer is domain lead, not central team (CODEOWNERS auto-assignment, M4.1.3)
+- ✅ `dimctl provenance` shows new `route_version` post-deploy (verified with worked example, M4.1.4)
+
+**Files Delivered:**
+- domains/{README.md, CODEOWNERS, governance/{fragments.yaml, common-steps.yaml}}
+- domains/payments/{DOMAIN.yaml, order-payment.yaml, order-payment.route_test.yaml}
+- scripts/{validate-routes.sh, test-routes.sh, check-mandatory-fragments.sh}
+- deploy/{git-sync.sh, README.md}
+- docs/self-service/{GITOPS_WORKFLOW.md, GIT_SYNC_SETUP.md}
+- .github/workflows/ci.yml (updated with merge gates 8, 9, 10)
+
 **Scope:** The one genuine gap the feasibility study found (§4 there): nothing today describes how an edited route YAML actually reaches a running `dimd` instance. This is assembly, not invention — every step after "open a PR" either runs a tool that already exists (`dimctl validate`, `dimctl test`, the mandatory-fragment lint) or uses a mechanism the engine already has (drain-based hot reload, §14.1).
 
 **Subtasks:**
