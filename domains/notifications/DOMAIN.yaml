@@ -1,0 +1,7 @@
+# Domain metadata for notifications
+domain:
+  name: notifications
+  owner: bob@example.com
+  slack_channel: "#notifications-team"
+  description: Email, SMS, and push notification delivery
+  owner_team: notifications-platform

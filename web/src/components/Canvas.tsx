@@ -70,7 +70,9 @@ export function Canvas({ route, onStepSelect }: CanvasProps) {
   // Handle node click for selection
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
-      const stepName = node.data.label.split(' ').pop();
+      // Extract step name from label like "filter (step 0)"
+      const label = node.data.label;
+      const stepName = label.split(' (')[0].replace(/^[^\w]+/, ''); // Remove icon emoji, keep text before parenthesis
       if (stepName) {
         setSelectedNodeId(node.id);
         onStepSelect?.(stepName);

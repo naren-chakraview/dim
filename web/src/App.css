@@ -21,6 +21,57 @@ body {
   background: #fafafa;
 }
 
+.studio-app.loading,
+.studio-app.empty {
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-spinner,
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.loading-spinner p,
+.empty-state h2,
+.empty-state p {
+  margin: 0;
+  color: #2c3e50;
+}
+
+.loading-spinner p {
+  font-size: 16px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.empty-state h2 {
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: #7f8c8d;
+  margin-bottom: 8px;
+}
+
+/* Error Banner */
+.error-banner {
+  background: #fadbd8;
+  border-bottom: 1px solid #f5b7b1;
+  padding: 12px 24px;
+  color: #c0392b;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.error-banner p {
+  margin: 0;
+}
+
 /* Header */
 .studio-header {
   background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
@@ -30,12 +81,55 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 24px;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
 }
 
 .studio-header h1 {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
+  white-space: nowrap;
+}
+
+.route-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.route-selector label {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.route-selector select {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  cursor: pointer;
+  flex: 1;
+  min-width: 150px;
+}
+
+.route-selector select option {
+  background: #2c3e50;
+  color: white;
+}
+
+.route-selector select:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .header-controls {
@@ -65,6 +159,29 @@ body {
   border-radius: 12px;
   font-size: 12px;
   font-weight: 500;
+}
+
+.save-button {
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.save-button:hover:not(:disabled) {
+  background: #229954;
+  box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
+}
+
+.save-button:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+  opacity: 0.6;
 }
 
 /* Main Layout */

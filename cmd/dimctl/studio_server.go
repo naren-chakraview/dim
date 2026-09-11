@@ -228,10 +228,33 @@ func (s *StudioServer) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Validate and save route
+	if req.FilePath == "" {
+		http.Error(w, "filePath required", http.StatusBadRequest)
+		return
+	}
+
+	// Convert route back to YAML and write to file
+	yamlBytes, err := ReconstructYAML(req.Route, make(map[string]string))
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": fmt.Sprintf("Failed to convert to YAML: %v", err),
+		})
+		return
+	}
+
+	// Write to file
+	if err := ioutil.WriteFile(req.FilePath, []byte(yamlBytes), 0644); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"error": fmt.Sprintf("Failed to write file: %v", err),
+		})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"valid": true,
+		"success": true,
 		"message": "Route saved successfully",
 	})
 }

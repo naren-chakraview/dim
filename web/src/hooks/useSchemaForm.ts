@@ -290,14 +290,14 @@ export function getStepSchema(stepType: string): JSONSchema {
       type: 'object',
       title: 'Filter Step',
       properties: {
-        condition: {
+        expr: {
           type: 'string',
-          title: 'Condition',
-          description: 'JSONata condition to evaluate',
+          title: 'Filter Expression',
+          description: 'JSONata condition to evaluate (true = pass, false = filter out)',
           examples: ['$payload.amount > 100', '$payload.status = "active"'],
         },
       },
-      required: ['condition'],
+      required: ['expr'],
     },
     delay: {
       type: 'object',
