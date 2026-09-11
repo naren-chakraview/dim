@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { useSchemaForm, FormField, JSONSchema, getStepSchema } from '../hooks/useSchemaForm';
+import { JSONataEditor } from './JSONataEditor';
 import '../styles/SchemaForm.css';
 
 interface SchemaFormProps {
@@ -145,6 +146,15 @@ function FormFieldInput({
 }
 
 /**
+ * Check if a field is for JSONata expressions.
+ * JSONata fields have "expr", "expression", or "condition" in their name.
+ */
+function isJSONataField(fieldName: string): boolean {
+  const name = fieldName.toLowerCase();
+  return name.includes('expr') || name.includes('expression') || name.includes('condition');
+}
+
+/**
  * Render appropriate input based on field type.
  */
 function renderInput(
@@ -153,6 +163,19 @@ function renderInput(
   onChange: (value: any) => void,
   onBlur: () => void
 ) {
+  // Use JSONataEditor for expression/condition fields
+  if (isJSONataField(field.name)) {
+    return (
+      <JSONataEditor
+        value={value || ''}
+        onChange={onChange}
+        onBlur={onBlur}
+        placeholder={field.placeholder}
+        height="150px"
+      />
+    );
+  }
+
   switch (field.type) {
     case 'text':
       return (

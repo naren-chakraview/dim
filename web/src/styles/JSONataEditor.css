@@ -1,0 +1,217 @@
+.jsonata-editor-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #e0e0e0;
+  background: #fafafa;
+  transition: all 0.2s ease;
+}
+
+.jsonata-editor-container:focus-within {
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.jsonata-editor-container.has-error {
+  border-color: #e74c3c;
+}
+
+/* Editor Wrapper */
+.editor-wrapper {
+  overflow: hidden;
+  border-radius: 4px;
+  border: 1px solid #ddd;
+  background: white;
+}
+
+.editor-wrapper .monaco-editor {
+  font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Courier New', monospace !important;
+}
+
+/* Monaco Overrides */
+.editor-wrapper .monaco-editor .margin {
+  background: #fafafa;
+}
+
+.editor-wrapper .monaco-editor .line-numbers {
+  color: #aaa;
+}
+
+.editor-wrapper .monaco-editor .current-line,
+.editor-wrapper .monaco-editor .current-line-margin {
+  background: rgba(52, 152, 219, 0.1);
+}
+
+.editor-wrapper .monaco-editor .selection {
+  background: rgba(52, 152, 219, 0.2);
+}
+
+.editor-wrapper .monaco-editor .bracket-match {
+  background: rgba(52, 152, 219, 0.15);
+}
+
+/* Error Display */
+.editor-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fadbd8;
+  border: 1px solid #f5b7b1;
+  border-radius: 4px;
+  color: #c0392b;
+  font-size: 13px;
+}
+
+.editor-error .error-icon {
+  flex-shrink: 0;
+  font-size: 16px;
+  margin-top: 2px;
+}
+
+.editor-error .error-message {
+  flex: 1;
+  line-height: 1.4;
+}
+
+/* Validation Status */
+.validation-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  animation: slideIn 0.2s ease;
+}
+
+.validation-status.valid {
+  background: #d5f4e6;
+  color: #27ae60;
+  border: 1px solid #a9dfbf;
+}
+
+.validation-status.invalid {
+  background: #fadbd8;
+  color: #c0392b;
+  border: 1px solid #f5b7b1;
+}
+
+.validation-status .status-icon {
+  font-size: 14px;
+}
+
+.validation-status .status-text {
+  flex: 1;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Help Text */
+.editor-help {
+  font-size: 12px;
+  color: #7f8c8d;
+}
+
+.editor-help details {
+  cursor: pointer;
+  user-select: none;
+}
+
+.editor-help summary {
+  padding: 6px 8px;
+  margin: -6px -8px;
+  border-radius: 3px;
+  background: #f5f5f5;
+  transition: background 0.2s ease;
+}
+
+.editor-help summary:hover {
+  background: #ecf0f1;
+}
+
+.editor-help details[open] summary {
+  background: #e8f4f8;
+  color: #2c3e50;
+  font-weight: 500;
+}
+
+.editor-help .help-content {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #3498db;
+}
+
+.editor-help h4 {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.editor-help ul {
+  margin: 0;
+  padding-left: 20px;
+  list-style: disc;
+}
+
+.editor-help li {
+  margin: 4px 0;
+  line-height: 1.5;
+  color: #34495e;
+}
+
+.editor-help code {
+  background: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid #ecf0f1;
+  font-family: 'Monaco', monospace;
+  font-size: 11px;
+  color: #d63384;
+}
+
+.editor-help p {
+  margin: 8px 0 0 0;
+  padding-top: 8px;
+  border-top: 1px solid #e8eef5;
+}
+
+.editor-help a {
+  color: #3498db;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.editor-help a:hover {
+  text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .jsonata-editor-container {
+    gap: 10px;
+  }
+
+  .editor-help .help-content {
+    font-size: 11px;
+  }
+
+  .editor-help code {
+    font-size: 10px;
+  }
+}
