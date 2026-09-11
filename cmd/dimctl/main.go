@@ -965,6 +965,7 @@ func init() {
 	rootCmd.AddCommand(lineageCmd)
 	rootCmd.AddCommand(traceCmd)
 	rootCmd.AddCommand(studioCmd)
+	rootCmd.AddCommand(secretAuditCmd)
 
 	// Add lineage subcommands
 	lineageCmd.AddCommand(lineagePurgeCmd)
@@ -997,4 +998,7 @@ func init() {
 	traceTailCmd.Flags().StringP("route", "r", "", "Filter to specific route (optional)")
 	traceTailCmd.Flags().StringP("service", "s", "dim", "Service name (default: dim)")
 	traceTailCmd.Flags().IntP("limit", "l", 20, "Number of recent spans to show before streaming (default: 20)")
+
+	// Add flags to secret-audit command
+	secretAuditCmd.Flags().BoolP("json", "j", false, "Output results as JSON")
 }
