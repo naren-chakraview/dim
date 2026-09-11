@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Canvas } from './components/Canvas';
-import { RouteConfig } from './types/route';
+import { SchemaForm } from './components/SchemaForm';
+import { RouteConfig, Route } from './types/route';
 import './App.css';
 
 /**
@@ -8,22 +9,61 @@ import './App.css';
  *
  * Layout:
  * - Left: Canvas (DAG visualization)
- * - Right: Form panel (will be added in M4.5.3)
- * - Bottom: Validation panel (will be added in M4.5.5)
+ * - Right: Form panel (schema-driven configuration)
+ * - Bottom: Validation panel (M4.5.5)
  */
 export function App() {
   const [route, setRoute] = useState<RouteConfig | null>(null);
   const [selectedStep, setSelectedStep] = useState<string | null>(null);
+  const [selectedRouteName, setSelectedRouteName] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
 
   const handleStepSelect = (stepName: string) => {
     setSelectedStep(stepName);
+    // Find which route this step belongs to
+    if (route?.routes) {
+      for (const [routeName, routeConfig] of Object.entries(route.routes)) {
+        const stepExists = routeConfig.steps?.some(s => Object.keys(s)[0] === stepName);
+        if (stepExists) {
+          setSelectedRouteName(routeName);
+          break;
+        }
+      }
+    }
+  };
+
+  const handleStepConfigChange = (newConfig: any) => {
+    if (!route || !selectedRouteName || !selectedStep) return;
+
+    const updatedRoute = JSON.parse(JSON.stringify(route)) as RouteConfig;
+    const routeConfig = updatedRoute.routes?.[selectedRouteName];
+
+    if (routeConfig?.steps) {
+      const stepIndex = routeConfig.steps.findIndex(s => Object.keys(s)[0] === selectedStep);
+      if (stepIndex !== -1) {
+        routeConfig.steps[stepIndex] = {
+          [selectedStep]: newConfig,
+        };
+      }
+    }
+
+    setRoute(updatedRoute);
+    setIsDirty(true);
   };
 
   const handleRouteChange = (newRoute: RouteConfig) => {
     setRoute(newRoute);
     setIsDirty(true);
   };
+
+  // Get current step config for the selected step
+  const currentStepConfig = (() => {
+    if (!route || !selectedRouteName || !selectedStep) return undefined;
+
+    const routeConfig = route.routes?.[selectedRouteName];
+    const step = routeConfig?.steps?.find(s => Object.keys(s)[0] === selectedStep);
+    return step?.[selectedStep];
+  })();
 
   return (
     <div className="studio-app">
@@ -44,10 +84,12 @@ export function App() {
         {/* Form/Properties Panel - Right */}
         <div className="form-panel">
           {selectedStep ? (
-            <div className="form-content">
-              <h3>Configure: {selectedStep}</h3>
-              <p>Schema-driven form will render here (M4.5.3)</p>
-            </div>
+            <SchemaForm
+              stepType={selectedStep}
+              value={currentStepConfig || {}}
+              onChange={handleStepConfigChange}
+              title={`Configure: ${selectedStep}`}
+            />
           ) : (
             <div className="form-placeholder">
               <p>Select a step to configure</p>
@@ -58,7 +100,7 @@ export function App() {
 
       {/* Validation Panel - Bottom */}
       <div className="validation-panel">
-        <p>✓ Ready to save (validation will update here)</p>
+        <p>✓ Ready to save (validation will update here in M4.5.5)</p>
       </div>
     </div>
   );
