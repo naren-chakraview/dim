@@ -24,9 +24,15 @@ func TestStudioEndToEnd(t *testing.T) {
 sources:
   test-source:
     type: http
+sinks:
+  test-sink:
+    type: file
+    path: ./test-output.jsonl
 routes:
   test-route:
     from: test-source
+    error_path:
+      target: test-sink
     steps: []
 `
 	routePath := filepath.Join(domainsDir, "test-route.yaml")
@@ -87,45 +93,46 @@ routes:
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	if !bytes.Contains(body, []byte("Route Studio")) {
+	if !bytes.Contains(body, []byte("DIM Visual Route Editor")) {
 		t.Error("UI does not contain expected title")
 	}
 
-	// Test 4: Verify canvas is in the page
-	if !bytes.Contains(body, []byte("canvas")) {
-		t.Error("UI does not contain canvas element")
+	// Test 4: Verify root element is in the page (React mounts here)
+	if !bytes.Contains(body, []byte(`<div id="root">`)) {
+		t.Error("UI does not contain root div for React")
 	}
 
-	// Test 5: Verify scripts are loaded
-	expectedScripts := []string{
-		"/ui/canvas.js",
-		"/ui/forms.js",
-		"/ui/jsonata-editor.js",
-		"/ui/main.js",
-	}
-	for _, script := range expectedScripts {
-		if !bytes.Contains(body, []byte(script)) {
-			t.Errorf("UI does not reference %s", script)
-		}
+	// Test 5: Verify scripts are loaded (React/Vite bundle)
+	if !bytes.Contains(body, []byte(`type="module"`)) {
+		t.Error("UI does not reference module script")
 	}
 
-	// Test 6: Verify CSS is loaded
-	if !bytes.Contains(body, []byte("/ui/styles.css")) {
-		t.Error("UI does not reference styles.css")
+	// Test 6: Verify CSS bundle is loaded
+	if !bytes.Contains(body, []byte(`rel="stylesheet"`)) {
+		t.Error("UI does not reference stylesheet")
 	}
 
 	// Test 7: Edit route (simulate)
 	editData := map[string]interface{}{
 		"version": 1,
-		"routes": map[string]interface{}{
-			"test-route": map[string]interface{}{
-				"from": "test-source",
-				"steps": []interface{}{},
-			},
-		},
 		"sources": map[string]interface{}{
 			"test-source": map[string]interface{}{
 				"type": "http",
+			},
+		},
+		"sinks": map[string]interface{}{
+			"test-sink": map[string]interface{}{
+				"type": "file",
+				"path": "./test-output.jsonl",
+			},
+		},
+		"routes": map[string]interface{}{
+			"test-route": map[string]interface{}{
+				"from": "test-source",
+				"error_path": map[string]interface{}{
+					"target": "test-sink",
+				},
+				"steps": []interface{}{},
 			},
 		},
 	}

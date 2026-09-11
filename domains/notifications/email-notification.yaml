@@ -8,14 +8,11 @@ sources:
 routes:
   email-notification:
     from: notification-queue
+    error_path:
+      target: dlq
     steps:
       - filter:
           expr: body.type = "email" and body.recipient != null
-      - translate:
-          expr: { to: body.recipient, subject: body.subject, body: body.message }
-      - log:
-          level: info
-          message: "Sending email to {to}"
 sinks:
   email-service:
     type: http

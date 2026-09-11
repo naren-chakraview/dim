@@ -3,25 +3,20 @@ imports:
   - ../governance/fragments.yaml
 sources:
   warehouse-events:
-    type: kafka
-    topic: inventory.stock-updates
-    brokers:
-      - localhost:9092
+    type: file
+    path: ./inventory-events.jsonl
 routes:
   stock-update:
     from: warehouse-events
+    error_path:
+      target: audit-dlq
     steps:
       - filter:
           expr: body.quantity_change != 0 and body.sku != null
-      - translate:
-          expr: { sku: body.sku, quantity: body.quantity_change, timestamp: $now(), warehouse: body.location }
-      - log:
-          level: debug
-          message: "Stock update for {sku}"
 sinks:
   inventory-db:
     type: http
     endpoint: "https://inventory-api.internal/update"
-  audit-log:
+  audit-dlq:
     type: file
-    path: ./stock-audit.jsonl
+    path: ./stock-audit-dlq.jsonl
