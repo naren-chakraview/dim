@@ -1,0 +1,31 @@
+{
+  "name": "dim-studio",
+  "version": "1.0.0",
+  "description": "Visual route-authoring interface for dim middleware",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-flow-renderer": "^12.0.0",
+    "@react-flow/controls": "^11.1.0",
+    "@react-flow/background": "^11.0.0",
+    "@monaco-editor/react": "^4.5.0",
+    "typescript": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/user-event": "^14.0.0",
+    "vite": "^4.4.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "vitest": "^0.34.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest"
+  }
+}
