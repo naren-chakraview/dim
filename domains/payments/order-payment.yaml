@@ -9,14 +9,14 @@ routes:
   order-payment:
     from: orders-in
     error_path:
-      target: payments-dlq
+      target: error
     steps:
       - filter:
-          expr: body.amount > 100
+          expr: true
 sinks:
-  payments-processed:
+  output:
     type: file
     path: ./output/payments-processed.jsonl
-  payments-dlq:
+  error:
     type: file
     path: ./output/payments-dlq.jsonl

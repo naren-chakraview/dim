@@ -3,27 +3,22 @@ imports:
   - ../governance/fragments.yaml
 sources:
   transactions:
-    type: kafka
-    topic: payments.transactions
-    brokers:
-      - localhost:9092
+    type: file
+    path: ./transactions.jsonl
 routes:
   transaction-screening:
     from: transactions
+    error_path:
+      target: fraud-dlq
     steps:
       - filter:
           expr: body.amount > 0 and body.account_id != null
-      - translate:
-          expr: { account: body.account_id, amount: body.amount, risk_score: body.amount > 10000 ? 0.8 : 0.2, timestamp: $now() }
       - filter:
-          expr: risk_score > 0.5
+          expr: body.amount > 0.5
 sinks:
   fraud-alerts:
     type: http
     endpoint: "https://fraud-api.internal/alert"
-  low-risk:
-    type: file
-    path: ./transactions-approved.jsonl
-  high-risk:
+  fraud-dlq:
     type: file
     path: ./transactions-flagged.jsonl
