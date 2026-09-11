@@ -72,3 +72,4 @@ graphify-out/*.html
 Thumbs.db
 .DS_Store
 .worktrees/
+web/node_modules/
