@@ -6,7 +6,8 @@ import ReactFlow, {
   Background,
   useNodesState,
   useEdgesState,
-} from 'react-flow-renderer';
+} from 'reactflow';
+import 'reactflow/dist/style.css';
 import { RouteConfig, DAGNode as DAGNodeType } from '../types/route';
 import { useDagLayout } from '../hooks/useDagLayout';
 import '../styles/Canvas.css';

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { SchemaForm } from '../SchemaForm';
 import { JSONSchema } from '../../hooks/useSchemaForm';

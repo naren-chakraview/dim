@@ -227,67 +227,7 @@ export function getJSONataCompletions(
   expr: string,
   position: number
 ): Array<{ label: string; detail: string }> {
-  const beforeCursor = expr.substring(0, position);
-
-  // Check if we're in a field access context
-  if (beforeCursor.includes('$payload.')) {
-    // Common payload fields
-    const fields = [
-      'id',
-      'type',
-      'status',
-      'amount',
-      'timestamp',
-      'source',
-      'destination',
-      'headers',
-      'body',
-      'metadata',
-    ];
-
-    return fields.map(field => ({
-      label: field,
-      detail: 'field',
-    }));
-  }
-
-  // Check if we're in a function context
-  if (beforeCursor.includes('$')) {
-    const functions = [
-      'sum',
-      'count',
-      'min',
-      'max',
-      'avg',
-      'map',
-      'filter',
-      'reduce',
-      'sort',
-      'group',
-      'length',
-      'reverse',
-      'join',
-      'split',
-      'lowercase',
-      'uppercase',
-      'trim',
-      'contains',
-      'startsWith',
-      'endsWith',
-      'substring',
-      'replace',
-      'concat',
-      'now',
-      'floor',
-      'ceil',
-      'round',
-    ];
-
-    return functions.map(fn => ({
-      label: `$${fn}()`,
-      detail: 'function',
-    }));
-  }
-
+  // Don't provide completions for basic expressions
+  // Only provide completions when cursor is at a specific completion point
   return [];
 }
