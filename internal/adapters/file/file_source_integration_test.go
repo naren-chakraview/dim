@@ -44,6 +44,24 @@ func TestFileSourceLocalPolling(t *testing.T) {
 		t.Fatalf("failed to write test file: %v", err)
 	}
 
+	// Verify file exists and has correct content before expecting poller to pick it up
+	var data []byte
+	var readErr error
+	for retries := 0; retries < 5; retries++ {
+		data, readErr = os.ReadFile(testFile)
+		if readErr == nil && len(data) > 0 {
+			break
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	if readErr != nil || len(data) == 0 {
+		t.Fatalf("file verification failed: %v, content length: %d", readErr, len(data))
+	}
+
+	// Give poller time to run at least once after file is verified
+	// (poll interval is 100ms, add buffer for CI load)
+	time.Sleep(150 * time.Millisecond)
+
 	// Wait for message to be sent
 	waitCtx, waitCancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer waitCancel()
