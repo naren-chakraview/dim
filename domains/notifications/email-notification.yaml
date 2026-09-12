@@ -1,0 +1,22 @@
+version: 1
+imports:
+  - ../governance/fragments.yaml
+sources:
+  notification-queue:
+    type: file
+    path: ./notifications.jsonl
+routes:
+  email-notification:
+    from: notification-queue
+    error_path:
+      target: dlq
+    steps:
+      - filter:
+          expr: body.type = "email" and body.recipient != null
+sinks:
+  email-service:
+    type: http
+    endpoint: "https://api.sendgrid.com/v3/mail/send"
+  dlq:
+    type: file
+    path: ./failed-emails.jsonl

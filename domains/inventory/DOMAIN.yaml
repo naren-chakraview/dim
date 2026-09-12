@@ -1,0 +1,7 @@
+# Domain metadata for inventory
+domain:
+  name: inventory
+  owner: charlie@example.com
+  slack_channel: "#inventory-team"
+  description: Inventory tracking and warehouse management
+  owner_team: inventory-platform

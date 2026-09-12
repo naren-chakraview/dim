@@ -1,0 +1,24 @@
+version: 1
+imports:
+  - ../governance/fragments.yaml
+sources:
+  transactions:
+    type: file
+    path: ./transactions.jsonl
+routes:
+  transaction-screening:
+    from: transactions
+    error_path:
+      target: fraud-dlq
+    steps:
+      - filter:
+          expr: body.amount > 0 and body.account_id != null
+      - filter:
+          expr: body.amount > 0.5
+sinks:
+  fraud-alerts:
+    type: http
+    endpoint: "https://fraud-api.internal/alert"
+  fraud-dlq:
+    type: file
+    path: ./transactions-flagged.jsonl

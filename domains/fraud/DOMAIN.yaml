@@ -1,0 +1,7 @@
+# Domain metadata for fraud detection
+domain:
+  name: fraud
+  owner: diana@example.com
+  slack_channel: "#fraud-team"
+  description: Real-time fraud detection and prevention
+  owner_team: fraud-platform

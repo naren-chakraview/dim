@@ -1,0 +1,277 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #f5f5f5;
+  margin: 0;
+  padding: 0;
+}
+
+.studio-app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  background: #fafafa;
+}
+
+.studio-app.loading,
+.studio-app.empty {
+  justify-content: center;
+  align-items: center;
+}
+
+.loading-spinner,
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.loading-spinner p,
+.empty-state h2,
+.empty-state p {
+  margin: 0;
+  color: #2c3e50;
+}
+
+.loading-spinner p {
+  font-size: 16px;
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.empty-state h2 {
+  font-size: 24px;
+  margin-bottom: 16px;
+}
+
+.empty-state p {
+  font-size: 14px;
+  color: #7f8c8d;
+  margin-bottom: 8px;
+}
+
+/* Error Banner */
+.error-banner {
+  background: #fadbd8;
+  border-bottom: 1px solid #f5b7b1;
+  padding: 12px 24px;
+  color: #c0392b;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.error-banner p {
+  margin: 0;
+}
+
+/* Header */
+.studio-header {
+  background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+  color: white;
+  padding: 16px 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex: 1;
+}
+
+.studio-header h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.route-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 200px;
+}
+
+.route-selector label {
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.route-selector select {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  cursor: pointer;
+  flex: 1;
+  min-width: 150px;
+}
+
+.route-selector select option {
+  background: #2c3e50;
+  color: white;
+}
+
+.route-selector select:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.header-controls {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.dirty-indicator {
+  color: #f39c12;
+  font-size: 20px;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.domain-badge {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.save-button {
+  background: #27ae60;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.save-button:hover:not(:disabled) {
+  background: #229954;
+  box-shadow: 0 2px 8px rgba(39, 174, 96, 0.3);
+}
+
+.save-button:disabled {
+  background: #95a5a6;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Main Layout */
+.studio-layout {
+  display: flex;
+  flex: 1;
+  gap: 1px;
+  min-height: 0;
+  background: #e0e0e0;
+}
+
+.canvas-panel {
+  flex: 2;
+  min-width: 400px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.form-panel {
+  flex: 1;
+  min-width: 250px;
+  background: white;
+  border-left: 1px solid #ddd;
+  overflow-y: auto;
+  box-shadow: inset 1px 0 0 rgba(0, 0, 0, 0.05);
+}
+
+.form-content {
+  padding: 20px;
+}
+
+.form-content h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: #2c3e50;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 8px;
+}
+
+.form-content p {
+  margin: 0;
+  color: #7f8c8d;
+  font-size: 14px;
+}
+
+.form-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #95a5a6;
+  text-align: center;
+  padding: 20px;
+}
+
+.form-placeholder p {
+  margin: 0;
+  font-size: 14px;
+}
+
+/* Validation Panel */
+.validation-panel {
+  background: white;
+  border-top: 1px solid #ddd;
+  padding: 12px 24px;
+  font-size: 13px;
+  color: #2ecc71;
+  box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.05);
+}
+
+.validation-panel p {
+  margin: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .studio-layout {
+    flex-direction: column;
+  }
+
+  .canvas-panel {
+    flex: 1;
+    min-width: 0;
+    min-height: 300px;
+  }
+
+  .form-panel {
+    flex: 1;
+    min-width: 0;
+    border-left: none;
+    border-top: 1px solid #ddd;
+  }
+}

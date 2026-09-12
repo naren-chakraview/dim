@@ -1,36 +1,22 @@
 version: 1
 imports:
   - ../governance/fragments.yaml
-
 sources:
   orders-in:
     type: file
     path: ./orders.jsonl
-
-sinks:
-  output:
-    type: file
-    path: ./output/messages.jsonl
-
-  payments-processed:
-    type: file
-    path: ./output/payments-processed.jsonl
-
-  payments-dlq:
-    type: file
-    path: ./output/payments-dlq.jsonl
-
-  payments-high-value:
-    type: file
-    path: ./output/payments-high-value.jsonl
-
 routes:
   order-payment:
     from: orders-in
-    auth: none
-    lineage: { retention_policy: default }
     error_path:
-      target: payments-dlq
-      retry: { max_attempts: 5, backoff: { type: exponential, initial: 1s, max: 30s, jitter: true } }
+      target: error
     steps:
-      - filter: { expr: 'body.amount != null and body.order_id != null' }
+      - filter:
+          expr: true
+sinks:
+  output:
+    type: file
+    path: ./output/payments-processed.jsonl
+  error:
+    type: file
+    path: ./output/payments-dlq.jsonl

@@ -1,0 +1,22 @@
+version: 1
+imports:
+  - ../governance/fragments.yaml
+sources:
+  warehouse-events:
+    type: file
+    path: ./inventory-events.jsonl
+routes:
+  stock-update:
+    from: warehouse-events
+    error_path:
+      target: audit-dlq
+    steps:
+      - filter:
+          expr: body.quantity_change != 0 and body.sku != null
+sinks:
+  inventory-db:
+    type: http
+    endpoint: "https://inventory-api.internal/update"
+  audit-dlq:
+    type: file
+    path: ./stock-audit-dlq.jsonl
