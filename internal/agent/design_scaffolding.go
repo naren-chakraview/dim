@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -144,20 +143,20 @@ func extractIntentSignals(intent string) IntentSignals {
 	intentLower := strings.ToLower(intent)
 	signals := IntentSignals{}
 
-	// Extract source type
-	sourceTypes := []string{"webhook", "http", "kafka", "file", "sftp", "exec", "database", "queue"}
-	for _, sourceType := range sourceTypes {
-		if strings.Contains(intentLower, sourceType) {
-			signals.SourceType = sourceType
-			if sourceType == "webhook" {
-				signals.SourceType = "http"
-			}
-			break
-		}
+	// Extract source type (only valid schema types: http, file, sftp, exec)
+	// Check for keywords that map to sources
+	if strings.Contains(intentLower, "webhook") || strings.Contains(intentLower, "request") || strings.Contains(intentLower, "http") {
+		signals.SourceType = "http"
+	} else if strings.Contains(intentLower, "file") {
+		signals.SourceType = "file"
+	} else if strings.Contains(intentLower, "sftp") {
+		signals.SourceType = "sftp"
+	} else if strings.Contains(intentLower, "exec") || strings.Contains(intentLower, "command") {
+		signals.SourceType = "exec"
 	}
 
-	// Extract sink type
-	sinkTypes := []string{"kafka", "http", "file", "sftp", "s3", "database", "queue"}
+	// Extract sink type (only valid schema types)
+	sinkTypes := []string{"http", "file", "sftp", "exec"}  // Valid types in schema
 	for _, sinkType := range sinkTypes {
 		if strings.Contains(intentLower, sinkType) {
 			signals.SinkType = sinkType
@@ -178,31 +177,39 @@ func extractIntentSignals(intent string) IntentSignals {
 	return signals
 }
 
-// applyIntentToTemplate substitutes placeholders with extracted signals
+// applyIntentToTemplate substitutes placeholders with extracted signals and defaults
 func applyIntentToTemplate(template string, domain string, signals IntentSignals) string {
 	result := template
 
 	// Replace domain references
 	result = strings.ReplaceAll(result, "{{ DOMAIN }}", domain)
 
-	// Replace source if detected
+	// Replace source - use detected type or default
+	sourceType := "http" // default
 	if signals.SourceType != "" {
 		// Map common names to schema types
 		sourceMapping := map[string]string{
 			"webhook": "http",
 			"queue":   "kafka",
 		}
-		sourceType := signals.SourceType
-		if mapped, ok := sourceMapping[sourceType]; ok {
+		if mapped, ok := sourceMapping[signals.SourceType]; ok {
 			sourceType = mapped
+		} else {
+			sourceType = signals.SourceType
 		}
-		result = strings.ReplaceAll(result, "{{ SOURCE_TYPE }}", sourceType)
 	}
+	result = strings.ReplaceAll(result, "{{ SOURCE_TYPE }}", sourceType)
 
-	// Replace sink if detected
+	// Replace sink - use detected type or default
+	sinkType := "file" // default
 	if signals.SinkType != "" {
-		result = strings.ReplaceAll(result, "{{ SINK_TYPE }}", signals.SinkType)
+		sinkType = signals.SinkType
 	}
+	result = strings.ReplaceAll(result, "{{ SINK_TYPE }}", sinkType)
+
+	// Replace transformation expression with default identity
+	transformExpr := "$" // default identity transformation
+	result = strings.ReplaceAll(result, "{{ TRANSFORM_EXPR }}", transformExpr)
 
 	return result
 }
@@ -265,18 +272,20 @@ imports:
 
 sources:
   input:
-    type: {{ SOURCE_TYPE | "http" }}
+    type: {{ SOURCE_TYPE }}
 
 routes:
   passthrough:
     from: input
     error_path:
       target: error
-    steps: []
+    steps:
+      - filter:
+          expr: "true"
 
 sinks:
   output:
-    type: {{ SINK_TYPE | "file" }}
+    type: {{ SINK_TYPE }}
 
   error:
     type: file
@@ -291,7 +300,7 @@ imports:
 
 sources:
   input:
-    type: {{ SOURCE_TYPE | "http" }}
+    type: {{ SOURCE_TYPE }}
 
 routes:
   transform:
@@ -300,11 +309,11 @@ routes:
       target: error
     steps:
       - translate:
-          expr: '{{ TRANSFORM_EXPR | "$" }}'  # TODO: Implement transformation logic
+          expr: '{{ TRANSFORM_EXPR }}'  # TODO: Implement transformation logic
 
 sinks:
   output:
-    type: {{ SINK_TYPE | "file" }}
+    type: {{ SINK_TYPE }}
 
   error:
     type: file
@@ -319,7 +328,7 @@ imports:
 
 sources:
   input:
-    type: {{ SOURCE_TYPE | "http" }}
+    type: {{ SOURCE_TYPE }}
 
 routes:
   enforced:
@@ -328,11 +337,11 @@ routes:
       target: error
     steps:
       - translate:
-          expr: '{{ TRANSFORM_EXPR | "$" }}'
+          expr: '{{ TRANSFORM_EXPR }}'
 
 sinks:
   output:
-    type: {{ SINK_TYPE | "file" }}
+    type: {{ SINK_TYPE }}
     enforce: true  # Enforce contract on output
 
   error:
