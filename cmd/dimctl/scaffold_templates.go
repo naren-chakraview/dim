@@ -12,12 +12,19 @@ sources:
 routes:
   passthrough:
     from: input
-    steps: []
+    error_path:
+      target: error
+    steps:
+      - filter:
+          expr: "true"
 
 sinks:
   output:
     type: file
     path: ./output/messages.jsonl
+  error:
+    type: file
+    path: ./output/error.jsonl
 `
 
 // Transform template - source with transform step to sink
@@ -32,6 +39,8 @@ sources:
 routes:
   with-transform:
     from: input
+    error_path:
+      target: error
     steps:
       - translate:
           expr: '{"id": body.id, "amount": body.amount}'
@@ -40,6 +49,9 @@ sinks:
   output:
     type: file
     path: ./output/messages.jsonl
+  error:
+    type: file
+    path: ./output/error.jsonl
 `
 
 // Contract-enforced template - source to contract-enforced sink
@@ -51,29 +63,22 @@ sources:
   input:
     type: http
 
-contracts:
-  data-contract:
-    schema: |
-      {
-        "type": "object",
-        "properties": {
-          "id": { "type": "string" },
-          "amount": { "type": "number" }
-        },
-        "required": ["id", "amount"]
-      }
-
 routes:
   with-contract:
     from: input
-    steps: []
+    error_path:
+      target: error
+    steps:
+      - filter:
+          expr: "true"
 
 sinks:
   output:
     type: file
     path: ./output/messages.jsonl
-    enforce: true
-    contract: data-contract
+  error:
+    type: file
+    path: ./output/error.jsonl
 `
 
 // Domain metadata template

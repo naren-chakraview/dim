@@ -165,7 +165,7 @@ func TestScaffoldTemplateShapes(t *testing.T) {
 		{
 			name:     "contract",
 			template: "contract",
-			shouldHave: []string{"governance/fragments", "contracts:", "enforce: true"},
+			shouldHave: []string{"governance/fragments", "sources:", "routes:", "sinks:"},
 		},
 	}
 
