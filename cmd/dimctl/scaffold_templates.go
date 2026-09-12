@@ -14,7 +14,9 @@ routes:
     from: input
     error_path:
       target: error
-    steps: []
+    steps:
+      - filter:
+          expr: "true"
 
 sinks:
   output:
@@ -66,7 +68,9 @@ routes:
     from: input
     error_path:
       target: error
-    steps: []
+    steps:
+      - filter:
+          expr: "true"
 
 sinks:
   output:
