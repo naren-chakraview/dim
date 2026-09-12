@@ -107,6 +107,30 @@ func (s *MCPServer) registerOperations() {
 			return GetCapabilities(ctx, req)
 		},
 	}
+
+	s.operations["scaffold_from_intent"] = MCPOperation{
+		Name:        "scaffold_from_intent",
+		Description: "Generate a route scaffold from natural-language design intent",
+		Handler: func(ctx context.Context, rawReq json.RawMessage) (interface{}, *OperationErr) {
+			var req ScaffoldFromIntentRequest
+			if err := json.Unmarshal(rawReq, &req); err != nil {
+				return nil, &OperationErr{Code: "INVALID_REQUEST", Message: fmt.Sprintf("Failed to parse request: %v", err)}
+			}
+			return ScaffoldFromIntent(ctx, req)
+		},
+	}
+
+	s.operations["critique_route"] = MCPOperation{
+		Name:        "critique_route",
+		Description: "Analyze and critique an existing route for non-structural issues",
+		Handler: func(ctx context.Context, rawReq json.RawMessage) (interface{}, *OperationErr) {
+			var req CritiqueRouteRequest
+			if err := json.Unmarshal(rawReq, &req); err != nil {
+				return nil, &OperationErr{Code: "INVALID_REQUEST", Message: fmt.Sprintf("Failed to parse request: %v", err)}
+			}
+			return CritiqueRoute(ctx, req)
+		},
+	}
 }
 
 // CallOperation executes an operation by name with the given request
@@ -167,12 +191,14 @@ type OperationSchema struct {
 // Helper: convert operation name to display name
 func toDisplayName(name string) string {
 	displayNames := map[string]string{
-		"validate_route":    "Validate Route Configuration",
-		"test_route":        "Test Route with Fixtures",
-		"scaffold_domain":   "Scaffold New Domain",
-		"get_lineage":       "Query Message Lineage",
-		"get_provenance":    "Query Subject Provenance",
-		"get_capabilities":  "Query Supported Capabilities",
+		"validate_route":        "Validate Route Configuration",
+		"test_route":            "Test Route with Fixtures",
+		"scaffold_domain":       "Scaffold New Domain",
+		"get_lineage":           "Query Message Lineage",
+		"get_provenance":        "Query Subject Provenance",
+		"get_capabilities":      "Query Supported Capabilities",
+		"scaffold_from_intent":  "Generate Route from Design Intent",
+		"critique_route":        "Critique and Review Route",
 	}
 
 	if display, exists := displayNames[name]; exists {
