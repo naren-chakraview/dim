@@ -307,3 +307,196 @@ func TestOperationRequiredFields(t *testing.T) {
 		}
 	}
 }
+
+func TestGetCapabilitiesReturnsAdapters(t *testing.T) {
+	ctx := context.Background()
+	req := CapabilitiesRequest{FilterType: ""}
+
+	resp, err := GetCapabilities(ctx, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	adapters := filterByType(resp.Capabilities, "adapter")
+	if len(adapters) == 0 {
+		t.Fatal("expected adapters in response")
+	}
+
+	// Verify we have both source and sink adapters
+	expectedAdapters := map[string]bool{
+		"http-source":  false,
+		"http-sink":    false,
+		"file-source":  false,
+		"file-sink":    false,
+		"sftp-source":  false,
+		"sftp-sink":    false,
+		"exec-source":  false,
+		"exec-sink":    false,
+	}
+
+	for _, cap := range adapters {
+		if _, exists := expectedAdapters[cap.Name]; exists {
+			expectedAdapters[cap.Name] = true
+		}
+	}
+
+	for name, found := range expectedAdapters {
+		if !found {
+			t.Errorf("expected adapter %s not found", name)
+		}
+	}
+}
+
+func TestGetCapabilitiesReturnsSteps(t *testing.T) {
+	ctx := context.Background()
+	req := CapabilitiesRequest{FilterType: ""}
+
+	resp, err := GetCapabilities(ctx, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	steps := filterByType(resp.Capabilities, "step")
+	if len(steps) == 0 {
+		t.Fatal("expected steps in response")
+	}
+
+	expectedSteps := map[string]bool{
+		"filter-step":      false,
+		"translate-step":   false,
+		"route-step":       false,
+		"wiretap-step":     false,
+		"idempotent-step":  false,
+		"authorize-step":   false,
+	}
+
+	for _, cap := range steps {
+		if _, exists := expectedSteps[cap.Name]; exists {
+			expectedSteps[cap.Name] = true
+		}
+	}
+
+	for name, found := range expectedSteps {
+		if !found {
+			t.Errorf("expected step %s not found", name)
+		}
+	}
+}
+
+func TestGetCapabilitiesReturnsEIPs(t *testing.T) {
+	ctx := context.Background()
+	req := CapabilitiesRequest{FilterType: ""}
+
+	resp, err := GetCapabilities(ctx, req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	eips := filterByType(resp.Capabilities, "eip")
+	if len(eips) == 0 {
+		t.Fatal("expected EIPs in response")
+	}
+
+	expectedEIPs := map[string]bool{
+		"claim-check":             false,
+		"content-based-router":    false,
+		"dead-letter-queue":       false,
+		"wiretap":                 false,
+	}
+
+	for _, cap := range eips {
+		if _, exists := expectedEIPs[cap.Name]; exists {
+			expectedEIPs[cap.Name] = true
+		}
+	}
+
+	for name, found := range expectedEIPs {
+		if !found {
+			t.Errorf("expected EIP %s not found", name)
+		}
+	}
+}
+
+func TestGetCapabilitiesFiltering(t *testing.T) {
+	ctx := context.Background()
+
+	testCases := []struct {
+		filterType string
+		wantType   string
+		minCount   int
+	}{
+		{"adapter", "adapter", 1},
+		{"step", "step", 1},
+		{"eip", "eip", 1},
+		{"", "", 1}, // Empty means all types
+	}
+
+	for _, tc := range testCases {
+		resp, err := GetCapabilities(ctx, CapabilitiesRequest{FilterType: tc.filterType})
+		if err != nil {
+			t.Fatalf("filter %s: unexpected error: %v", tc.filterType, err)
+		}
+
+		if len(resp.Capabilities) < tc.minCount {
+			t.Errorf("filter %s: expected at least %d capabilities, got %d", tc.filterType, tc.minCount, len(resp.Capabilities))
+		}
+
+		if tc.filterType != "" {
+			// Verify only matching type returned
+			for _, cap := range resp.Capabilities {
+				if cap.Type != tc.wantType {
+					t.Errorf("filter %s: got unexpected type %s", tc.filterType, cap.Type)
+				}
+			}
+		}
+	}
+}
+
+func TestGetCapabilitiesSchemaVersion(t *testing.T) {
+	ctx := context.Background()
+	resp, err := GetCapabilities(ctx, CapabilitiesRequest{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.SchemaVersion == "" {
+		t.Fatal("schema_version should not be empty")
+	}
+
+	if resp.SchemaVersion != "1.0.0" {
+		t.Fatalf("expected schema_version 1.0.0, got %s", resp.SchemaVersion)
+	}
+}
+
+func TestGetCapabilitiesConfigSchema(t *testing.T) {
+	ctx := context.Background()
+	resp, err := GetCapabilities(ctx, CapabilitiesRequest{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.Capabilities) == 0 {
+		t.Fatal("expected capabilities")
+	}
+
+	for _, cap := range resp.Capabilities {
+		if cap.ConfigSchema == nil {
+			t.Errorf("capability %s has nil config_schema", cap.Name)
+		}
+
+		if cap.Description == "" {
+			t.Errorf("capability %s has empty description", cap.Name)
+		}
+	}
+}
+
+// Helper function to filter capabilities by type
+func filterByType(caps []Capability, capType string) []Capability {
+	var result []Capability
+	for _, cap := range caps {
+		if cap.Type == capType {
+			result = append(result, cap)
+		}
+	}
+	return result
+}
