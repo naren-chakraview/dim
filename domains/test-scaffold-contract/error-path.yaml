@@ -1,0 +1,14 @@
+version: 1
+
+# Error path template — uncomment and customize as needed
+# This configuration handles messages that fail validation or processing
+#
+# error_path:
+#   steps:
+#     - log:
+#         level: error
+#         message: 'Failed to process message'
+#   sinks:
+#     dlq:
+#       type: file
+#       path: ./dlq/failed-messages.jsonl

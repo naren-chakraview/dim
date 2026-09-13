@@ -1,0 +1,24 @@
+version: 1
+imports:
+  - ../governance/fragments.yaml
+
+sources:
+  input:
+    type: http
+
+routes:
+  passthrough:
+    from: input
+    error_path:
+      target: dlq
+    steps:
+      - filter:
+          expr: 'true'
+
+sinks:
+  output:
+    type: file
+    path: ./output/messages.jsonl
+  dlq:
+    type: file
+    path: ./output/dlq.jsonl

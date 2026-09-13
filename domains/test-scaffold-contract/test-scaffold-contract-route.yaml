@@ -1,0 +1,38 @@
+version: 1
+imports:
+  - ../governance/fragments.yaml
+
+sources:
+  input:
+    type: http
+
+contracts:
+  data-contract:
+    schema: |
+      {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "amount": { "type": "number" }
+        },
+        "required": ["id", "amount"]
+      }
+
+routes:
+  with-contract:
+    from: input
+    error_path:
+      target: dlq
+    steps:
+      - filter:
+          expr: 'true'
+
+sinks:
+  output:
+    type: file
+    path: ./output/messages.jsonl
+    enforce: true
+    contract: data-contract
+  dlq:
+    type: file
+    path: ./output/dlq.jsonl

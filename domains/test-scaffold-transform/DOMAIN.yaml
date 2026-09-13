@@ -1,0 +1,7 @@
+# Domain metadata for test-scaffold-transform
+domain:
+  name: test-scaffold-transform
+  owner: user@example.com
+  slack_channel: "#test-scaffold-transform-team"
+  description: test-scaffold-transform data processing and integration
+  owner_team: test-scaffold-transform-platform

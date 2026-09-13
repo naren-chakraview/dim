@@ -1,0 +1,7 @@
+# Domain metadata for test-scaffold-contract
+domain:
+  name: test-scaffold-contract
+  owner: user@example.com
+  slack_channel: "#test-scaffold-contract-team"
+  description: test-scaffold-contract data processing and integration
+  owner_team: test-scaffold-contract-platform

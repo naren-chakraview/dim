@@ -1,0 +1,24 @@
+version: 1
+imports:
+  - ../governance/fragments.yaml
+
+sources:
+  input:
+    type: http
+
+routes:
+  with-transform:
+    from: input
+    error_path:
+      target: dlq
+    steps:
+      - translate:
+          expr: '{"id": body.id, "amount": body.amount}'
+
+sinks:
+  output:
+    type: file
+    path: ./output/messages.jsonl
+  dlq:
+    type: file
+    path: ./output/dlq.jsonl

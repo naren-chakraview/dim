@@ -1,0 +1,7 @@
+# Domain metadata for test-scaffold-passthrough
+domain:
+  name: test-scaffold-passthrough
+  owner: user@example.com
+  slack_channel: "#test-scaffold-passthrough-team"
+  description: test-scaffold-passthrough data processing and integration
+  owner_team: test-scaffold-passthrough-platform
