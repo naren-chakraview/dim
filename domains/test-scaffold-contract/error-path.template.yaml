@@ -1,4 +1,6 @@
 version: 1
+imports:
+  - ../governance/fragments.yaml
 
 # Error path template — uncomment and customize as needed
 # This configuration handles messages that fail validation or processing
