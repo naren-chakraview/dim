@@ -172,8 +172,10 @@ func TestKafkaConcurrentDrainCap(t *testing.T) {
 	concurrentCount := int32(0)
 	maxConcurrent := int32(0)
 	var mu sync.Mutex
+	var wg sync.WaitGroup
 
 	drainWithCap := func(id int, duration time.Duration) {
+		defer wg.Done()
 		drainCaps <- struct{}{}
 		defer func() { <-drainCaps }()
 
@@ -189,15 +191,20 @@ func TestKafkaConcurrentDrainCap(t *testing.T) {
 	}
 
 	// Try to drain with 20 generations (should cap at 10)
+	wg.Add(20)
 	for i := 0; i < 20; i++ {
 		go drainWithCap(i, 50*time.Millisecond)
 	}
 
-	// Wait for all to complete
-	time.Sleep(500 * time.Millisecond)
+	// Wait for all goroutines to complete
+	wg.Wait()
 
-	if maxConcurrent > 10 {
-		t.Errorf("Expected max 10 concurrent drains, got %d", maxConcurrent)
+	mu.Lock()
+	maxVal := maxConcurrent
+	mu.Unlock()
+
+	if maxVal > 10 {
+		t.Errorf("Expected max 10 concurrent drains, got %d", maxVal)
 	}
 
 	if atomic.LoadInt32(&concurrentCount) != 0 {
