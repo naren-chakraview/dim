@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/config"
-	"github.com/naren-chakraview/dim/pkg/sdk"
 )
 
 // ImpactReference represents a reference from a route to an external component
@@ -54,8 +53,8 @@ func (idx *RouteImpactIndex) addReference(ref ImpactReference) {
 	idx.AllReferences = append(idx.AllReferences, ref)
 }
 
-// ExtractAllReferences recursively extracts all references from a route config
-func ExtractAllReferences(route *config.RouteConfig, routeName string) []ImpactReference {
+// ExtractAllReferences extracts all references from a route spec
+func ExtractAllReferences(route config.RouteSpec, routeName string) []ImpactReference {
 	var refs []ImpactReference
 
 	// Source reference
@@ -140,17 +139,17 @@ func ExtractAllReferences(route *config.RouteConfig, routeName string) []ImpactR
 	return refs
 }
 
-// containsDynamicReferences detects if expression likely contains dynamic references
+// containsDynamicReferences detects if expression contains dynamic references
 func containsDynamicReferences(expr string) bool {
 	if len(expr) == 0 {
 		return false
 	}
-	// Simple heuristic: check for JSONata patterns like $..., body., etc.
+	// Simple heuristic: check for JSONata patterns
 	return expr[0] == '$' || expr[0] == '#'
 }
 
-// BuildImpactIndex scans all routes and builds the cross-reference index
-func BuildImpactIndex(routes map[string]*config.RouteConfig, sinks map[string]*config.Sink) *RouteImpactIndex {
+// BuildImpactIndex builds an impact index from route specs
+func BuildImpactIndex(cfg *config.RouteConfig) *RouteImpactIndex {
 	index := &RouteImpactIndex{
 		ContractReferences:   make(map[string][]ImpactReference),
 		SinkReferences:       make(map[string][]ImpactReference),
@@ -161,23 +160,17 @@ func BuildImpactIndex(routes map[string]*config.RouteConfig, sinks map[string]*c
 	}
 
 	// Extract references from routes
-	for routeName, route := range routes {
-		refs := ExtractAllReferences(route, routeName)
-		for _, ref := range refs {
-			index.addReference(ref)
-		}
-	}
-
-	// Extract references from sinks (contract enforcement)
-	for sinkName, sink := range sinks {
-		if sink.Enforce {
-			// Sink enforces a contract, but we don't have direct contract reference in this structure
-			// This would be handled at a higher level where contracts are resolved
+	if cfg != nil && cfg.Routes != nil {
+		for routeName, route := range cfg.Routes {
+			refs := ExtractAllReferences(route, routeName)
+			for _, ref := range refs {
+				index.addReference(ref)
+			}
 		}
 	}
 
 	index.GeneratedAt = time.Now().UTC().Format(time.RFC3339)
-	index.Version = sdk.CurrentInterfaceVersion
+	index.Version = "1.0.0" // TODO: use actual interface version from SDK
 
 	return index
 }
