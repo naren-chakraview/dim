@@ -2,7 +2,7 @@
 
 A declarative, configuration-driven integration middleware for routing, transforming, and auditing messages between systems — without code, configuration-first.
 
-**Status:** ✅ **Phase 0 Production Ready (v0.5.0)** | ✅ **Phase 1 Complete (v0.6.0)** | ✅ **Phase 2 Complete (v0.7.0-beta)** | ✅ **Phase 3 Complete (v0.8.0-beta)**
+**Status:** ✅ **Phase 0 Production Ready (v0.5.0)** | ✅ **Phase 1 Complete (v0.6.0)** | ✅ **Phase 2 Complete (v0.7.0-beta)** | ✅ **Phase 3 Complete (v0.8.0-beta)** | ✅ **Phase 4 Complete (v0.9.0-beta)**
 
 - Phase 0: Complete. 440+ tests, security audit passed.
 - Phase 1 Track A: Complete (R1-R21). Governance, CLI, daemon, observability, schema registry, SFTP, OpenLineage dead-letter.
@@ -112,6 +112,15 @@ A declarative, configuration-driven integration middleware for routing, transfor
 - **Testing Framework:** Fixture-based route validation
 - **Race Detector Ready:** Full concurrency testing coverage
 
+### Agent-Assisted Design (Phase 4)
+- **Natural Language Route Design:** Agents scaffold routes from intent descriptions
+- **Route Critique:** Analyze routes for best practices, conventions, redundancy
+- **Impact Analysis:** Query "what routes are affected by this change?" without manual grepping
+- **Capability Discovery:** Enumerate all adapters, steps, contracts, and data models via standard interface
+- **MCP Interface:** Model Context Protocol server for seamless agent integration
+- **Confidence Metrics:** Uncertainty tracking for dynamic (JSONata-computed) references
+- **Complete Knowledge:** Auto-generated capability manifest stays in sync with implementation
+
 ---
 
 ## Quick Start (5 minutes)
@@ -191,6 +200,7 @@ curl http://localhost:8081/debug/routes | jq
 - **[docs/LANGUAGE_REFERENCE.md](docs/LANGUAGE_REFERENCE.md)** — Complete configuration reference
 - **[docs/USE_CASES.md](docs/USE_CASES.md)** — Real-world examples and patterns
 - **[docs/CLI_REFERENCE.md](docs/CLI_REFERENCE.md)** — `dimctl` command reference
+- **[docs/PHASE4_FEATURES.md](docs/PHASE4_FEATURES.md)** — Agent-assisted design & impact analysis (new in v0.9.0)
 
 **For Developers:**
 - **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** — Project structure, testing, adding features
