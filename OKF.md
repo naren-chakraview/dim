@@ -2,14 +2,16 @@
 
 A living document for tracking business intent, architectural decisions, concurrency patterns, state management, security validation, and change history. This grows alongside the codebase as each phase is implemented.
 
-**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R21) ✅ | Phase 1 Track B Complete (M1.2-M1.8) ✅ | Phase 2 Track B Complete (M2.1-M2.7) ✅  
+**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R21) ✅ | Phase 1 Track B Complete (M1.2-M1.8) ✅ | Phase 2 Track B Complete (M2.1-M2.7) ✅ | Phase 3 Complete (M3.1-M3.5) ✅ | Phase 4 Complete (M4.1-M4.9) ✅  
 **Phase 0 Production Release:** September 3, 2026 (v0.5.0)  
 **Phase 1 Track A Delivered:** Governance, infrastructure, CLI, observability, schema registry, SFTP polling, OpenLineage dead-letter  
 **Phase 1 Track B Delivered:** PBAC+OPA, OBO, AMQP/Kafka reliability, OpenLineage/Marquez with schema facets, replay tooling  
 **Phase 2 Track B Delivered:** Aggregator step, splitter step, database adapters, fragment parameterization, authorization obligations/redaction, purge-log auto-export, static contract conformance checking  
-**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B, 100+ Phase 2 Track B (M2.1-M2.7)
+**Phase 3 Delivered:** Distributed clustering, claim-check pattern, plugin SDK (Go+WASM), multi-tenant quotas, e2e release pipeline  
+**Phase 4 Delivered:** GitOps deployment, visual route authoring, agent-facing MCP interface, machine-readable capabilities, agent-assisted design (scaffolding+critique), impact analysis with confidence metrics  
+**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B, 100+ Phase 2 Track B, 120+ Phase 3, 150+ Phase 4
 
-**Note:** Phase 0 fully implemented and released (v0.5.0). Phase 1 Track A complete (R1-R21, all Phase 1 remediation). Phase 1 Track B complete (PBAC, OBO, AMQP/Kafka reliability, OpenLineage with auto-schema-facets and dead-letter, replay). Phase 2 scope (M2.1-M2.7: aggregator, splitter, database adapters, fragment params, obligations, purge-log auto-export, static conformance) unblocked and ready. Decisions below are implemented except where explicitly marked "Phase 2+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
+**Note:** Phases 0-4 fully implemented and released (v0.5.0–v0.9.0-beta). Phase 3 complete (M3.1-M3.5: distributed clustering, claim-check, plugin SDK, multi-tenancy, e2e pipeline). Phase 4 complete (M4.1-M4.9: GitOps, visual authoring, MCP agent interface, capability manifest, agent-assisted design, impact analysis). Decisions below are implemented except where explicitly marked "Phase 5+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
 
 ## Business intent
 
@@ -485,7 +487,237 @@ See phase-0-implementation-plan.md §9 for full risk register. Key items:
 - 50+ new tests added across all modules
 - All exit criteria met: stateful steps with hot-reload, database connectivity, parameter substitution, obligation enforcement, auto-export, static validation
 
+## Phase 4 Progress
+
+### Agent-Assisted Design & Impact Analysis (Complete ✅)
+
+**M4.1-M4.5: Foundation & User Interfaces**
+- M4.1: GitOps deployment pipeline (declarative infrastructure, automated release)
+- M4.2: dimctl scaffold command (template generation for passthrough/transform/contract-enforced patterns)
+- M4.3: Pre-deployment discovery (enumerate routes, adapters, contracts, sources, sinks)
+- M4.4: Domain-scoped secrets (per-domain rotation, ${SECRET:name} resolution)
+- M4.5: Visual route-authoring interface (Studio UI with drag-drop builder, real-time validation, YAML export)
+
+**M4.6: Agent-Facing MCP Interface (PR #79, merged ✅)**
+- Model Context Protocol server with 7 operations: validate, test, scaffold, critique, query_impact, get_capabilities, query_lineage
+- Versioned response envelopes for backward compatibility
+- Every operation wraps existing CLI functionality (no separate code paths)
+- 12+ integration tests covering operation registration, versioning, error handling
+
+**M4.7: Machine-Readable Capability Manifest (PR #79, merged ✅)**
+- Auto-generated from route schema + adapter registry at build time
+- Lists all adapters (source/sink), steps, EIPs with configuration schemas
+- CI gate verifies manifest never drifts from implementation (fails if out-of-sync)
+- Exposed via M4.6 MCP interface for agent discovery
+- 8 tests covering generation, drift detection, manifest completeness
+
+**M4.8: Agent-Assisted Route Design (PR #79, merged ✅)**
+- **Scaffolding:** Intent description → YAML route template with placeholders
+- **Critique:** Analyze routes for best practices, redundancy, conventions
+- Patterns detected: redundant translate steps, missing error paths, contract enforcement gaps, unused imports, authorization omissions
+- Intent parsing infers template type from keywords (e.g., "SFTP" → file source)
+- Reasoning output explains agent design choices
+- 65+ tests covering scaffolding, critique, intent parsing, pattern detection
+
+**M4.9: Structured Lineage/Impact-Analysis Query Surface (PR #79, merged ✅)**
+- Static cross-route reference index built at startup
+- ImpactReference struct: SourceType, SourcePath, TargetType, TargetName, IsStatic, Uncertainty
+- RouteImpactIndex: maps for contracts, sinks, sources, connections, step-types
+- Query surface: "What routes reference contract X?" → [route1, route2] with impact level
+- Confidence metrics (0.0–1.0) for analysis completeness
+- Uncertainty tracking for dynamically-resolved (JSONata-computed) references
+- Impact levels: low (0 affected), medium (1–3), high (4–10), critical (11+)
+- 65+ tests covering index building, queries, confidence calculation, uncertainty handling
+
+**Phase 4 Track Summary:**
+- 9 milestones completed (M4.1–M4.9)
+- 150+ new tests added across all modules
+- All exit criteria met: agent scaffolding, critique, MCP interface, capability discovery, impact analysis
+- Backward compatible: all existing routes validate identically, no breaking changes
+
 ---
 
-**Last updated:** 2026-09-06 (Release gating infrastructure: service health checks, local e2e testing)
+### Agent-Assisted Design Patterns
+
+#### Pattern 1: Agents Propose, Humans Review (No Auto-Deploy)
+
+**Principle:** Agents can design, scaffold, critique, and analyze routes. Humans remain in the review/merge loop. No automatic deployment from agent proposals.
+
+**Implementation:**
+- `scaffold_from_intent` returns YAML with `[PLACEHOLDER]` markers for values requiring human review
+- Agent provides reasoning for design choices (visible in output)
+- Human reviews, edits, accepts/rejects in PR
+- `critique_route` flags issues for human consideration (not auto-corrections)
+- Impact analysis surfaces risks; human makes merge decision
+
+**Rationale:** Agents can explore design space fast, but routes carry business logic and compliance intent. Humans validate correctness, domain fit, and policy alignment before execution.
+
+**Evidence:** Every agent-produced route passes identical validation to human-authored routes. No separate code paths or weaker checks.
+
+#### Pattern 2: MCP Interface for Standard Integration
+
+**Decision:** Agent tooling integrates via Model Context Protocol (MCP), not custom APIs.
+
+**Implementation (M4.6):**
+- MCP server exposes 7 operations with versioned request/response envelopes
+- Each operation wraps existing CLI functionality (validate, test, scaffold, critique, query_impact, get_capabilities, query_lineage)
+- No separate code paths for agent operations vs. CLI users
+- Version envelope enables graceful evolution (clients negotiate supported versions)
+
+**Rationale:**
+- Standard interface means agents (Claude, external LLMs) integrate predictably
+- Operations reuse existing, battle-tested code (single source of truth)
+- MCP versioning lets teams upgrade server without breaking client expectations
+- No custom protocol burden on agent developers
+
+**Tradeoff:** Requires wrapping CLI output as structured responses (schema validation overhead). Worth it for integration simplicity and long-term maintainability.
+
+#### Pattern 3: Static Impact Index with Confidence Metrics
+
+**Decision:** Build cross-route reference index at startup (not runtime), with explicit confidence tracking for uncertain references.
+
+**Implementation (M4.9):**
+- RouteImpactIndex maps targets (contracts, sinks, sources, connections) to referencing routes
+- ExtractAllReferences() parses route YAML for static references (sink names, contract names)
+- containsDynamicReferences() detects JSONata expressions flagged as "uncertain"
+- Confidence = (static_refs) / (static_refs + uncertain_refs) as 0.0–1.0 metric
+
+**Data structures:**
+```go
+type ImpactReference struct {
+    SourceType   string // "route" | "sink" | "source" | "step"
+    TargetType   string // "contract" | "sink" | "source" | "connection" | "step-type"
+    TargetName   string // What's being referenced
+    IsStatic     bool   // Deterministic or computed?
+    Uncertainty  string // "expression contains JSONata; cannot determine statically"
+}
+
+type RouteImpactIndex struct {
+    ContractReferences   map[string][]ImpactReference
+    SinkReferences       map[string][]ImpactReference
+    SourceReferences     map[string][]ImpactReference
+    ConnectionReferences map[string][]ImpactReference
+    StepTypeReferences   map[string][]ImpactReference
+}
+```
+
+**Query surface:**
+```bash
+./dimctl query-impact contract payment-contract
+→ {
+    affected_routes: ["process-payment", "validate-refund"],
+    affected_sinks: ["kafka-payments", "dlq"],
+    references: [...],
+    uncertain_refs: ["route dynamic-router uses JSONata for sink name"],
+    impact_level: "high",
+    confidence: 0.85
+  }
+```
+
+**Rationale:**
+- Static index has zero runtime overhead (built once at startup)
+- No manual grepping: queries are fast and complete
+- Confidence metrics guide agent behavior: if confidence < 1.0, agent asks human for review
+- Uncertainty is explicit (not hidden in "unknown" results)
+
+**Tradeoff:** Cannot analyze references computed at runtime (JSONata expressions). Accepted because: (a) most references are static (sink/source/contract names); (b) dynamic cases are flagged explicitly; (c) prevents false confidence in incomplete analysis.
+
+#### Pattern 4: Capability Manifest: Auto-Generated, CI-Verified
+
+**Decision:** Generate capability manifest from schemas at build time, verify it never drifts from implementation via CI gate.
+
+**Implementation (M4.7):**
+- Build-time tool extracts adapter registry, step schemas, contract templates
+- Generates capability-manifest.json with complete enumeration
+- CI gate runs schema-to-manifest diff: fails if manifest is out-of-sync
+- Agent queries manifest via MCP (get_capabilities) to know what's available
+
+**Manifest schema:**
+```json
+{
+  "adapters": {
+    "sources": [
+      { "type": "http", "schema": {...} },
+      { "type": "kafka", "schema": {...} }
+    ],
+    "sinks": [...]
+  },
+  "steps": [
+    { "type": "filter", "schema": {...} },
+    { "type": "translate", "schema": {...} }
+  ],
+  "contracts": [...],
+  "version": "1.0.0"
+}
+```
+
+**Rationale:**
+- Agents cannot hardcode adapter lists; they drift as code evolves
+- Auto-generation + CI verification keeps manifest in sync automatically
+- Single source of truth: schema defines capability, manifest proves it
+- Manifest enables agent discovery ("what adapters are available?") without grepping
+
+**Safety:** CI gate prevents silent divergence (a common source of agent confusion).
+
+#### Pattern 5: Confidence-Aware Agent Behavior
+
+**Pattern:** Agent treats confidence metric as guidance for when to ask humans.
+
+**Implementation:**
+- Impact query returns confidence: 1.0 means complete analysis, < 1.0 means uncertain references present
+- Agent behavior:
+  - confidence ≥ 0.95: proceed with change analysis
+  - 0.75 ≤ confidence < 0.95: flag to human ("some routes use dynamic references; manual review recommended")
+  - confidence < 0.75: escalate to human for approval ("many dynamic references; risky to proceed without review")
+
+**Rationale:**
+- Acknowledges system limits (dynamic references can't be statically analyzed)
+- Prevents false confidence ("all references found" when actually only 60% analyzed)
+- Guides agent to ask humans at right moments (not for every change, but for risky ones)
+- Humans stay in loop where analysis is incomplete
+
+**Evidence:** Uncertainty type propagates through impact response (`uncertain_refs` array), agent consumes and reacts appropriately.
+
+#### Pattern 6: Intent → Template → Review
+
+**Pattern:** Route design flows intent → scaffold → human review → merge, with agent providing reasoning at each step.
+
+**Scaffolding step (M4.8):**
+```
+Agent input: "SFTP source, validate with payments-contract, 
+             translate to Kafka format, route to kafka-payments 
+             or DLQ on error"
+
+dimctl scaffold-from-intent --intent "..." --domain payments
+→ YAML route with:
+  - sources: [type: sftp, server: [PLACEHOLDER]]
+  - steps: [validate {contract: payments-contract}, translate {...}]
+  - sinks: [type: kafka, topic: kafka-payments]
+  - error_path: {target: dlq}
+  
+  + reasoning: "Inferred SFTP from 'SFTP source', 
+                inferred kafka from 'Kafka format', 
+                added DLQ sink since error routing specified"
+```
+
+**Human review:**
+- Fills placeholders (server address, credentials)
+- Accepts/modifies translate expression
+- Approves design rationale
+- Merges
+
+**Rationale:** Speeds scaffolding (agent generates 80% of boilerplate) while keeping humans in control of specifics (server addresses, sensitive values, domain-specific logic).
+
+---
+
+**Phase 4 Summary:**
+- Agents can design, critique, and analyze impact of routes with full visibility into capabilities and confidence
+- MCP interface provides standard integration point
+- Humans review all proposals; no auto-deploy
+- Static impact index with confidence metrics guides agent decision-making
+- Capability manifest auto-generated and CI-verified to prevent drift
+
+---
+
+**Last updated:** 2026-09-14 (Phase 4 completion: agent-assisted design, MCP interface, impact analysis)
 **Maintainer:** Naren Chakraview with Claude Code
