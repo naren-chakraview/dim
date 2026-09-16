@@ -58,12 +58,9 @@ func TestFileSourceLocalPolling(t *testing.T) {
 		t.Fatalf("file verification failed: %v, content length: %d", readErr, len(data))
 	}
 
-	// Give poller time to run at least once after file is verified
-	// (poll interval is 100ms, add buffer for CI load)
-	time.Sleep(150 * time.Millisecond)
-
-	// Wait for message to be sent
-	waitCtx, waitCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	// Wait for message to be sent with longer timeout for CI load
+	// Poll interval is 100ms, but CI can be slow; give it up to 5 seconds
+	waitCtx, waitCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer waitCancel()
 	msg, err := outChan.Recv(waitCtx)
 	if err != nil {
