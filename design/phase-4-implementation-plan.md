@@ -27,6 +27,7 @@ Unchanged in substance from the self-service feasibility study; restated here at
 
 **Summary:**
 - M4.1.1 ✅ CI pipeline config: `dimctl validate` + `dimctl test` + mandatory-fragment lint in `.github/workflows/ci.yml`
+  - ⚠️ DEFERRED: registry compatibility check (requires external registry access during CI, complex for this phase)
 - M4.1.2 ✅ Config delivery: `deploy/git-sync.sh` with systemd/cron setup docs
 - M4.1.3 ✅ Domain-scoped review: `domains/CODEOWNERS` configured with platform-team and per-domain leads
 - M4.1.4 ✅ Worked example: `domains/payments/order-payment.yaml` route, validated and tested
@@ -48,7 +49,7 @@ Unchanged in substance from the self-service feasibility study; restated here at
 **Scope:** The one genuine gap the feasibility study found (§4 there): nothing today describes how an edited route YAML actually reaches a running `dimd` instance. This is assembly, not invention — every step after "open a PR" either runs a tool that already exists (`dimctl validate`, `dimctl test`, the mandatory-fragment lint) or uses a mechanism the engine already has (drain-based hot reload, §14.1).
 
 **Subtasks:**
-- M4.1.1 — CI pipeline config running `dimctl validate` + `dimctl test` + registry compatibility check + mandatory-fragment lint on every PR touching route config.
+- M4.1.1 — CI pipeline config running `dimctl validate` + `dimctl test` + mandatory-fragment lint on every PR touching route config. Registry compatibility check deferred to Phase 4 Tier 2 (requires external registry access and compatibility API that wasn't completed in this phase).
 - M4.1.2 — Config delivery mechanism: git-sync or an equivalent pull-based delivery so a merge to main reaches running instances without a manual deploy step.
 - M4.1.3 — Domain-scoped review: CODEOWNERS-style routing so a domain's own directory is reviewed by that domain's lead, not a central platform team, per the feasibility study's finding that this is a review-rights decision, not a technical build.
 - M4.1.4 — Worked example: a real domain directory, a real PR, a real merge, confirmed live via `dimctl provenance` without anyone touching the running instance directly.
