@@ -14,7 +14,7 @@ Full integration testing is available locally via `scripts/e2e-test.sh`, which v
 - **Kafka** (message broker with consumer groups, offset tracking)
 - **PostgreSQL** (relational database with JSONB support)
 - **Zookeeper** (Kafka coordination)
-- **MinIO** (S3-compatible object storage, optional)
+- **LocalStack** (S3-compatible object storage, lightweight mock for testing)
 - **Prometheus** (metrics collection, local monitoring only)
 
 ## Running Integration Tests Locally
@@ -126,7 +126,7 @@ The e2e environment (`docker-compose.e2e.yml`) includes:
 | Kafka | 9092 | Message broker |
 | Zookeeper | 2181 | Kafka coordination |
 | PostgreSQL | 5432 | Relational database |
-| MinIO | 9000 | S3-compatible storage |
+| LocalStack | 4566 | S3-compatible storage (lightweight mock) |
 | Prometheus | 9090 | Metrics collection |
 
 All services include health checks to ensure readiness before tests start.
@@ -136,7 +136,7 @@ All services include health checks to ensure readiness before tests start.
 Services are considered ready when:
 - **Kafka:** `kafka-broker-api-versions` succeeds
 - **PostgreSQL:** `pg_isready` succeeds
-- **MinIO:** HTTP health endpoint responds
+- **LocalStack:** HTTP health endpoint responds
 - **Zookeeper:** TCP port is open and responsive
 - **Prometheus:** HTTP health endpoint responds
 
@@ -245,12 +245,12 @@ GitHub Releases with downloadable artifacts
 docker ps
 
 # Check images are available
-docker images | grep -E "kafka|postgres|minio|prometheus"
+docker images | grep -E "kafka|postgres|localstack|prometheus"
 
 # Pull missing images
-docker pull confluentinc/cp-kafka:7.5.0
+docker pull confluentinc/cp-kafka:7.6.0
 docker pull postgres:16-alpine
-docker pull minio/minio:latest
+docker pull localstack/localstack:latest
 docker pull prom/prometheus:v2.40.0
 ```
 
@@ -293,17 +293,27 @@ docker logs dim-e2e-kafka | tail -50
 docker logs dim-e2e-zookeeper
 ```
 
-### MinIO Connection Failed
+### LocalStack S3 Connection Failed
 
 ```bash
-# Verify MinIO is ready
-curl -I http://localhost:9000/minio/health/live
+# Verify LocalStack is ready
+curl -f http://localhost:4566/_localstack/health
 
-# Check MinIO logs
-docker logs dim-e2e-minio
+# Check LocalStack logs
+docker logs dim-e2e-localstack
 
-# Access MinIO console (for debugging)
-# Open http://localhost:9001 (user: minioadmin, pass: minioadmin)
+# List S3 buckets (verify bucket was created)
+aws s3 ls --endpoint-url http://localhost:4566 \
+  --region us-east-1 \
+  --access-key test \
+  --secret-key test
+
+# Upload a test object
+echo "test data" | aws s3 cp - s3://test-bucket/test-key \
+  --endpoint-url http://localhost:4566 \
+  --region us-east-1 \
+  --access-key test \
+  --secret-key test
 ```
 
 ## Performance Notes

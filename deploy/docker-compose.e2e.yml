@@ -73,24 +73,25 @@ services:
     networks:
       - dim-e2e
 
-  # S3-compatible object storage: MinIO
-  minio:
-    image: minio/minio:RELEASE.2024-10-02T17-50-41Z
-    container_name: dim-e2e-minio
+  # S3-compatible object storage: LocalStack (lightweight S3 mock for testing)
+  # LocalStack provides a fully functional S3 service on a single port (4566)
+  # No Docker Hub rate limits, perfect for CI/CD environments
+  localstack:
+    image: localstack/localstack:latest
+    container_name: dim-e2e-localstack
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadmin
+      SERVICES: s3
+      DEBUG: 0
+      # Use in-memory backend for speed in CI (no disk I/O)
+      PERSISTENCE: 0
     ports:
-      - "127.0.0.1:9000:9000"
-      - "127.0.0.1:9001:9001"
-    command: server /data --console-address ":9001"
-    volumes:
-      - minio_e2e_data:/data
+      - "127.0.0.1:4566:4566"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
       interval: 5s
       timeout: 10s
       retries: 5
+      start_period: 10s
     networks:
       - dim-e2e
 
@@ -115,7 +116,6 @@ services:
 
 volumes:
   postgres_e2e_data:
-  minio_e2e_data:
 
 networks:
   dim-e2e:
