@@ -40,27 +40,48 @@ jobs:
 
       - name: Initialize S3 bucket in LocalStack
         run: |
-          # LocalStack needs extra time for S3 service to be fully ready
+          # LocalStack S3 service needs significant time to initialize
+          # Use aggressive retries with exponential backoff
           echo "Waiting for LocalStack S3 to be fully ready..."
-          for i in {1..20}; do
-            if aws s3 ls --endpoint-url http://localhost:4566 \
-              --region us-east-1 2>/dev/null; then
-              echo "LocalStack S3 is ready!"
-              break
+
+          TOTAL_ATTEMPTS=0
+          MAX_ATTEMPTS=60  # Try for up to 60 * 2 = 120 seconds
+
+          while [ $TOTAL_ATTEMPTS -lt $MAX_ATTEMPTS ]; do
+            echo "[$(($TOTAL_ATTEMPTS * 2))s] Attempt $((TOTAL_ATTEMPTS + 1)): checking S3..."
+
+            # Try to list buckets - real S3 readiness check
+            if aws s3 ls --endpoint-url http://localhost:4566 --region us-east-1 2>&1; then
+              echo "✓ LocalStack S3 is responding!"
+
+              # Now create the bucket
+              echo "Creating test bucket..."
+              for bucket_attempt in {1..5}; do
+                if aws s3 mb s3://test-bucket \
+                  --endpoint-url http://localhost:4566 \
+                  --region us-east-1 2>&1 | grep -qE "(Successfully|already)"; then
+                  echo "✓ Bucket created or already exists"
+
+                  # Verify
+                  echo "Verifying bucket..."
+                  aws s3 ls --endpoint-url http://localhost:4566 --region us-east-1
+                  exit 0
+                else
+                  echo "  Bucket creation attempt $bucket_attempt failed, retrying..."
+                  sleep 1
+                fi
+              done
             fi
-            echo "Attempt $i/20: Waiting for S3 service..."
-            sleep 1
+
+            TOTAL_ATTEMPTS=$((TOTAL_ATTEMPTS + 1))
+            sleep 2
           done
 
-          # Create S3 bucket for tests (LocalStack requires explicit bucket creation)
-          echo "Creating test bucket..."
-          aws s3 mb s3://test-bucket \
-            --endpoint-url http://localhost:4566 \
-            --region us-east-1 || true
-
-          # Verify bucket was created
-          echo "Verifying bucket..."
-          aws s3 ls --endpoint-url http://localhost:4566 --region us-east-1
+          # If we get here, LocalStack S3 never became ready
+          echo "✗ LocalStack S3 failed to become ready after 120 seconds"
+          echo "LocalStack logs:"
+          docker logs dim-e2e-localstack | tail -100
+          exit 1
         env:
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test
