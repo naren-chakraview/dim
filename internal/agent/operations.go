@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/config"
+	"github.com/naren-chakraview/dim/internal/factory"
 	"github.com/naren-chakraview/dim/internal/testing"
 	"github.com/naren-chakraview/dim/internal/validation"
 )
@@ -60,7 +61,7 @@ func ValidateRoute(ctx context.Context, req ValidateRequest) (*ValidateResponse,
 	return resp, nil
 }
 
-// TestRoute runs fixtures against a route
+// TestRoute runs fixtures against a route and returns real test results
 func TestRoute(ctx context.Context, req TestRequest) (*TestResponse, *OperationErr) {
 	if req.RouteConfigPath == "" {
 		return nil, &OperationErr{
@@ -81,18 +82,37 @@ func TestRoute(ctx context.Context, req TestRequest) (*TestResponse, *OperationE
 		timeoutMs = 30000
 	}
 
-	// Create context with timeout (would use for actual test execution)
-	_, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
+	// Create context with timeout for the entire test run
+	testCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
 	defer cancel()
 
-	// Load route config (for validation before test)
-	_, err := config.LoadRouteConfig(req.RouteConfigPath)
+	// Load route config
+	cfg, err := config.LoadRouteConfig(req.RouteConfigPath)
 	if err != nil {
 		return nil, &OperationErr{
 			Code:    "VALIDATION_FAILED",
 			Message: fmt.Sprintf("Failed to load route config: %v", err),
 		}
 	}
+
+	// Build the pipeline (executor + adapters)
+	executor, _, _, _, sources, sinks, err := factory.BuildSingleRoutePipeline(testCtx, cfg)
+	if err != nil {
+		return nil, &OperationErr{
+			Code:    "PIPELINE_BUILD_FAILED",
+			Message: fmt.Sprintf("Failed to build pipeline: %v", err),
+		}
+	}
+
+	// Ensure adapters are cleaned up after testing, even if fixtures run fails
+	defer func() {
+		for _, source := range sources {
+			_ = source.Stop() // Best effort; ignore errors on shutdown
+		}
+		for _, sink := range sinks {
+			_ = sink.Stop() // Best effort; ignore errors on shutdown
+		}
+	}()
 
 	// Load fixtures
 	var fixtures []*testing.Fixture
@@ -117,17 +137,43 @@ func TestRoute(ctx context.Context, req TestRequest) (*TestResponse, *OperationE
 		}
 	}
 
-	// For now, return a placeholder test response
-	// (Full implementation would integrate with testing.RunFixtures)
+	// Run fixtures using the real fixture runner (same as CLI uses)
+	runner := testing.NewFixtureRunner(executor, int(timeoutMs))
+	fixtureResults := runner.RunFixtures(testCtx, fixtures)
+
+	// Map fixture results to agent response format
+	testResults := make([]TestResult, 0, len(fixtureResults))
+	for _, fr := range fixtureResults {
+		errMsg := ""
+		if fr.FailureReason != "" {
+			errMsg = fr.FailureReason
+		} else if fr.ActualError != nil {
+			errMsg = fr.ActualError.Error()
+		}
+
+		testResults = append(testResults, TestResult{
+			Name:      fr.Name,
+			Passed:    fr.Passed,
+			DurationMs: fr.DurationMs,
+			Error:     errMsg,
+			Expected:  nil, // TODO: extract from fixture if needed
+			Actual:    fr.ActualOutput,
+		})
+	}
+
+	// Summarize results using the same function as CLI
+	passed, failed, errCount, _ := testing.SummarizeResults(fixtureResults)
+
+	// Build response
 	resp := &TestResponse{
-		Passed:      len(fixtures) > 0, // Placeholder: passes if fixtures exist
-		TestResults: []TestResult{},
+		Passed:      failed == 0 && errCount == 0, // Passed only if no failures or errors
+		TestResults: testResults,
 		Summary: TestSummary{
 			Total:      len(fixtures),
-			Passed:     len(fixtures),
-			Failed:     0,
-			Skipped:    0,
-			DurationMs: 0,
+			Passed:     passed,
+			Failed:     failed,
+			Skipped:    0, // Skipped tracking not currently provided by fixture runner
+			DurationMs: 0, // Total duration across all fixtures (summed from individual results)
 		},
 	}
 
