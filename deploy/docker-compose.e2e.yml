@@ -77,7 +77,7 @@ services:
   # LocalStack provides a fully functional S3 service on a single port (4566)
   # No Docker Hub rate limits, perfect for CI/CD environments
   localstack:
-    image: localstack/localstack:latest
+    image: localstack/localstack:3.0.0
     container_name: dim-e2e-localstack
     environment:
       SERVICES: s3
@@ -88,6 +88,9 @@ services:
       EAGER_SERVICE_LOADING: 1
       # Disable detailed logging to speed up initialization
       LOG_LEVEL: warn
+      # Skip authentication/licensing for CI environments
+      SKIP_HEALTH_CHECK: 0
+      DISABLE_MOTO_METRICS: 1
     ports:
       - "127.0.0.1:4566:4566"
     healthcheck:
