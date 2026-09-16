@@ -10,7 +10,7 @@ This document describes the end-to-end flow for domain engineers to author, vali
 4. **CI gates:** Automated validation, testing, and governance checks (§4.1.1) gate the merge.
 5. **Review:** Domain lead reviews the route (routed via CODEOWNERS).
 6. **Merge:** Merge to main; git-sync automatically pulls the change to running instances.
-7. **Verify:** Query `dimctl provenance` to confirm the new route_version is live.
+7. **Verify:** Query `dimctl lineage provenance` to confirm the new route_version is live.
 
 ## Step-by-Step Guide
 
@@ -162,7 +162,7 @@ curl -X POST http://dimd-instance:8080/ingest/my-domain/my-route \
   -d '{"id": "test-123", "priority": "high", "data": "hello"}'
 
 # Query provenance to confirm the route_version that processed it
-dimctl provenance test-123 --instance http://dimd-instance:9090
+dimctl lineage provenance test-123 --instance http://dimd-instance:9090
 
 # Expected output includes: route_version: <hash>, route: my-route
 ```
