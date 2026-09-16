@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-ROUTE_FILES=$(git diff --name-only --diff-filter=ACM origin/master...HEAD | grep -E '^domains/.*\.yaml$' | grep -vE '(_test\.yaml|DOMAIN\.yaml)' || true)
+ROUTE_FILES=$(git diff --name-only --diff-filter=ACM origin/master...HEAD | grep -E '^domains/.*\.yaml$' | grep -vE '(_test\.yaml|DOMAIN\.yaml)' || echo "")
 
 if [ -z "$ROUTE_FILES" ]; then
   echo "No route files changed; testing skipped."
