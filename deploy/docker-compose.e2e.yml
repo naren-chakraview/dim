@@ -84,17 +84,19 @@ services:
       DEBUG: 0
       # Use in-memory backend for speed in CI (no disk I/O)
       PERSISTENCE: 0
-      # Give LocalStack time to initialize S3
+      # Force immediate S3 service loading
       EAGER_SERVICE_LOADING: 1
+      # Disable detailed logging to speed up initialization
+      LOG_LEVEL: warn
     ports:
       - "127.0.0.1:4566:4566"
     healthcheck:
-      # Health check for the main API, but S3 might need more time to initialize
-      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
-      interval: 2s
-      timeout: 5s
-      retries: 10
-      start_period: 15s
+      # Simple health check - real readiness is checked via aws s3 ls in CI
+      test: ["CMD", "curl", "-sf", "http://localhost:4566/_localstack/health"]
+      interval: 1s
+      timeout: 3s
+      retries: 15
+      start_period: 20s
     networks:
       - dim-e2e
 
