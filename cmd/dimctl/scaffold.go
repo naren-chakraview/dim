@@ -55,7 +55,7 @@ func runScaffold(cmd *cobra.Command, args []string) error {
 	}
 
 	// Generate starter route
-	if err := generateRoute(domainPath, domainName, templateType); err != nil {
+	if err := generateRoute(domainPath, domainName, templateType, sourceType, sinkType); err != nil {
 		return fmt.Errorf("failed to generate route: %w", err)
 	}
 
@@ -93,21 +93,45 @@ func generateDomainMetadata(domainPath, domainName string) error {
 	return tmpl.Execute(file, data)
 }
 
-func generateRoute(domainPath, domainName, templateShape string) error {
-	var routeYAML string
+func generateRoute(domainPath, domainName, templateShape, sourceType, sinkType string) error {
+	data := map[string]string{
+		"DomainName": domainName,
+		"SourceType": sourceType,
+		"SinkType":   sinkType,
+	}
+
+	var tmpl *template.Template
 	switch templateShape {
 	case "passthrough":
-		routeYAML = passthroughTemplate
+		var err error
+		tmpl, err = template.New("passthrough").Parse(passthroughTemplate)
+		if err != nil {
+			return err
+		}
 	case "transform":
-		routeYAML = transformTemplate
+		var err error
+		tmpl, err = template.New("transform").Parse(transformTemplate)
+		if err != nil {
+			return err
+		}
 	case "contract":
-		routeYAML = contractTemplate
+		var err error
+		tmpl, err = template.New("contract").Parse(contractTemplate)
+		if err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unknown template shape: %s (valid: passthrough, transform, contract)", templateShape)
 	}
 
 	routePath := filepath.Join(domainPath, fmt.Sprintf("%s-route.yaml", domainName))
-	return os.WriteFile(routePath, []byte(routeYAML), 0644)
+	file, err := os.Create(routePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	return tmpl.Execute(file, data)
 }
 
 func generateErrorPathTemplate(domainPath string) error {
