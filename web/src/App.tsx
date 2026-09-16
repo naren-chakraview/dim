@@ -149,13 +149,50 @@ export function App() {
   const handleValidate = useCallback(async (routeToValidate: RouteConfig): Promise<ValidationResult> => {
     setIsValidating(true);
     try {
-      // TODO: Replace with actual backend validation endpoint when M4.5.6 is complete
-      // This is a placeholder that will validate basic structure
+      // Call real backend validation endpoint
+      const response = await fetch('/api/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ route: routeToValidate }),
+      });
+
+      if (!response.ok) {
+        const errorResult: ValidationResult = {
+          valid: false,
+          errors: [
+            {
+              code: 'VALIDATION_FAILED',
+              message: `Validation request failed: ${response.statusText}`,
+              severity: 'error',
+            },
+          ],
+          warnings: [],
+          timestamp: new Date().toISOString(),
+        };
+        setValidationResult(errorResult);
+        return errorResult;
+      }
+
+      const data = await response.json();
+
+      // Map backend response to frontend ValidationResult
+      const errors: ValidationError[] = (data.errors || []).map((msg: string, idx: number) => ({
+        code: 'VALIDATION_ERROR',
+        message: msg,
+        severity: 'error' as const,
+      }));
+
+      const warnings: ValidationError[] = (data.warnings || []).map((msg: string, idx: number) => ({
+        code: 'VALIDATION_WARNING',
+        message: msg,
+        severity: 'warning' as const,
+      }));
+
       const result: ValidationResult = {
-        valid: true,
-        errors: [],
-        warnings: [],
-        route_version: generateRouteHash(routeToValidate),
+        valid: data.valid || false,
+        errors,
+        warnings,
+        route_version: data.route_version || generateRouteHash(routeToValidate),
         timestamp: new Date().toISOString(),
       };
       setValidationResult(result);
@@ -196,18 +233,56 @@ export function App() {
 
       const result = await response.json();
 
-      if (response.ok) {
+      // Check if save was successful (backend returns success: true/false)
+      if (response.ok && result.success && result.valid) {
+        // Map response errors/warnings to ValidationResult
+        const errors: ValidationError[] = (result.errors || []).map((msg: string) => ({
+          code: 'VALIDATION_ERROR',
+          message: msg,
+          severity: 'error' as const,
+        }));
+
+        const warnings: ValidationError[] = (result.warnings || []).map((msg: string) => ({
+          code: 'VALIDATION_WARNING',
+          message: msg,
+          severity: 'warning' as const,
+        }));
+
         setValidationResult({
           valid: true,
-          errors: [],
-          warnings: [],
-          route_version: generateRouteHash(route),
+          errors,
+          warnings,
+          route_version: result.route_version || generateRouteHash(route),
           timestamp: new Date().toISOString(),
         });
         setIsDirty(false);
         setError(null);
       } else {
-        setError(`Save failed: ${result.error || 'Unknown error'}`);
+        // Save or validation failed
+        const errors = result.errors || [result.error || 'Unknown error'];
+        const errorMsg = errors.length > 0 ? errors[0] : 'Save failed';
+        setError(errorMsg);
+
+        // Update validation result to show errors
+        const errorObjs: ValidationError[] = errors.map((msg: string) => ({
+          code: 'VALIDATION_ERROR',
+          message: msg,
+          severity: 'error' as const,
+        }));
+
+        const warnings: ValidationError[] = (result.warnings || []).map((msg: string) => ({
+          code: 'VALIDATION_WARNING',
+          message: msg,
+          severity: 'warning' as const,
+        }));
+
+        setValidationResult({
+          valid: false,
+          errors: errorObjs,
+          warnings,
+          route_version: result.route_version,
+          timestamp: new Date().toISOString(),
+        });
       }
     } catch (err) {
       setError(`Save failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
