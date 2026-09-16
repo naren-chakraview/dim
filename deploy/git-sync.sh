@@ -36,7 +36,13 @@ while true; do
 
     # Pull changes (routes only, via sparse-checkout if desired, or full pull)
     if git pull origin "$BRANCH" --ff-only 2>&1; then
-      echo "[$(date +'%Y-%m-%d %H:%M:%S')] Pull successful. Routes in $REPO_PATH/domains/ are now live (via hot-reload)."
+      echo "[$(date +'%Y-%m-%d %H:%M:%S')] Pull successful. Routes in $REPO_PATH/domains/ are updated."
+
+      # TODO: Send SIGHUP to dimd process to trigger hot-reload of route configurations.
+      # This requires dimd to support hot-reload signal handling (currently only in dimctl run).
+      # Once dimd hot-reload is implemented, uncomment:
+      #   pkill -SIGHUP -f "dimd" || true
+      # For now, dimd instances must be restarted manually to pick up route changes.
     else
       echo "[$(date +'%Y-%m-%d %H:%M:%S')] Warning: git pull failed (non-fast-forward or conflict); review manually."
     fi
