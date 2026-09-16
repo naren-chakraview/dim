@@ -11,6 +11,7 @@ routes:
     error_path:
       target: fraud-dlq
     steps:
+      - fragment: governance-baseline
       - filter:
           expr: body.amount > 0 and body.account_id != null
       - filter:

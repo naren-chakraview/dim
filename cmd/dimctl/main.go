@@ -23,6 +23,7 @@ import (
 	"github.com/naren-chakraview/dim/internal/testing"
 	"github.com/naren-chakraview/dim/internal/validation"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -106,6 +107,33 @@ var validateCmd = &cobra.Command{
 			fmt.Fprintf(os.Stdout, "%s\n", validation.StaticCheckCaveat)
 		}
 
+		return nil
+	},
+}
+
+var resolveCmd = &cobra.Command{
+	Use:   "resolve <file>",
+	Short: "Resolve and display a route configuration after all imports and fragments are expanded",
+	Long:  "Load a route configuration YAML, resolve all imports and fragment references, and output the fully-resolved route configuration as YAML. Useful for debugging imports and fragment expansion.",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		configPath := args[0]
+
+		// Load config (this internally resolves all imports and fragments)
+		cfg, err := config.LoadRouteConfig(configPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "resolve error: %v\n", err)
+			return err
+		}
+
+		// Convert back to YAML and output
+		output, err := yaml.Marshal(cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "resolve error: failed to marshal resolved config: %v\n", err)
+			return err
+		}
+
+		fmt.Fprintf(os.Stdout, "%s", output)
 		return nil
 	},
 }
@@ -914,6 +942,7 @@ var studioCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(validateCmd)
+	rootCmd.AddCommand(resolveCmd)
 	rootCmd.AddCommand(runCmd)
 	rootCmd.AddCommand(testCmd)
 	rootCmd.AddCommand(replayCmd)
