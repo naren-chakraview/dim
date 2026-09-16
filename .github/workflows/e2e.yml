@@ -40,10 +40,27 @@ jobs:
 
       - name: Initialize S3 bucket in LocalStack
         run: |
+          # LocalStack needs extra time for S3 service to be fully ready
+          echo "Waiting for LocalStack S3 to be fully ready..."
+          for i in {1..20}; do
+            if aws s3 ls --endpoint-url http://localhost:4566 \
+              --region us-east-1 2>/dev/null; then
+              echo "LocalStack S3 is ready!"
+              break
+            fi
+            echo "Attempt $i/20: Waiting for S3 service..."
+            sleep 1
+          done
+
           # Create S3 bucket for tests (LocalStack requires explicit bucket creation)
+          echo "Creating test bucket..."
           aws s3 mb s3://test-bucket \
             --endpoint-url http://localhost:4566 \
-            --region us-east-1
+            --region us-east-1 || true
+
+          # Verify bucket was created
+          echo "Verifying bucket..."
+          aws s3 ls --endpoint-url http://localhost:4566 --region us-east-1
         env:
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test

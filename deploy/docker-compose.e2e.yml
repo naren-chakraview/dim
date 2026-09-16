@@ -84,14 +84,17 @@ services:
       DEBUG: 0
       # Use in-memory backend for speed in CI (no disk I/O)
       PERSISTENCE: 0
+      # Give LocalStack time to initialize S3
+      EAGER_SERVICE_LOADING: 1
     ports:
       - "127.0.0.1:4566:4566"
     healthcheck:
+      # Health check for the main API, but S3 might need more time to initialize
       test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
-      interval: 5s
-      timeout: 10s
-      retries: 5
-      start_period: 10s
+      interval: 2s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     networks:
       - dim-e2e
 
