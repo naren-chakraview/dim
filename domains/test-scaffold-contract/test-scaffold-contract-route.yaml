@@ -24,6 +24,7 @@ routes:
     error_path:
       target: dlq
     steps:
+      - fragment: governance-baseline
       - filter:
           expr: 'true'
 

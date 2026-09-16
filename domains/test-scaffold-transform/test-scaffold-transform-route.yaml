@@ -12,6 +12,7 @@ routes:
     error_path:
       target: dlq
     steps:
+      - fragment: governance-baseline
       - translate:
           expr: '{"id": body.id, "amount": body.amount}'
 

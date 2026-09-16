@@ -37,9 +37,15 @@ func LoadRouteConfig(path string) (*RouteConfig, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
-	// Resolve imports and merge fragments
+	// First, resolve named imports (imports: directive with fragment: references)
+	namedResolved, err := ResolveNamedImports(rawConfig, filepath.Dir(path))
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve named imports: %w", err)
+	}
+
+	// Then resolve $import directives (legacy fragment file merge)
 	resolver := NewFragmentResolver(filepath.Dir(path))
-	resolvedConfig, err := resolver.ResolveImports(rawConfig)
+	resolvedConfig, err := resolver.ResolveImports(namedResolved)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve imports: %w", err)
 	}

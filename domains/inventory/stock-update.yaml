@@ -11,6 +11,7 @@ routes:
     error_path:
       target: audit-dlq
     steps:
+      - fragment: governance-baseline
       - filter:
           expr: body.quantity_change != 0 and body.sku != null
 sinks:
