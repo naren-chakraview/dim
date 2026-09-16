@@ -1,0 +1,19 @@
+# GitHub CODEOWNERS file for domain-scoped route review
+# GitHub looks for CODEOWNERS in the repo root or .github/ directory
+
+# Governance baseline changes (applies to all domains) — reviewed by platform team
+domains/governance/  @platform-team  @platform-lead
+
+# Domain-specific routes — reviewed by domain leads
+domains/payments/       @alice-payments-lead  @bob-payments-backup
+domains/orders/         @carol-orders-lead    @diana-orders-backup
+domains/notifications/  @eve-notifications-lead
+domains/inventory/      @frank-inventory-lead
+domains/fraud/          @grace-fraud-lead
+
+# Test scaffold domains are reviewed by platform for governance compliance
+domains/test-scaffold-*/  @platform-team
+
+# All other changes default to platform team (this is optional and can be omitted
+# if you prefer explicit routing only)
+# * @platform-team
