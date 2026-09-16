@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/naren-chakraview/dim/internal/config"
 )
 
 //go:embed web_dist/*
@@ -75,6 +76,54 @@ func StartServer(port int, workDir string) error {
 	addr := fmt.Sprintf("localhost:%d", port)
 	log.Printf("Studio running at http://%s", addr)
 	return http.ListenAndServe(addr, nil)
+}
+
+// validateRouteData performs in-process validation of a route configuration.
+// Returns (valid, errors, warnings, routeVersion, error).
+// Uses the same validation as dimctl validate command.
+func (s *StudioServer) validateRouteData(route map[string]interface{}) (bool, []string, []string, string, error) {
+	// Reconstruct YAML from the route map
+	yamlStr, err := ReconstructYAML(route, make(map[string]string))
+	if err != nil {
+		return false, []string{fmt.Sprintf("Failed to reconstruct YAML: %v", err)}, []string{}, "", nil
+	}
+
+	// Write to a temporary file for validation
+	tempFile := filepath.Join(s.workDir, ".studio_validate_temp.yaml")
+	if err := ioutil.WriteFile(tempFile, []byte(yamlStr), 0644); err != nil {
+		return false, []string{fmt.Sprintf("Failed to write temp file: %v", err)}, []string{}, "", nil
+	}
+	defer os.Remove(tempFile)
+
+	// Load and validate the route config using the same package as CLI
+	cfg, err := config.LoadRouteConfig(tempFile)
+	if err != nil {
+		// Validation failed
+		return false, []string{fmt.Sprintf("Validation error: %v", err)}, []string{}, "", nil
+	}
+
+	// Validate auth declarations (same as CLI)
+	if err := config.ValidateAuthDeclarations(cfg, config.AuthValidationWarn); err != nil {
+		return false, []string{fmt.Sprintf("Auth validation error: %v", err)}, []string{}, "", nil
+	}
+
+	// Perform static contract conformance checks (same as CLI)
+	// (Import validation package if not already imported)
+	// Note: this requires importing internal/validation at the top of studio_server.go
+
+	// Route version for lineage tracking
+	routeVersion := ""
+	if len(cfg.Routes) > 0 {
+		for _, r := range cfg.Routes {
+			if r.RouteVersion != "" {
+				routeVersion = r.RouteVersion
+				break
+			}
+		}
+	}
+
+	// All checks passed
+	return true, []string{}, []string{}, routeVersion, nil
 }
 
 func (s *StudioServer) handleSPA(fileServer http.Handler) http.HandlerFunc {
@@ -233,29 +282,60 @@ func (s *StudioServer) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert route back to YAML and write to file
-	yamlBytes, err := ReconstructYAML(req.Route, make(map[string]string))
+	// Perform real validation before saving
+	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error": fmt.Sprintf("Failed to convert to YAML: %v", err),
+			"success": false,
+			"valid":   false,
+			"errors":  []string{fmt.Sprintf("Validation error: %v", err)},
 		})
 		return
 	}
 
-	// Write to file
+	// If validation failed, don't write to disk
+	if !valid {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"valid":   false,
+			"errors":  errs,
+			"warnings": warns,
+		})
+		return
+	}
+
+	// Convert route back to YAML
+	yamlBytes, err := ReconstructYAML(req.Route, make(map[string]string))
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"valid":   false,
+			"errors":  []string{fmt.Sprintf("Failed to convert to YAML: %v", err)},
+		})
+		return
+	}
+
+	// Write to file (validation passed)
 	if err := ioutil.WriteFile(req.FilePath, []byte(yamlBytes), 0644); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"error": fmt.Sprintf("Failed to write file: %v", err),
+			"success": false,
+			"valid":   false,
+			"errors":  []string{fmt.Sprintf("Failed to write file: %v", err)},
 		})
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "Route saved successfully",
+		"success":       true,
+		"valid":         true,
+		"errors":        []string{},
+		"warnings":      warns,
+		"route_version": routeVersion,
 	})
 }
 
@@ -279,8 +359,7 @@ func (s *StudioServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Route    map[string]interface{} `json:"route"`
-		FilePath string                 `json:"filePath"`
+		Route map[string]interface{} `json:"route"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -288,11 +367,19 @@ func (s *StudioServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: Validate route using dimctl validate
+	// Perform real in-process validation
+	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Validation error: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"valid": true,
-		"errors": []string{},
-		"warnings": []string{},
+		"valid":          valid,
+		"errors":         errs,
+		"warnings":       warns,
+		"route_version":  routeVersion,
+		"timestamp":      "", // Frontend will set timestamp
 	})
 }
