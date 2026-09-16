@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -78,7 +77,7 @@ var validateCmd = &cobra.Command{
 		}
 
 		// Perform static contract conformance checks (M2.7.3)
-		staticCheckWarnings := performStaticContractChecks(cfg)
+		staticCheckWarnings := validation.PerformStaticContractChecks(cfg)
 
 		// Success message
 		fmt.Fprintf(os.Stdout, "OK: valid route configuration\n")
@@ -104,7 +103,7 @@ var validateCmd = &cobra.Command{
 				fmt.Fprintf(os.Stdout, "  %s\n", warning)
 			}
 			// Print mandatory caveat (M2.7.3)
-			printStaticCheckCaveat(os.Stdout)
+			fmt.Fprintf(os.Stdout, "%s\n", validation.StaticCheckCaveat)
 		}
 
 		return nil
@@ -898,48 +897,6 @@ var traceTailCmd = &cobra.Command{
 	},
 }
 
-// performStaticContractChecks runs static validation on translate steps (M2.7.2, M2.7.3)
-func performStaticContractChecks(cfg *config.RouteConfig) []string {
-	var warnings []string
-	checker := validation.NewContractChecker()
-
-	// TODO: Contract checking against sinks was refactored in current API version
-	// RouteSpec no longer has a Sinks field; routes are defined as DAGs with From/Steps/ErrorPath
-	// Contract validation logic needs to be updated to work with the new route model
-	_ = checker  // checker would be used once this is fixed
-	for routeName, route := range cfg.Routes {
-		if len(route.Steps) == 0 {
-			continue
-		}
-		// Contract checks skipped - see TODO above
-		_ = routeName  // avoid unused variable
-	}
-
-	return warnings
-}
-
-// printStaticCheckCaveat prints the mandatory disclaimer about static checks (M2.7.3)
-func printStaticCheckCaveat(w io.Writer) {
-	fmt.Fprintf(w, `
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-⚠️  STATIC CONTRACT CONFORMANCE CHECK CAVEAT (M2.7)
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  This check is a BEST-EFFORT, PARTIAL validation only.
-
-  • Only simple JSONata transformations can be analyzed (no functions, loops,
-    conditionals, or dynamic features).
-
-  • Passing this check does NOT guarantee runtime behavior — use enforce: true
-    on the sink for a complete runtime guarantee.
-
-  • This static check is NOT a substitute for the runtime enforce: true check.
-
-  • See design documentation (M2.7) for details on the analyzable subset.
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-`)
-}
 
 var studioCmd = &cobra.Command{
 	Use:   "studio [dir]",

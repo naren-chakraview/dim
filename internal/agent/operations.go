@@ -9,6 +9,7 @@ import (
 
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/testing"
+	"github.com/naren-chakraview/dim/internal/validation"
 )
 
 // ValidateRoute validates a route configuration
@@ -42,13 +43,19 @@ func ValidateRoute(ctx context.Context, req ValidateRequest) (*ValidateResponse,
 		}
 	}
 
+	// Perform static contract conformance checks (M2.7.3) — same as CLI
+	staticCheckWarnings := validation.PerformStaticContractChecks(cfg)
+
 	// Build response
 	resp := &ValidateResponse{
-		Valid:       true,
-		Errors:      []ValidationError{},
-		Warnings:    []string{},
+		Valid:        true,
+		Errors:       []ValidationError{},
+		Warnings:     staticCheckWarnings,
 		RouteVersion: getFirstRouteVersion(cfg),
 	}
+
+	// Append the mandatory caveat as a final warning so agents know this is best-effort
+	resp.Warnings = append(resp.Warnings, validation.StaticCheckCaveat)
 
 	return resp, nil
 }
