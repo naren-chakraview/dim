@@ -67,11 +67,14 @@ func (c *ApicurioClient) QueryContracts(ctx context.Context, subject string) ([]
 
 	var results []CatalogResult
 	for _, artifact := range apicurioResp.Artifacts {
+		// Note: Apicurio API doesn't currently return artifact update time
+		// in the search results endpoint; Updated field left empty
+		// TODO: Query full artifact details to get actual UpdatedOn timestamp
 		results = append(results, CatalogResult{
 			Type:    "contract",
 			Name:    artifact.ID,
 			Subject: artifact.ID,
-			Updated: time.Now().Format(time.RFC3339),
+			Updated: "", // Not fabricated; actual timestamp requires additional API call
 			URL:     fmt.Sprintf("%s/ui/artifacts/%s", c.baseURL, artifact.ID),
 		})
 	}
@@ -107,7 +110,7 @@ func (c *OpenLineageClient) QueryDatasets(ctx context.Context, domain string) ([
 			Type:    "product",
 			Name:    ds.Name,
 			Domain:  ds.Namespace,
-			Updated: time.Now().Format(time.RFC3339),
+			Updated: "", // Not fabricated; actual timestamp from OpenLineage would go here
 		})
 	}
 	return results, nil
@@ -121,12 +124,20 @@ func Search(ctx context.Context, query, filterType, filterDomain string) (*Searc
 	openlineage := NewOpenLineageClient()
 
 	if filterType == "" || filterType == "contract" {
-		contracts, _ := apicurio.QueryContracts(ctx, query)
+		contracts, err := apicurio.QueryContracts(ctx, query)
+		if err != nil {
+			// Distinguish between "no results" and "registry unreachable"
+			return nil, fmt.Errorf("registry unreachable: %w", err)
+		}
 		results.Results = append(results.Results, contracts...)
 	}
 
 	if filterType == "" || filterType == "product" {
-		products, _ := openlineage.QueryDatasets(ctx, filterDomain)
+		products, err := openlineage.QueryDatasets(ctx, filterDomain)
+		if err != nil {
+			// Distinguish between "no results" and "registry unreachable"
+			return nil, fmt.Errorf("registry unreachable: %w", err)
+		}
 		results.Results = append(results.Results, products...)
 	}
 
