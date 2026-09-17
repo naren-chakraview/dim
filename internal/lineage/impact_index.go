@@ -81,6 +81,20 @@ func ExtractAllReferences(route config.RouteSpec, routeName string) []ImpactRefe
 		})
 	}
 
+	// Contract references
+	for _, contract := range route.Contracts {
+		if contract.ID != "" {
+			refs = append(refs, ImpactReference{
+				SourceType: "route",
+				SourceName: routeName,
+				TargetType: "contract",
+				TargetName: contract.ID,
+				IsStatic:   true,
+				ConfigPath: routeName,
+			})
+		}
+	}
+
 	// Step references
 	for i, step := range route.Steps {
 		stepPath := fmt.Sprintf("$.routes.%s.steps[%d]", routeName, i)

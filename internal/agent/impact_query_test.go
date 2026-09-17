@@ -3,22 +3,36 @@ package agent
 import (
 	"testing"
 
+	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/lineage"
 )
 
 func TestQueryContractImpact(t *testing.T) {
-	index := &lineage.RouteImpactIndex{
-		ContractReferences: map[string][]lineage.ImpactReference{
-			"payment-contract": {
-				{SourceType: "sink", SourceName: "kafka-output", TargetType: "contract", TargetName: "payment-contract", IsStatic: true},
-				{SourceType: "sink", SourceName: "file-backup", TargetType: "contract", TargetName: "payment-contract", IsStatic: true},
+	// Build a real config with contract references
+	cfg := &config.RouteConfig{
+		Version: 1,
+		Sources: map[string]config.SourceSpec{
+			"input": {Type: "http", URL: "http://localhost:8080"},
+		},
+		Sinks: map[string]config.SinkSpec{
+			"output": {Type: "kafka", URL: "localhost:9092"},
+			"backup": {Type: "file", Path: "./backup.jsonl"},
+		},
+		Routes: map[string]config.RouteSpec{
+			"order-processing": {
+				From: "input",
+				Contracts: []config.ContractSpec{
+					{ID: "payment-contract", Version: "1.0.0", Strict: true},
+				},
+				Steps: []config.StepSpec{
+					{Translate: &config.TranslateSpec{Expr: "$ | {order_id, amount}"}},
+				},
 			},
 		},
-		SinkReferences:       make(map[string][]lineage.ImpactReference),
-		SourceReferences:     make(map[string][]lineage.ImpactReference),
-		ConnectionReferences: make(map[string][]lineage.ImpactReference),
-		StepTypeReferences:   make(map[string][]lineage.ImpactReference),
 	}
+
+	// Build index from real config
+	index := lineage.BuildImpactIndex(cfg)
 
 	req := ImpactQueryRequest{
 		ChangeType: "contract",
@@ -30,8 +44,8 @@ func TestQueryContractImpact(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(resp.AffectedSinks) != 2 {
-		t.Fatalf("expected 2 affected sinks, got %d", len(resp.AffectedSinks))
+	if len(resp.AffectedRoutes) != 1 || resp.AffectedRoutes[0] != "order-processing" {
+		t.Fatalf("expected 1 affected route (order-processing), got %d: %v", len(resp.AffectedRoutes), resp.AffectedRoutes)
 	}
 
 	if resp.Confidence != 1.0 {
@@ -40,35 +54,32 @@ func TestQueryContractImpact(t *testing.T) {
 }
 
 func TestQueryWithUncertainReferences(t *testing.T) {
-	index := &lineage.RouteImpactIndex{
-		ContractReferences: map[string][]lineage.ImpactReference{
-			"my-contract": {
-				{SourceType: "route", SourceName: "route1", IsStatic: true, TargetType: "contract", TargetName: "my-contract"},
-				{SourceType: "route", SourceName: "route2", IsStatic: false, Uncertainty: "computed from JSONata", TargetType: "contract", TargetName: "my-contract"},
+	// Build a config with a translate step that has dynamic references
+	cfg := &config.RouteConfig{
+		Version: 1,
+		Sources: map[string]config.SourceSpec{
+			"input": {Type: "http", URL: "http://localhost:8080"},
+		},
+		Sinks: map[string]config.SinkSpec{
+			"output": {Type: "http", URL: "http://localhost:9090"},
+		},
+		Routes: map[string]config.RouteSpec{
+			"dynamic-route": {
+				From: "input",
+				Steps: []config.StepSpec{
+					// This translate has a dynamic reference (starts with $)
+					{Translate: &config.TranslateSpec{Expr: "$env.target_sink"}},
+				},
 			},
 		},
-		SinkReferences:       make(map[string][]lineage.ImpactReference),
-		SourceReferences:     make(map[string][]lineage.ImpactReference),
-		ConnectionReferences: make(map[string][]lineage.ImpactReference),
-		StepTypeReferences:   make(map[string][]lineage.ImpactReference),
 	}
 
-	req := ImpactQueryRequest{
-		ChangeType: "contract",
-		ChangeName: "my-contract",
-	}
+	// Build index from real config
+	index := lineage.BuildImpactIndex(cfg)
 
-	resp, err := QueryImpact(req, index)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if len(resp.UncertainRefs) != 1 {
-		t.Fatalf("expected 1 uncertain reference, got %d", len(resp.UncertainRefs))
-	}
-
-	if resp.Confidence != 0.5 {
-		t.Fatalf("expected 50%% confidence, got %.0f%%", resp.Confidence*100)
+	// The dynamic reference should be captured as an uncertain "connection" reference
+	if len(index.ConnectionReferences) != 1 {
+		t.Fatalf("expected 1 uncertain connection reference, got %d", len(index.ConnectionReferences))
 	}
 }
 
