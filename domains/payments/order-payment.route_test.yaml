@@ -1,0 +1,20 @@
+route: order-payment
+
+fixtures:
+  - name: order payment without auth is rejected
+    input:
+      body:
+        order_id: "ord-001"
+        amount: 500000
+        currency: "USD"
+        customer_id: "cust-123"
+    expected_error: true
+
+  - name: another order without auth is also rejected
+    input:
+      body:
+        order_id: "ord-002"
+        amount: 1500000
+        currency: "USD"
+        customer_id: "cust-456"
+    expected_error: true

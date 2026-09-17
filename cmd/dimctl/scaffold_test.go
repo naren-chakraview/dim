@@ -47,6 +47,10 @@ func TestScaffoldGeneratesValidRoute(t *testing.T) {
 	defer os.Chdir(originalDir)
 	os.Chdir(tmpDir)
 
+	// Copy governance fragments for validation
+	os.MkdirAll("domains/governance", 0755)
+	os.WriteFile("domains/governance/fragments.yaml", []byte("version: 1\nfragments:\n  governance-baseline:\n    - authorize:\n        mode: rbac\n        require_roles: [domain-member]\n"), 0644)
+
 	domainName := "test-domain"
 	domainPath := filepath.Join("domains", domainName)
 
@@ -55,7 +59,7 @@ func TestScaffoldGeneratesValidRoute(t *testing.T) {
 		t.Fatalf("failed to create domain directory: %v", err)
 	}
 
-	if err := generateRoute(domainPath, domainName, "passthrough"); err != nil {
+	if err := generateRoute(domainPath, domainName, "passthrough", "http", "file"); err != nil {
 		t.Fatalf("failed to generate route: %v", err)
 	}
 
@@ -81,6 +85,9 @@ func TestScaffoldGeneratesValidRoute(t *testing.T) {
 	}
 	if !strings.Contains(contentStr, "sinks:") {
 		t.Error("route does not contain sinks")
+	}
+	if !strings.Contains(contentStr, "fragment: governance-baseline") {
+		t.Error("route does not reference governance-baseline fragment")
 	}
 }
 
@@ -155,17 +162,17 @@ func TestScaffoldTemplateShapes(t *testing.T) {
 		{
 			name:     "passthrough",
 			template: "passthrough",
-			shouldHave: []string{"governance/fragments", "sources:", "routes:", "sinks:"},
+			shouldHave: []string{"governance/fragments", "sources:", "routes:", "sinks:", "fragment: governance-baseline"},
 		},
 		{
 			name:     "transform",
 			template: "transform",
-			shouldHave: []string{"governance/fragments", "translate:", "expr:"},
+			shouldHave: []string{"governance/fragments", "translate:", "expr:", "fragment: governance-baseline"},
 		},
 		{
 			name:     "contract",
 			template: "contract",
-			shouldHave: []string{"governance/fragments", "sources:", "routes:", "sinks:"},
+			shouldHave: []string{"governance/fragments", "sources:", "routes:", "sinks:", "contracts:", "fragment: governance-baseline"},
 		},
 	}
 
@@ -175,7 +182,7 @@ func TestScaffoldTemplateShapes(t *testing.T) {
 			domainPath := filepath.Join("domains", domainName)
 			os.MkdirAll(domainPath, 0755)
 
-			if err := generateRoute(domainPath, domainName, tt.template); err != nil {
+			if err := generateRoute(domainPath, domainName, tt.template, "http", "file"); err != nil {
 				t.Fatalf("failed to generate route: %v", err)
 			}
 
@@ -206,7 +213,7 @@ func TestScaffoldAllOutputsHaveGovernanceImport(t *testing.T) {
 			domainPath := filepath.Join("domains", domainName)
 			os.MkdirAll(domainPath, 0755)
 
-			if err := generateRoute(domainPath, domainName, template); err != nil {
+			if err := generateRoute(domainPath, domainName, template, "http", "file"); err != nil {
 				t.Fatalf("failed to generate route: %v", err)
 			}
 
@@ -219,6 +226,9 @@ func TestScaffoldAllOutputsHaveGovernanceImport(t *testing.T) {
 			}
 			if !strings.Contains(contentStr, "governance/fragments") {
 				t.Error("route missing governance/fragments import")
+			}
+			if !strings.Contains(contentStr, "fragment: governance-baseline") {
+				t.Error("route missing fragment reference to governance-baseline")
 			}
 		})
 	}

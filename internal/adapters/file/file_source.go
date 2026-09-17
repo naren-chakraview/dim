@@ -16,6 +16,13 @@ import (
 
 // resolveSecret resolves ${SECRET:name} references from environment variables.
 // Returns the environment variable value, or empty string if not found.
+//
+// TODO (T1.13): Wire domain-scoped secret resolver from internal/secrets instead of unscoped os.Getenv.
+// Current limitation: this adapter cannot enforce domain-scoped secret isolation or cross-domain
+// authorization checks. Once domain context is available to adapters, call secrets.Resolver.ResolveInRoute
+// with the route's domain to enable M4.4 domain-scoped secret resolution.
+// This requires: (1) passing domain through adapter interfaces, (2) adding authorization checks
+// for cross-domain.name syntax, (3) rejecting cross-domain access without @shared syntax.
 func resolveSecret(ref string) string {
 	return os.Getenv(ref)
 }
