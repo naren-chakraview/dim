@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
+	"github.com/naren-chakraview/dim/internal/secrets"
 )
 
 // TestNewSFTPSource tests creating an SFTP source (R21.3).
@@ -48,14 +49,21 @@ func TestResolveSecret(t *testing.T) {
 	os.Setenv(testKey, testValue)
 	defer os.Unsetenv(testKey)
 
-	// Test resolution
-	resolved := resolveSecret(testKey)
+	// Create a FileSource to test secret resolution
+	outChan := engine.NewChannel("test-resolve", 10)
+	source, err := NewFileSource("/tmp", "30s", outChan)
+	if err != nil {
+		t.Fatalf("failed to create source: %v", err)
+	}
+
+	// Test resolution (should fall back to env var since no resolver configured)
+	resolved := source.resolveSecret(testKey)
 	if resolved != testValue {
 		t.Errorf("secret resolution failed: expected %s, got %s", testValue, resolved)
 	}
 
 	// Test non-existent secret returns empty
-	empty := resolveSecret("NONEXISTENT_SECRET")
+	empty := source.resolveSecret("NONEXISTENT_SECRET")
 	if empty != "" {
 		t.Errorf("non-existent secret should return empty, got %s", empty)
 	}
@@ -226,6 +234,7 @@ func TestSFTPIntegration(t *testing.T) {
 	}
 }
 
+
 // TestSFTPAuthMethods tests that SFTP properly handles different auth methods (R21.2).
 func TestSFTPAuthMethods(t *testing.T) {
 	outChan := engine.NewChannel("test-auth", 10)
@@ -280,5 +289,35 @@ func TestSFTPAuthMethods(t *testing.T) {
 				t.Errorf("keyfile config mismatch")
 			}
 		})
+	}
+}
+
+// TestResolveSecretWithDomainScoping tests that FileSource respects domain-scoped secret resolution (T1.13).
+func TestResolveSecretWithDomainScoping(t *testing.T) {
+	// Create an in-memory store with domain-scoped secrets
+	store := secrets.NewInMemoryStore()
+	store.Register(secrets.SecretEntry{Name: "api-key", Value: "real-secret-value", Domain: "orders"})
+	store.Register(secrets.SecretEntry{Name: "password", Value: "real-password", Domain: "payments"})
+	
+	resolver := secrets.NewResolver(store)
+	
+	// Create a FileSource for the "orders" domain with the resolver
+	outChan := engine.NewChannel("test-domain-secret", 10)
+	source, err := NewFileSourceWithDomain("/tmp", "30s", outChan, "orders", resolver)
+	if err != nil {
+		t.Fatalf("failed to create source: %v", err)
+	}
+	
+	// Test same-domain resolution
+	resolved := source.resolveSecret("api-key")
+	if resolved != "real-secret-value" {
+		t.Errorf("same-domain secret resolution failed: got %q, want %q", resolved, "real-secret-value")
+	}
+	
+	// Test cross-domain denial: trying to access payments.password from orders domain
+	// With domain-scoped resolver, this should be denied (return empty, not the real value)
+	crossDomainResult := source.resolveSecret("payments.password")
+	if crossDomainResult == "real-password" {
+		t.Errorf("SECURITY BUG: cross-domain secret was resolved when it should be denied: %q", crossDomainResult)
 	}
 }

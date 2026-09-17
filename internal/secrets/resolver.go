@@ -2,7 +2,6 @@ package secrets
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 )
 
@@ -18,7 +17,7 @@ func NewResolver(store SecretStore) *Resolver {
 
 // ResolveInRoute resolves secrets in the context of a route's domain
 // Parses ${SECRET:ref} syntax and looks up via domain-scoped store
-// Falls back to environment variables for backward compatibility during migration
+// Returns unresolved patterns for any secrets that cannot be resolved
 func (r *Resolver) ResolveInRoute(routeDomain string, text string) (string, error) {
 	if text == "" {
 		return "", nil
@@ -35,18 +34,15 @@ func (r *Resolver) ResolveInRoute(routeDomain string, text string) (string, erro
 		}
 		ref := submatches[1]
 
-		// Try domain-scoped store first
+		// Try domain-scoped store
 		value, err := r.store.Resolve(routeDomain, ref)
 		if err == nil {
 			return value
 		}
 
-		// Fall back to environment variables for migration period
-		if envVal := os.Getenv(ref); envVal != "" {
-			return envVal
-		}
-
-		// Return original if not found (will be caught by validation)
+		// Return original pattern if not found (will be caught by validation)
+		// Must NOT fall back to environment variables - a denied cross-domain reference
+		// must fail, not silently succeed through a naming coincidence
 		return match
 	})
 

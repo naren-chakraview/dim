@@ -165,6 +165,39 @@ func TestValidateEmptyText(t *testing.T) {
 	}
 }
 
+func TestResolveBypassWithEnvironmentVariable(t *testing.T) {
+	// T1.13 Security Fix: Demonstrates the bypass where ResolveInRoute falls back
+	// to os.Getenv after the store denies cross-domain access, leaking secrets
+	// via environment variables with matching names.
+	//
+	// BEFORE FIX: A route in domain "orders" can access payments.api-key
+	// by relying on an environment variable literally named "payments.api-key"
+	// AFTER FIX: Cross-domain denial must fail, not fall back to env vars
+
+	t.Setenv("payments.api-key", "leaked-api-key")
+
+	store := NewInMemoryStore()
+	// Register the secret in a different domain
+	store.Register(SecretEntry{Name: "api-key", Value: "real-secret", Domain: "payments"})
+
+	resolver := NewResolver(store)
+
+	// Try to access cross-domain secret from orders domain
+	text := "key: ${SECRET:payments.api-key}"
+	resolved, err := resolver.ResolveInRoute("orders", text)
+	if err != nil {
+		t.Fatalf("resolve shouldn't error (unresolvedable patterns stay as-is): %v", err)
+	}
+
+	// SECURITY CHECK: The pattern must remain unresolved, NOT leak the env var
+	if !strings.Contains(resolved, "${SECRET:payments.api-key}") {
+		t.Fatalf("SECURITY BUG: cross-domain secret was resolved (leaked via env var): %q", resolved)
+	}
+	if strings.Contains(resolved, "leaked-api-key") {
+		t.Fatalf("SECURITY BUG: environment variable leaked through: %q", resolved)
+	}
+}
+
 func TestResolveImplicitCrossDomainAccessBlocked(t *testing.T) {
 	store := NewInMemoryStore()
 	store.Register(SecretEntry{Name: "db-pass", Value: "secret", Domain: "orders"})
