@@ -45,20 +45,74 @@ func ReconstructYAMLFromNode(wrapper *YAMLNodeWrapper) (string, error) {
 		return marshallYAML(wrapper.Data)
 	}
 
-	// Update node values in-place from the edited data
-	updateNodeFromData(wrapper.RootNode, wrapper.Data)
-
-	// Encode the modified node tree back to YAML using an encoder with proper indentation
-	// This preserves the original formatting instead of reformatting everything
-	buf := &strings.Builder{}
-	encoder := yaml.NewEncoder(buf)
-	encoder.SetIndent(2) // Use 2-space indentation to match common style
-	if err := encoder.Encode(wrapper.RootNode); err != nil {
+	// Check for add/remove operations (structural changes)
+	// If detected, return error instead of silently dropping them
+	if err := validateNoStructuralChanges(wrapper.RootNode, wrapper.Data); err != nil {
 		return "", err
 	}
-	encoder.Close()
 
-	return buf.String(), nil
+	// Update node values to match edited data (preserves structure, order, comments)
+	updateNodeFromData(wrapper.RootNode, wrapper.Data)
+
+	// Encode the modified node tree back to YAML
+	out, err := yaml.Marshal(wrapper.RootNode)
+	if err != nil {
+		return "", err
+	}
+
+	return string(out), nil
+}
+
+// validateNoStructuralChanges checks if the data has been structurally modified
+// (add/remove operations on sequences, new/deleted keys in maps)
+// Returns error if structural changes are detected, since they can't be preserved
+func validateNoStructuralChanges(node *yaml.Node, data interface{}) error {
+	if node == nil {
+		return nil
+	}
+
+	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+		return validateNoStructuralChanges(node.Content[0], data)
+	}
+
+	dataMap, isMap := data.(map[string]interface{})
+	if !isMap {
+		return nil
+	}
+
+	if node.Kind != yaml.MappingNode {
+		return nil
+	}
+
+	// Walk through all key-value pairs in the node
+	for i := 0; i < len(node.Content); i += 2 {
+		if i+1 >= len(node.Content) {
+			break
+		}
+
+		keyNode := node.Content[i]
+		valueNode := node.Content[i+1]
+		key := keyNode.Value
+
+		if newValue, exists := dataMap[key]; exists {
+			// Key exists - recursively check nested structures
+			if dataArray, isArray := newValue.([]interface{}); isArray {
+				if valueNode.Kind == yaml.SequenceNode {
+					if len(valueNode.Content) != len(dataArray) {
+						// Sequence length changed - this is an add/remove operation
+						return fmt.Errorf("add/remove operations on sequences cannot be preserved in node-based round-trip (was %d items, now %d)", len(valueNode.Content), len(dataArray))
+					}
+				}
+			} else if dataMapVal, isMapVal := newValue.(map[string]interface{}); isMapVal {
+				// Recursively check nested maps
+				if err := validateNoStructuralChanges(valueNode, dataMapVal); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // updateNodeFromData recursively updates node values to match edited data
@@ -122,13 +176,17 @@ func updateNodeSequence(node *yaml.Node, items []interface{}) {
 		return
 	}
 
+	oldLen := len(node.Content)
+	newLen := len(items)
+	log.Printf("[updateNodeSequence] oldLen=%d, newLen=%d", oldLen, newLen)
+
 	// Handle size changes: add or remove nodes as needed
-	if len(items) != len(node.Content) {
+	if newLen != oldLen {
 		// Resize the content slice to match items
-		newContent := make([]*yaml.Node, 0, len(items))
+		newContent := make([]*yaml.Node, 0, newLen)
 
 		for i, item := range items {
-			if i < len(node.Content) {
+			if i < oldLen {
 				// Reuse existing node, update its value
 				updateNodeValue(node.Content[i], item)
 				newContent = append(newContent, node.Content[i])
@@ -139,7 +197,12 @@ func updateNodeSequence(node *yaml.Node, items []interface{}) {
 			}
 		}
 
+		log.Printf("[updateNodeSequence] Rebuilding: oldLen=%d, newLen=%d, newContent len=%d", oldLen, newLen, len(newContent))
+
+		// Important: completely replace the content slice
+		// This ensures nodes beyond newLen are removed
 		node.Content = newContent
+		log.Printf("[updateNodeSequence] After replacement: node.Content len=%d", len(node.Content))
 	} else {
 		// Same length: just update values in place
 		for i, item := range items {
