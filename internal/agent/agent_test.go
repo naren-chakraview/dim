@@ -16,9 +16,9 @@ func TestMCPServerCreation(t *testing.T) {
 		t.Fatalf("version mismatch: got %s, want %s", server.version, AgentInterfaceVersion)
 	}
 
-	// Verify all operations are registered (validate, test, scaffold, lineage, provenance, capabilities, scaffold_from_intent, critique_route)
-	if len(server.operations) != 8 {
-		t.Fatalf("expected 8 operations, got %d", len(server.operations))
+	// Verify all operations are registered (validate, test, scaffold, lineage, provenance, capabilities, scaffold_from_intent, critique_route, query_impact)
+	if len(server.operations) != 9 {
+		t.Fatalf("expected 9 operations, got %d", len(server.operations))
 	}
 }
 
@@ -62,8 +62,8 @@ func TestListOperations(t *testing.T) {
 	server := NewMCPServer()
 	operations := server.ListOperations()
 
-	if len(operations) != 8 {
-		t.Fatalf("expected 8 operations, got %d", len(operations))
+	if len(operations) != 9 {
+		t.Fatalf("expected 9 operations, got %d", len(operations))
 	}
 
 	// Verify known operations exist
@@ -81,6 +81,7 @@ func TestListOperations(t *testing.T) {
 		"get_capabilities",
 		"scaffold_from_intent",
 		"critique_route",
+		"query_impact",
 	}
 
 	for _, expected := range expectedOps {
