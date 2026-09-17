@@ -72,7 +72,7 @@
         "properties": {
           "type": {
             "enum": [
-              "ht"
+              "http"
             ],
             "type": "string"
           }
@@ -110,7 +110,7 @@
         "properties": {
           "type": {
             "enum": [
-              "fi"
+              "file"
             ],
             "type": "string"
           }
@@ -148,7 +148,7 @@
         "properties": {
           "type": {
             "enum": [
-              "s3-sink"
+              "s3"
             ],
             "type": "string"
           }
@@ -160,44 +160,6 @@
       },
       "description": "s3-sink adapter",
       "name": "s3-sink",
-      "type": "adapter"
-    },
-    {
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "sftp"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "sftp-source adapter",
-      "name": "sftp-source",
-      "type": "adapter"
-    },
-    {
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "sf"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "sftp-sink adapter",
-      "name": "sftp-sink",
       "type": "adapter"
     },
     {
@@ -224,7 +186,7 @@
         "properties": {
           "type": {
             "enum": [
-              "kaf"
+              "kafka"
             ],
             "type": "string"
           }
@@ -236,6 +198,82 @@
       },
       "description": "kafka-sink adapter",
       "name": "kafka-sink",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "amqp"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "amqp-source adapter",
+      "name": "amqp-source",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "amqp"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "amqp-sink adapter",
+      "name": "amqp-sink",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "database"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "database-source adapter",
+      "name": "database-source",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "database"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "database-sink adapter",
+      "name": "database-sink",
       "type": "adapter"
     }
   ],
