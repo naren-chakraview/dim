@@ -9,6 +9,7 @@ import (
 
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/factory"
+	"github.com/naren-chakraview/dim/internal/lineage"
 	"github.com/naren-chakraview/dim/internal/testing"
 	"github.com/naren-chakraview/dim/internal/validation"
 )
@@ -346,6 +347,45 @@ func GetCapabilities(ctx context.Context, req CapabilitiesRequest) (*Capabilitie
 	}
 
 	return resp, nil
+}
+
+// QueryImpactRequest asks what routes/adapters would be affected by a change
+type QueryImpactRequest struct {
+	RouteConfigPath string `json:"route_config_path"`
+	ChangeType      string `json:"change_type"`    // "contract" | "sink" | "source" | "step-type"
+	ChangeName      string `json:"change_name"`
+	ChangeVersion   string `json:"change_version,omitempty"`
+}
+
+// QueryRouteImpact determines what routes would be affected by a change
+func QueryRouteImpact(ctx context.Context, req QueryImpactRequest) (*ImpactQueryResponse, *OperationErr) {
+	if req.RouteConfigPath == "" {
+		return nil, &OperationErr{
+			Code:    "INVALID_REQUEST",
+			Message: "route_config_path is required",
+		}
+	}
+
+	// Load route config
+	cfg, err := config.LoadRouteConfig(req.RouteConfigPath)
+	if err != nil {
+		return nil, &OperationErr{
+			Code:    "VALIDATION_FAILED",
+			Message: fmt.Sprintf("Failed to load route config: %v", err),
+		}
+	}
+
+	// Build impact index from routes
+	impactIndex := lineage.BuildImpactIndex(cfg)
+
+	// Query impact
+	impactReq := ImpactQueryRequest{
+		ChangeType:    req.ChangeType,
+		ChangeName:    req.ChangeName,
+		ChangeVersion: req.ChangeVersion,
+	}
+
+	return QueryImpact(impactReq, impactIndex)
 }
 
 // Helper: get first route version from config

@@ -131,6 +131,18 @@ func (s *MCPServer) registerOperations() {
 			return CritiqueRoute(ctx, req)
 		},
 	}
+
+	s.operations["query_impact"] = MCPOperation{
+		Name:        "query_impact",
+		Description: "Analyze what routes and adapters would be affected by changing a contract, sink, source, or step type",
+		Handler: func(ctx context.Context, rawReq json.RawMessage) (interface{}, *OperationErr) {
+			var req QueryImpactRequest
+			if err := json.Unmarshal(rawReq, &req); err != nil {
+				return nil, &OperationErr{Code: "INVALID_REQUEST", Message: fmt.Sprintf("Failed to parse request: %v", err)}
+			}
+			return QueryRouteImpact(ctx, req)
+		},
+	}
 }
 
 // CallOperation executes an operation by name with the given request
@@ -199,6 +211,7 @@ func toDisplayName(name string) string {
 		"get_capabilities":      "Query Supported Capabilities",
 		"scaffold_from_intent":  "Generate Route from Design Intent",
 		"critique_route":        "Critique and Review Route",
+		"query_impact":          "Query Impact of Changes",
 	}
 
 	if display, exists := displayNames[name]; exists {
