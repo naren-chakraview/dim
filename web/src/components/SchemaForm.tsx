@@ -190,23 +190,15 @@ function renderInput(
   onChange: (value: any) => void,
   onBlur: () => void
 ) {
-  // Temporarily use textarea for expr fields until JSONataEditor is debugged
+  // Use JSONata editor for expression fields (expr, expression, condition)
   if (isJSONataField(field.name)) {
     return (
-      <textarea
+      <JSONataEditor
         value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         onBlur={onBlur}
         placeholder={field.placeholder || 'Enter JSONata expression...'}
-        rows={4}
-        style={{
-          fontFamily: 'Monaco, monospace',
-          fontSize: '12px',
-          padding: '8px',
-          border: '1px solid #ddd',
-          borderRadius: '4px',
-          width: '100%',
-        }}
+        height="200px"
       />
     );
   }
