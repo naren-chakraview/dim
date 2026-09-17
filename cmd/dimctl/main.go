@@ -952,6 +952,7 @@ func init() {
 	rootCmd.AddCommand(traceCmd)
 	rootCmd.AddCommand(studioCmd)
 	rootCmd.AddCommand(secretAuditCmd)
+	rootCmd.AddCommand(agentCmd)
 
 	// Add lineage subcommands
 	lineageCmd.AddCommand(lineagePurgeCmd)
