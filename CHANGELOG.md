@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Phase 4 Remediation Complete (2026-09-17)
+
+**Fabricated Success Eliminated & Validation Chains Verified (PRs #80-#84)**
+
+#### Tier 0 — Fixed Fabricated Success (4 items)
+- ✅ T0.1: Extract `PerformStaticContractChecks()` into shared package; CLI and agent call same function
+- ✅ T0.2: Wire real fixture runner into `test_route`; properly cleanup listeners to avoid port conflicts
+- ✅ T0.3: Implement real in-process validation in Studio backend; frontend calls actual `/api/validate` endpoint
+- ✅ T0.4: Implement `ResolveNamedImports()` for `imports:/fragment:` resolution; update mandatory-fragment lint to check resolved output
+
+#### Tier 1 — Self-Service Governance Verified (13 items)
+- ✅ T1.1: CI gates now actually run (added `fetch-depth: 0` for full git history)
+- ✅ T1.3-T1.4: Created worked example test fixture and moved CODEOWNERS to `.github/`
+- ✅ T1.6-T1.13: Fixed documented commands, scaffold flags, contract templates, auth declarations, git-sync docs, catalog search, and secret resolver wiring
+
+#### Tier 2 — Visual Tool Refinements (6 items)
+- ✅ T2.1: YAML round-trip fidelity using `yaml.Node` tree modification (preserves order and comments)
+- ✅ T2.2: Schema-driven form generation from `/api/schema` endpoint
+- ✅ T2.3: Integrated JSONataEditor for expression fields
+- ✅ T2.4: Wire real validation into save path (no file write on validation failure)
+- ✅ T2.6: Removed dead code and unreferenced build artifacts
+
+#### Tier 3 — Agent Consumability & Impact Analysis (9 items)
+- ✅ T3.1-T3.5: Complete agent interface with HTTP server, transport resolution, real Python example, public boundary, schema-driven manifest
+- ✅ T3.6: Wire manifest verification into CI with real schema-based comparison (MERGE GATE 11)
+- ✅ T3.7: Fix contract enforcement checks and add retention-policy check
+- ✅ T3.8: Index contract references in impact engine; rewrite tests with real fixtures
+- ✅ T3.9: Expose impact-analysis queries via agent interface (`query_impact` operation)
+
+**Documentation Updated:** README.md, OKF.md, phase-4-implementation-plan.md, phase-4-remediation-tasklist.md, new phase-4-remediation-completion.md
+
+---
+
 ### Infrastructure
 
 **E2E Testing & Release Gating (PR #55)**

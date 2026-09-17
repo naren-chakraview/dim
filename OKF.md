@@ -2,16 +2,16 @@
 
 A living document for tracking business intent, architectural decisions, concurrency patterns, state management, security validation, and change history. This grows alongside the codebase as each phase is implemented.
 
-**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Track A Complete (R1–R21) ✅ | Phase 1 Track B Complete (M1.2-M1.8) ✅ | Phase 2 Track B Complete (M2.1-M2.7) ✅ | Phase 3 Complete (M3.1-M3.5) ✅ | Phase 4 Complete (M4.1-M4.9) ✅  
+**Current Status:** Phase 0 Complete (v0.5.0, 2026-09-03) ✅ | Phase 1 Complete (R1–R21, M1.2-M1.8) ✅ | Phase 2 Complete (M2.1-M2.7) ✅ | Phase 3 Complete (M3.1-M3.5) ✅ | Phase 4 Complete (M4.1-M4.9, 2026-09-09) ✅ | **Phase 4 Remediation Complete (Tier 0-3, 2026-09-17)** ✅  
 **Phase 0 Production Release:** September 3, 2026 (v0.5.0)  
-**Phase 1 Track A Delivered:** Governance, infrastructure, CLI, observability, schema registry, SFTP polling, OpenLineage dead-letter  
-**Phase 1 Track B Delivered:** PBAC+OPA, OBO, AMQP/Kafka reliability, OpenLineage/Marquez with schema facets, replay tooling  
-**Phase 2 Track B Delivered:** Aggregator step, splitter step, database adapters, fragment parameterization, authorization obligations/redaction, purge-log auto-export, static contract conformance checking  
+**Phase 1 Delivered:** Governance, infrastructure, CLI, observability, schema registry, SFTP, OpenLineage; PBAC+OPA, OBO, AMQP/Kafka, Marquez integration, replay tooling  
+**Phase 2 Delivered:** Aggregator, splitter, database adapters, fragment parameterization, obligations/redaction, purge-log auto-export, static contract conformance  
 **Phase 3 Delivered:** Distributed clustering, claim-check pattern, plugin SDK (Go+WASM), multi-tenant quotas, e2e release pipeline  
-**Phase 4 Delivered:** GitOps deployment, visual route authoring, agent-facing MCP interface, machine-readable capabilities, agent-assisted design (scaffolding+critique), impact analysis with confidence metrics  
-**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B, 100+ Phase 2 Track B, 120+ Phase 3, 150+ Phase 4
+**Phase 4 Delivered (2026-09-09):** GitOps deployment, visual route authoring, agent-facing MCP interface, machine-readable capabilities, agent-assisted design, impact analysis  
+**Phase 4 Remediation (2026-09-17):** Fixed fabricated success patterns (T0.1-T0.4), verified validation/testing chains (T1.1-T1.13), refined visual tooling (T2.1-T2.6), completed agent consumability (T3.1-T3.9)  
+**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B, 100+ Phase 2, 120+ Phase 3, 150+ Phase 4, 28 Phase 4 Remediation
 
-**Note:** Phases 0-4 fully implemented and released (v0.5.0–v0.9.0-beta). Phase 3 complete (M3.1-M3.5: distributed clustering, claim-check, plugin SDK, multi-tenancy, e2e pipeline). Phase 4 complete (M4.1-M4.9: GitOps, visual authoring, MCP agent interface, capability manifest, agent-assisted design, impact analysis). Decisions below are implemented except where explicitly marked "Phase 5+" or "Future." Use the phase/milestone labels to distinguish implemented vs. planned work.
+**Note:** Phases 0-4 production-ready (v0.9.0). Phase 4 Remediation (28 items across Tier 0-3) completed 2026-09-17: eliminated all fabricated success, verified validation chains real, wired CI verification gates, indexed contract references, exposed impact queries via agent interface. Decisions implemented except where marked "Phase 5+" or "Future."
 
 ## Business intent
 
