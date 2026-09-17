@@ -28,7 +28,7 @@ var critiquPatterns = []CritiquePattern{
 		Name:        "contract_without_enforce",
 		Category:    "best-practice",
 		Severity:    "important",
-		Description: "Contract referenced but not enforced on sink",
+		Description: "Contract referenced but not strictly enforced",
 		Check:       checkContractEnforcement,
 	},
 	{
@@ -51,6 +51,13 @@ var critiquPatterns = []CritiquePattern{
 		Severity:    "info",
 		Description: "Import statement that references no fragments actually used",
 		Check:       checkUnusedImports,
+	},
+	{
+		Name:        "missing_lineage_retention_policy",
+		Category:    "best-practice",
+		Severity:    "info",
+		Description: "Route missing retention_policy for lineage tracking",
+		Check:       checkLineageRetentionPolicy,
 	},
 }
 
@@ -96,22 +103,33 @@ func checkRedundantTranslateSteps(cfg *config.RouteConfig) []CritiqueFinding {
 	return findings
 }
 
-// checkContractEnforcement detects routes that have contracts
+// checkContractEnforcement detects routes with contracts not strictly enforced
 func checkContractEnforcement(cfg *config.RouteConfig) []CritiqueFinding {
 	var findings []CritiqueFinding
 
-	// Check if routes reference contracts without explicit enforcement
+	// Check if routes reference contracts without strict enforcement in contract steps
 	for routeName, route := range cfg.Routes {
 		if len(route.Contracts) > 0 {
-			// Route has contracts defined
-			findings = append(findings, CritiqueFinding{
-				Category: "best-practice",
-				Severity: "important",
-				Path:     fmt.Sprintf("$.routes.%s.contracts", routeName),
-				Issue:    fmt.Sprintf("Route '%s' references contracts but enforcement is not confirmed on output sinks", routeName),
-				Action:   "Verify that output sinks have enforce: true to validate messages against contracts",
-				Example:  "sinks:\n  output:\n    type: http\n    enforce: true  # Validate against contract",
-			})
+			// Route has contracts defined; check if any are enforced with strict: true
+			hasStrictEnforcement := false
+			for _, step := range route.Steps {
+				if step.Contract != nil && step.Contract.Strict {
+					hasStrictEnforcement = true
+					break
+				}
+			}
+
+			// If contracts exist but no contract step has strict: true, flag it
+			if !hasStrictEnforcement {
+				findings = append(findings, CritiqueFinding{
+					Category: "best-practice",
+					Severity: "important",
+					Path:     fmt.Sprintf("$.routes.%s", routeName),
+					Issue:    fmt.Sprintf("Route '%s' defines contracts but does not enforce them (no contract step with strict: true)", routeName),
+					Action:   "Add a contract validation step with strict: true to enforce data contracts",
+					Example:  "steps:\n  - contract:\n      id: payment-contract\n      strict: true  # Fail pipeline on violation",
+				})
+			}
 		}
 	}
 
@@ -163,9 +181,35 @@ func checkAuthDeclaration(cfg *config.RouteConfig) []CritiqueFinding {
 func checkUnusedImports(cfg *config.RouteConfig) []CritiqueFinding {
 	var findings []CritiqueFinding
 
-	// Note: RouteConfig doesn't expose imports field directly after resolution
-	// This check is a placeholder for when imports metadata becomes available
-	// For now, always return empty findings as imports are handled during schema resolution
+	// Note: By the time we reach this check, imports have been resolved and expanded
+	// into actual steps. We can't detect "unused" imports directly from RouteConfig.
+	//
+	// This check is a placeholder for static analysis at the raw YAML level,
+	// which would require access to the original parsed YAML before fragment expansion.
+	// That analysis would be done in the loader or a separate lint pass.
+	//
+	// For now, this always returns empty findings as imports are validated during
+	// schema resolution and check-mandatory-fragments.sh catches missing imports.
+
+	return findings
+}
+
+// checkLineageRetentionPolicy detects routes missing retention_policy for lineage tracking
+func checkLineageRetentionPolicy(cfg *config.RouteConfig) []CritiqueFinding {
+	var findings []CritiqueFinding
+
+	for routeName, route := range cfg.Routes {
+		if route.RetentionPolicy == "" {
+			findings = append(findings, CritiqueFinding{
+				Category: "best-practice",
+				Severity: "info",
+				Path:     fmt.Sprintf("$.routes.%s", routeName),
+				Issue:    fmt.Sprintf("Route '%s' missing retention_policy for lineage tracking", routeName),
+				Action:   "Add retention_policy to route for data lineage and compliance tracking",
+				Example:  "routes:\n  " + routeName + ":\n    retention_policy: 30d  # Keep lineage for 30 days",
+			})
+		}
+	}
 
 	return findings
 }
