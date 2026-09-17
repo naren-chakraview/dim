@@ -248,80 +248,109 @@ export function useSchemaForm(schema?: JSONSchema, currentValue?: any) {
   return { fields, validate };
 }
 
-/**
- * Get schema for a specific step type.
- * (This would typically fetch from backend or built-in registry)
- */
-export function getStepSchema(stepType: string): JSONSchema {
-  // Mock step schemas - in real app, these would come from server
-  const stepSchemas: Record<string, JSONSchema> = {
-    translate: {
-      type: 'object',
-      title: 'Translate Step',
-      properties: {
-        expr: {
-          type: 'string',
-          title: 'Expression',
-          description: 'JSONata expression to transform message',
-          examples: ['$payload.id', '$payload.amount * 1.1'],
-        },
-      },
-      required: ['expr'],
-    },
-    log: {
-      type: 'object',
-      title: 'Log Step',
-      properties: {
-        level: {
-          type: 'string',
-          title: 'Log Level',
-          description: 'Log severity level',
-          enum: ['debug', 'info', 'warn', 'error'],
-        },
-        message: {
-          type: 'string',
-          title: 'Message',
-          description: 'Log message template',
-        },
-      },
-      required: ['level'],
-    },
-    filter: {
-      type: 'object',
-      title: 'Filter Step',
-      properties: {
-        expr: {
-          type: 'string',
-          title: 'Filter Expression',
-          description: 'JSONata condition to evaluate (true = pass, false = filter out)',
-          examples: ['$payload.amount > 100', '$payload.status = "active"'],
-        },
-      },
-      required: ['expr'],
-    },
-    delay: {
-      type: 'object',
-      title: 'Delay Step',
-      properties: {
-        duration: {
-          type: 'string',
-          title: 'Duration',
-          description: 'Delay duration (e.g., 5s, 10m, 1h)',
-          examples: ['5s', '10m', '1h'],
-        },
-      },
-      required: ['duration'],
-    },
-  };
+// Global cache for the full route schema
+let cachedRouteSchema: JSONSchema | null = null;
+let schemaFetchPromise: Promise<JSONSchema | null> | null = null;
 
-  return stepSchemas[stepType] || {
+/**
+ * Fetch the route schema from the backend.
+ */
+async function fetchRouteSchema(): Promise<JSONSchema | null> {
+  // Return cached schema if available
+  if (cachedRouteSchema) {
+    return cachedRouteSchema;
+  }
+
+  // Return pending fetch if already in progress
+  if (schemaFetchPromise) {
+    return schemaFetchPromise;
+  }
+
+  // Fetch schema from backend
+  schemaFetchPromise = (async () => {
+    try {
+      const response = await fetch('/api/schema');
+      if (!response.ok) {
+        console.warn('Failed to fetch schema from backend');
+        return null;
+      }
+      cachedRouteSchema = await response.json();
+      return cachedRouteSchema;
+    } catch (error) {
+      console.warn('Error fetching schema:', error);
+      return null;
+    }
+  })();
+
+  return schemaFetchPromise;
+}
+
+/**
+ * Extract a step schema from the full route schema.
+ * Step schemas are stored in definitions as "{stepType}_step".
+ */
+function extractStepSchemaFromFull(fullSchema: JSONSchema | null, stepType: string): JSONSchema {
+  if (!fullSchema || !fullSchema.definitions) {
+    return getDefaultStepSchema(stepType);
+  }
+
+  const definitions = fullSchema.definitions as Record<string, JSONSchema>;
+
+  // Try the exact step name (e.g., "translate_step", "filter_step")
+  let schema = definitions[`${stepType}_step`];
+
+  // If not found and it's a known type, extract from definitions
+  if (!schema && stepType === 'translate') {
+    schema = definitions['translate_step'];
+  } else if (!schema && stepType === 'filter') {
+    schema = definitions['filter_step'];
+  } else if (!schema && stepType === 'route') {
+    schema = definitions['route_step'];
+  } else if (!schema && stepType === 'wiretap') {
+    schema = definitions['wiretap_step'];
+  } else if (!schema && stepType === 'idempotent') {
+    schema = definitions['idempotent_step'];
+  } else if (!schema && stepType === 'authorize') {
+    schema = definitions['authorize_step'];
+  }
+
+  return schema || getDefaultStepSchema(stepType);
+}
+
+/**
+ * Get default/fallback schema for unknown step types.
+ */
+function getDefaultStepSchema(stepType: string): JSONSchema {
+  return {
     type: 'object',
     title: `${stepType} Step`,
+    description: `Configuration for ${stepType} step`,
     properties: {
-      config: {
-        type: 'string',
-        description: 'Step configuration',
+      [stepType]: {
+        type: 'object',
+        title: 'Configuration',
+        description: `${stepType} configuration object`,
+        properties: {},
       },
     },
+    required: [stepType],
   };
+}
+
+/**
+ * Get schema for a specific step type.
+ * Fetches from backend if available, falls back to defaults.
+ */
+export async function getStepSchema(stepType: string): Promise<JSONSchema> {
+  const fullSchema = await fetchRouteSchema();
+  return extractStepSchemaFromFull(fullSchema, stepType);
+}
+
+/**
+ * Synchronous version for backward compatibility.
+ * Returns default schema immediately; actual schema loads in background.
+ */
+export function getStepSchemaSync(stepType: string): JSONSchema {
+  // Return default immediately
+  return getDefaultStepSchema(stepType);
 }
