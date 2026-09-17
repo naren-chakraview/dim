@@ -81,9 +81,9 @@ func StartServer(port int, workDir string) error {
 // validateRouteData performs in-process validation of a route configuration.
 // Returns (valid, errors, warnings, routeVersion, error).
 // Uses the same validation as dimctl validate command.
-func (s *StudioServer) validateRouteData(route map[string]interface{}) (bool, []string, []string, string, error) {
-	// Reconstruct YAML from the route map
-	yamlStr, err := ReconstructYAML(route, make(map[string]string))
+func (s *StudioServer) validateRouteData(route map[string]interface{}, wrapper *YAMLNodeWrapper) (bool, []string, []string, string, error) {
+	// Reconstruct YAML from the route data, using the node wrapper to preserve order/comments
+	yamlStr, err := ReconstructYAML(route, wrapper)
 	if err != nil {
 		return false, []string{fmt.Sprintf("Failed to reconstruct YAML: %v", err)}, []string{}, "", nil
 	}
@@ -180,8 +180,8 @@ func (s *StudioServer) handleSaveRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Reconstruct YAML
-	yamlStr, err := ReconstructYAML(editData, make(map[string]string))
+	// Reconstruct YAML (no wrapper since this is from handleSaveRoute)
+	yamlStr, err := ReconstructYAML(editData, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -268,8 +268,9 @@ func (s *StudioServer) handleSave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Route    map[string]interface{} `json:"route"`
-		FilePath string                 `json:"filePath"`
+		Route      map[string]interface{} `json:"route"`
+		FilePath   string                 `json:"filePath"`
+		RouteName  string                 `json:"routeName"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -282,8 +283,29 @@ func (s *StudioServer) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Load the original route to get its node wrapper (for preserving order/comments)
+	routes, err := DiscoverRoutes(s.workDir)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"valid":   false,
+			"errors":  []string{fmt.Sprintf("Failed to load routes: %v", err)},
+		})
+		return
+	}
+
+	// Find the route by name to get its wrapper
+	var wrapper *YAMLNodeWrapper
+	for _, route := range routes {
+		if route.FilePath == req.FilePath {
+			wrapper = route.Node
+			break
+		}
+	}
+
 	// Perform real validation before saving
-	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route)
+	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route, wrapper)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -306,8 +328,8 @@ func (s *StudioServer) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Convert route back to YAML
-	yamlBytes, err := ReconstructYAML(req.Route, make(map[string]string))
+	// Convert route back to YAML, preserving order and comments
+	yamlBytes, err := ReconstructYAML(req.Route, wrapper)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -367,8 +389,8 @@ func (s *StudioServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Perform real in-process validation
-	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route)
+	// Perform real in-process validation (no wrapper for in-editor validation)
+	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route, nil)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Validation error: %v", err), http.StatusInternalServerError)
 		return
