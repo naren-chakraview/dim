@@ -11,6 +11,7 @@ A declarative, configuration-driven integration middleware for routing, transfor
 - Phase 3: Complete (M3.1-M3.5). Distributed clustering (Postgres dedup, lineage), claim-check pattern (in-memory/S3), plugin SDK (native-Go, WASM), multi-tenant resource quotas, e2e release pipeline.
 - Phase 4: Complete (M4.1-M4.9). GitOps deployment, visual route authoring, agent-facing MCP interface, machine-readable capabilities, agent-assisted design, impact analysis.
 - **Phase 4 Remediation:** Complete (Tier 0-3, 28 items). Fixed fabricated success patterns, verified validation chains real, wired CI verification gates, indexed contract references, exposed impact queries via agent interface.
+  - **Pass 2 (2026-09-17):** Fixed 5 critical residual issues where operations silently dropped work: test_route zero-fixtures fake-pass, studio add/remove silent no-op, fragment lint checked raw source not compiled, domain secrets test pinned cross-domain access, manifest generator off-by-two bug.
 
 ## What is dim?
 
