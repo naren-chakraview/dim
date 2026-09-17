@@ -54,27 +54,31 @@ func TestScenario_GlobalFallback(t *testing.T) {
 }
 
 func TestScenario_ExplicitCrossDomainSharing(t *testing.T) {
-	// Scenario: Routes need platform shared secrets — use explicit syntax for audit trail
+	// T1.13 Fix: Cross-domain access is blocked entirely, even with explicit syntax
+	// Routes cannot access secrets from other domains — they must use global or domain-scoped secrets
+	// This enforces the domain isolation required by the governance model
+
 	store := NewInMemoryStore()
 
-	// Platform team provides shared infrastructure secrets
-	store.Register(SecretEntry{Name: "datadog-api-key", Value: "dd_api_key_123", Domain: "platform"})
-	store.Register(SecretEntry{Name: "jwt-signer", Value: "jwt-secret", Domain: "platform"})
+	// Platform team should provide shared infrastructure secrets as GLOBAL (Domain: "")
+	// not domain-scoped, if they need to be used across domains
+	store.Register(SecretEntry{Name: "datadog-api-key", Value: "dd_api_key_123", Domain: ""})
+	store.Register(SecretEntry{Name: "jwt-signer", Value: "jwt-secret", Domain: ""})
 
 	resolver := NewResolver(store)
 
-	// Payments route explicitly requests platform secrets
-	text := "datadog: ${SECRET:platform.datadog-api-key}\njwt: ${SECRET:platform.jwt-signer}"
+	// Payments route should reference GLOBAL secrets (without domain prefix)
+	text := "datadog: ${SECRET:datadog-api-key}\njwt: ${SECRET:jwt-signer}"
 	resolved, _ := resolver.ResolveInRoute("payments", text)
 
 	if !contains(resolved, "dd_api_key_123") || !contains(resolved, "jwt-secret") {
-		t.Fatalf("cross-domain secrets not resolved: %q", resolved)
+		t.Fatalf("global shared secrets not resolved: %q", resolved)
 	}
 
-	// Validate passes because syntax is explicit
+	// Validate passes because these are global secrets
 	err := resolver.ValidateSecretReferences("payments", text)
 	if err != nil {
-		t.Fatalf("explicit cross-domain should validate: %v", err)
+		t.Fatalf("global shared secrets should validate: %v", err)
 	}
 }
 
@@ -110,6 +114,8 @@ func TestScenario_MigrationWithBackwardCompatibility(t *testing.T) {
 
 func TestScenario_ValidationRejectsImplicitCrossDomain(t *testing.T) {
 	// Scenario: Implicit cross-domain access is rejected by validation
+	// With T1.13 authorization, the error message explains the issue:
+	// the secret wasn't found in the requesting domain (no access to other domains)
 	store := NewInMemoryStore()
 	store.Register(SecretEntry{Name: "secret", Value: "value", Domain: "payments"})
 
@@ -122,29 +128,37 @@ func TestScenario_ValidationRejectsImplicitCrossDomain(t *testing.T) {
 		t.Fatal("validation should reject implicit cross-domain access")
 	}
 
-	// Error should guide user to explicit syntax
-	if !contains(err.Error(), "explicit syntax") {
-		t.Fatalf("error should mention explicit syntax: %v", err)
+	// Error should indicate the secret wasn't found in the requesting domain
+	// (which is accurate — it's in a different domain and can't be accessed)
+	if !contains(err.Error(), "secret not found") {
+		t.Fatalf("error should indicate secret not found in domain: %v", err)
 	}
 }
 
 func TestScenario_AuditTrailForCrossDomain(t *testing.T) {
-	// Scenario: Cross-domain sharing is explicit and auditable
+	// T1.13 Fix: Cross-domain access is rejected with explicit error message
+	// Instead of allowing domain-prefixed syntax, we reject it so the error is clear:
+	// "cannot access secret from different domain"
+
 	store := NewInMemoryStore()
 	store.Register(SecretEntry{Name: "tls-cert", Value: "cert-data", Domain: "infra"})
 
-	// Payment route explicitly requests infrastructure certificate
-	// The ${SECRET:infra.tls-cert} syntax is visible in the config — auditable
+	resolver := NewResolver(store)
+
+	// Payment route attempts to use infrastructure certificate
 	text := "tls_cert: ${SECRET:infra.tls-cert}"
 
-	resolver := NewResolver(store)
-	resolved, _ := resolver.ResolveInRoute("payments", text)
-	if !contains(resolved, "cert-data") {
-		t.Fatalf("cross-domain secret not resolved: %q", resolved)
+	// Validation must reject cross-domain attempt
+	err := resolver.ValidateSecretReferences("payments", text)
+	if err == nil {
+		t.Fatalf("cross-domain access should be rejected")
+	}
+	if !contains(err.Error(), "cross-domain") {
+		t.Fatalf("error should mention cross-domain denial: %v", err)
 	}
 
-	// Anyone reviewing the config can see that payments explicitly depends on infra.tls-cert
-	// No silent fallbacks
+	// If infra team needs to share secrets with payments, they should
+	// register the secret as global (Domain: ""), not domain-scoped
 }
 
 func TestScenario_SecretNotFoundError(t *testing.T) {
@@ -204,15 +218,21 @@ func TestScenario_MultipleDomainsMultipleSecrets(t *testing.T) {
 		}
 	}
 
-	// Cross-domain access to platform secrets works with explicit syntax
+	// T1.13 Fix: Cross-domain access is blocked even for platform secrets
+	// Instead, platform secrets should be registered as global (Domain: "")
+	// so all domains can access them without cross-domain syntax
+	// Verify that cross-domain attempts are rejected
 	for _, domain := range domains {
 		if domain == "platform" {
 			continue
 		}
 		text := "jwt: ${SECRET:platform.jwt-key}"
-		resolved, _ := resolver.ResolveInRoute(domain, text)
-		if !contains(resolved, "shared-jwt") {
-			t.Fatalf("%s failed to resolve platform.jwt-key: %q", domain, resolved)
+		err := resolver.ValidateSecretReferences(domain, text)
+		if err == nil {
+			t.Fatalf("%s should reject cross-domain access to platform.jwt-key", domain)
+		}
+		if !contains(err.Error(), "cross-domain") {
+			t.Fatalf("%s error should mention cross-domain: %v", domain, err)
 		}
 	}
 }
