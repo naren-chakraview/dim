@@ -327,14 +327,18 @@ func TestGetCapabilitiesReturnsAdapters(t *testing.T) {
 
 	// Verify we have both source and sink adapters
 	expectedAdapters := map[string]bool{
-		"http-source":  false,
-		"http-sink":    false,
-		"file-source":  false,
-		"file-sink":    false,
-		"sftp-source":  false,
-		"sftp-sink":    false,
-		"exec-source":  false,
-		"exec-sink":    false,
+		"http-source":     false,
+		"http-sink":       false,
+		"file-source":     false,
+		"file-sink":       false,
+		"s3-source":       false,
+		"s3-sink":         false,
+		"kafka-source":    false,
+		"kafka-sink":      false,
+		"amqp-source":     false,
+		"amqp-sink":       false,
+		"database-source": false,
+		"database-sink":   false,
 	}
 
 	for _, cap := range adapters {

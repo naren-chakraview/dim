@@ -92,8 +92,9 @@ func generateManifestFromSchema(schema map[string]interface{}) map[string]interf
 			"http-source", "http-sink",
 			"file-source", "file-sink",
 			"s3-source", "s3-sink",
-			"sftp-source", "sftp-sink",
 			"kafka-source", "kafka-sink",
+			"amqp-source", "amqp-sink",
+			"database-source", "database-sink",
 		}
 
 		for _, adapterType := range adapterTypes {
