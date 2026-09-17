@@ -2,17 +2,23 @@
 """
 Reference Agent: Route Validator
 
-Demonstrates using the M4.6 Agent-Facing Interface (MCP) to validate
-and test routes. This agent uses ONLY the published interface — no
-internal package imports.
+Demonstrates using the M4.6 Agent-Facing Interface to validate and test
+routes via HTTP. This agent uses ONLY the published interface — no
+internal package imports. Requires 'dimctl agent serve' to be running.
 
 Usage:
+    # Start the agent server in another terminal:
+    #   dimctl agent serve --addr localhost:9090
+
+    # Then run this agent:
     python route_validator.py --config <route.yaml> --fixtures <fixtures.yaml>
+    python route_validator.py --scaffold --config <domain-name>
 """
 
 import argparse
 import json
 import sys
+import requests
 from typing import Any, Dict, Optional
 from dataclasses import dataclass
 
@@ -55,95 +61,50 @@ class AgentMCPClient:
         """
         Call an operation via the MCP interface.
 
-        In a real implementation, this would use:
-        - stdio-based MCP transport
-        - HTTP/JSON-RPC transport
-        - Actual MCP SDK
-
-        For this reference, we simulate the interface.
+        Makes a real HTTP request to the dimctl agent serve server.
         """
-        # In production, this would make an actual RPC call.
-        # For reference purposes, we simulate the call.
-        print(f"[Agent] Calling {operation}")
-        print(f"[Agent] Request: {json.dumps(request, indent=2)}")
-
-        # Simulate server response (in real implementation, would come from server)
-        response = {
-            "interface_version": self.interface_version,
-            "timestamp": "2026-09-11T08:10:00Z",
-            "result": None,
-            "error": None,
-        }
-
-        # Dispatch to operation handler
-        if operation == "validate_route":
-            response["result"] = self._handle_validate_route(request)
-        elif operation == "test_route":
-            response["result"] = self._handle_test_route(request)
-        elif operation == "scaffold_domain":
-            response["result"] = self._handle_scaffold_domain(request)
-        else:
-            response["error"] = {
-                "code": "NOT_IMPLEMENTED",
-                "message": f"Operation '{operation}' not found",
+        try:
+            # Make HTTP request to agent server
+            url = f"{self.endpoint}/call"
+            payload = {
+                "operation": operation,
+                "request": request,
             }
 
-        return self._parse_response(response)
+            response = requests.post(url, json=payload, timeout=30)
+            response.raise_for_status()
 
-    def _handle_validate_route(self, req: Dict[str, Any]) -> Dict[str, Any]:
-        """Simulate validate_route operation"""
-        if "route_config_path" not in req or not req["route_config_path"]:
-            return None  # Would have error in envelope
+            # Parse response
+            return self._parse_response(response.json())
 
-        return {
-            "valid": True,
-            "errors": [],
-            "warnings": [],
-            "route_version": "sha256:abc123def456",
-        }
-
-    def _handle_test_route(self, req: Dict[str, Any]) -> Dict[str, Any]:
-        """Simulate test_route operation"""
-        if "route_config_path" not in req or "fixtures_path" not in req:
-            return None
-
-        return {
-            "passed": True,
-            "test_results": [
-                {
-                    "name": "test_order_ingestion",
-                    "passed": True,
-                    "duration_ms": 245,
-                }
-            ],
-            "summary": {
-                "total": 1,
-                "passed": 1,
-                "failed": 0,
-                "skipped": 0,
-                "duration_ms": 245,
-            },
-        }
-
-    def _handle_scaffold_domain(self, req: Dict[str, Any]) -> Dict[str, Any]:
-        """Simulate scaffold_domain operation"""
-        if "domain" not in req or not req["domain"]:
-            return None
-
-        domain = req["domain"]
-        return {
-            "success": True,
-            "domain_path": f"domains/{domain}",
-            "files_created": [
-                f"domains/{domain}/DOMAIN.yaml",
-                f"domains/{domain}/{domain}-route.yaml",
-            ],
-            "next_steps": [
-                f"Review the generated files in domains/{domain}",
-                "Run `dimctl validate` to verify the configuration",
-                "Commit to git and create a pull request",
-            ],
-        }
+        except requests.exceptions.ConnectionError:
+            return ResponseEnvelope(
+                interface_version=self.interface_version,
+                timestamp="",
+                error=OperationError(
+                    code="CONNECTION_FAILED",
+                    message=f"Could not connect to agent server at {self.endpoint}. "
+                           f"Make sure 'dimctl agent serve' is running.",
+                )
+            )
+        except requests.exceptions.Timeout:
+            return ResponseEnvelope(
+                interface_version=self.interface_version,
+                timestamp="",
+                error=OperationError(
+                    code="TIMEOUT",
+                    message=f"Request to agent server timed out",
+                )
+            )
+        except Exception as e:
+            return ResponseEnvelope(
+                interface_version=self.interface_version,
+                timestamp="",
+                error=OperationError(
+                    code="REQUEST_FAILED",
+                    message=f"Failed to call operation: {str(e)}",
+                )
+            )
 
     def _parse_response(self, response: Dict[str, Any]) -> ResponseEnvelope:
         """Parse MCP response into ResponseEnvelope"""
@@ -317,11 +278,16 @@ def main():
         help="Strict validation mode",
         action="store_true",
     )
+    parser.add_argument(
+        "--server",
+        help="Agent server address (default: http://localhost:9090)",
+        default="http://localhost:9090",
+    )
 
     args = parser.parse_args()
 
     # Create MCP client and agent
-    mcp_client = AgentMCPClient()
+    mcp_client = AgentMCPClient(endpoint=args.server)
     agent = RouteValidator(mcp_client)
 
     print("=" * 60)
