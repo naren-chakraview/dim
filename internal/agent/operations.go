@@ -83,6 +83,46 @@ func TestRoute(ctx context.Context, req TestRequest) (*TestResponse, *OperationE
 		timeoutMs = 30000
 	}
 
+	// Load and validate fixtures BEFORE building pipeline, so we fail fast on empty fixtures
+	var fixtures []*testing.Fixture
+	info, err := os.Stat(req.FixturesPath)
+	if err != nil {
+		return nil, &OperationErr{
+			Code:    "FIXTURES_NOT_FOUND",
+			Message: fmt.Sprintf("Fixtures path not found: %v", err),
+		}
+	}
+
+	if info.IsDir() {
+		fixtures, err = testing.LoadFixturesFromDirectory(req.FixturesPath)
+	} else {
+		fixtures, err = testing.LoadFixturesFromFile(req.FixturesPath)
+	}
+
+	if err != nil {
+		return nil, &OperationErr{
+			Code:    "FIXTURE_FORMAT_ERROR",
+			Message: fmt.Sprintf("Failed to load fixtures: %v", err),
+		}
+	}
+
+	// Validate that fixtures were actually loaded (mirror CLI's ValidateFixtures check)
+	// This is critical: must reject zero fixtures with an explicit error, not pass silently
+	if len(fixtures) == 0 {
+		return nil, &OperationErr{
+			Code:    "NO_FIXTURES",
+			Message: "No fixtures found in the specified file or directory",
+		}
+	}
+
+	// Validate fixture structure (same as CLI does)
+	if err := testing.ValidateFixtures(fixtures); err != nil {
+		return nil, &OperationErr{
+			Code:    "FIXTURE_VALIDATION_ERROR",
+			Message: fmt.Sprintf("Fixture validation failed: %v", err),
+		}
+	}
+
 	// Create context with timeout for the entire test run
 	testCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
 	defer cancel()
@@ -114,29 +154,6 @@ func TestRoute(ctx context.Context, req TestRequest) (*TestResponse, *OperationE
 			_ = sink.Stop() // Best effort; ignore errors on shutdown
 		}
 	}()
-
-	// Load fixtures
-	var fixtures []*testing.Fixture
-	info, err := os.Stat(req.FixturesPath)
-	if err != nil {
-		return nil, &OperationErr{
-			Code:    "FIXTURES_NOT_FOUND",
-			Message: fmt.Sprintf("Fixtures path not found: %v", err),
-		}
-	}
-
-	if info.IsDir() {
-		fixtures, err = testing.LoadFixturesFromDirectory(req.FixturesPath)
-	} else {
-		fixtures, err = testing.LoadFixturesFromFile(req.FixturesPath)
-	}
-
-	if err != nil {
-		return nil, &OperationErr{
-			Code:    "FIXTURE_FORMAT_ERROR",
-			Message: fmt.Sprintf("Failed to load fixtures: %v", err),
-		}
-	}
 
 	// Run fixtures using the real fixture runner (same as CLI uses)
 	runner := testing.NewFixtureRunner(executor, int(timeoutMs))
@@ -266,6 +283,14 @@ func GetCapabilities(ctx context.Context, req CapabilitiesRequest) (*Capabilitie
 			{"sftp", "sink", "SFTP sink"},
 			{"exec", "source", "Executable/command source"},
 			{"exec", "sink", "Executable/command sink"},
+			{"s3", "source", "AWS S3 source"},
+			{"s3", "sink", "AWS S3 sink"},
+			{"kafka", "source", "Apache Kafka source"},
+			{"kafka", "sink", "Apache Kafka sink"},
+			{"amqp", "source", "AMQP source"},
+			{"amqp", "sink", "AMQP sink"},
+			{"database", "source", "SQL database source"},
+			{"database", "sink", "SQL database sink"},
 		}
 
 		for _, a := range adapters {
@@ -300,6 +325,11 @@ func GetCapabilities(ctx context.Context, req CapabilitiesRequest) (*Capabilitie
 			{"wiretap", "Clone messages to secondary sink for monitoring/logging"},
 			{"idempotent", "Prevent duplicate message processing"},
 			{"authorize", "Authorization/authentication step (RBAC or ABAC)"},
+			{"contract", "Enforce schema contracts on message payloads"},
+			{"claim_check", "Externalize large payloads to reduce memory usage"},
+			{"claim_resolve", "Retrieve externalized payloads from claim check store"},
+			{"aggregate", "Combine multiple messages into a single message"},
+			{"split", "Decompose a message into multiple messages"},
 		}
 
 		for _, s := range steps {

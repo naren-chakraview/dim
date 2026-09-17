@@ -40,6 +40,10 @@ func TestResolveInRouteGlobalFallback(t *testing.T) {
 }
 
 func TestResolveInRouteExplicitCrossDomain(t *testing.T) {
+	// T1.13 Fix: Cross-domain secret references are blocked by authorization
+	// Even with explicit syntax (domain.name), the resolver cannot access them
+	// Cross-domain patterns remain unresolved in the output
+
 	store := NewInMemoryStore()
 	store.Register(SecretEntry{Name: "shared-secret", Value: "platform-secret", Domain: "platform"})
 
@@ -48,11 +52,13 @@ func TestResolveInRouteExplicitCrossDomain(t *testing.T) {
 	text := "shared: ${SECRET:platform.shared-secret}"
 	resolved, err := resolver.ResolveInRoute("payments", text)
 	if err != nil {
-		t.Fatalf("failed to resolve: %v", err)
+		t.Fatalf("failed to call resolve: %v", err)
 	}
 
-	if !strings.Contains(resolved, "platform-secret") {
-		t.Fatalf("cross-domain secret not resolved: %q", resolved)
+	// Cross-domain secrets remain unresolved (pattern is kept as-is)
+	// This prevents silent failures and makes it obvious the secret couldn't be accessed
+	if !strings.Contains(resolved, "${SECRET:platform.shared-secret}") {
+		t.Fatalf("cross-domain secret should remain unresolved in output: %q", resolved)
 	}
 }
 
@@ -101,16 +107,21 @@ func TestValidateSecretReferencesFail(t *testing.T) {
 }
 
 func TestValidateSecretReferencesExplicitCrossDomain(t *testing.T) {
+	// T1.13 Fix: Cross-domain access is rejected even with explicit syntax
 	store := NewInMemoryStore()
 	store.Register(SecretEntry{Name: "shared-key", Value: "value", Domain: "platform"})
 
 	resolver := NewResolver(store)
 
-	// Explicit cross-domain syntax should pass validation (even if not found, audit trail is clear)
+	// Explicit cross-domain syntax must be rejected by validation
+	// Routes cannot access secrets from other domains, period
 	text := "key: ${SECRET:platform.shared-key}"
 	err := resolver.ValidateSecretReferences("payments", text)
-	if err != nil {
-		t.Fatalf("explicit cross-domain should pass validation: %v", err)
+	if err == nil {
+		t.Fatalf("T1.13 BUG: explicit cross-domain should be rejected")
+	}
+	if !strings.Contains(err.Error(), "cross-domain") {
+		t.Fatalf("error should mention cross-domain denial: %v", err)
 	}
 }
 

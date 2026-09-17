@@ -45,7 +45,13 @@ func ReconstructYAMLFromNode(wrapper *YAMLNodeWrapper) (string, error) {
 		return marshallYAML(wrapper.Data)
 	}
 
-	// Update node values in-place from the edited data
+	// Check for add/remove operations (structural changes)
+	// If detected, return error instead of silently dropping them
+	if err := validateNoStructuralChanges(wrapper.RootNode, wrapper.Data); err != nil {
+		return "", err
+	}
+
+	// Update node values to match edited data (preserves structure, order, comments)
 	updateNodeFromData(wrapper.RootNode, wrapper.Data)
 
 	// Encode the modified node tree back to YAML
@@ -55,6 +61,58 @@ func ReconstructYAMLFromNode(wrapper *YAMLNodeWrapper) (string, error) {
 	}
 
 	return string(out), nil
+}
+
+// validateNoStructuralChanges checks if the data has been structurally modified
+// (add/remove operations on sequences, new/deleted keys in maps)
+// Returns error if structural changes are detected, since they can't be preserved
+func validateNoStructuralChanges(node *yaml.Node, data interface{}) error {
+	if node == nil {
+		return nil
+	}
+
+	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+		return validateNoStructuralChanges(node.Content[0], data)
+	}
+
+	dataMap, isMap := data.(map[string]interface{})
+	if !isMap {
+		return nil
+	}
+
+	if node.Kind != yaml.MappingNode {
+		return nil
+	}
+
+	// Walk through all key-value pairs in the node
+	for i := 0; i < len(node.Content); i += 2 {
+		if i+1 >= len(node.Content) {
+			break
+		}
+
+		keyNode := node.Content[i]
+		valueNode := node.Content[i+1]
+		key := keyNode.Value
+
+		if newValue, exists := dataMap[key]; exists {
+			// Key exists - recursively check nested structures
+			if dataArray, isArray := newValue.([]interface{}); isArray {
+				if valueNode.Kind == yaml.SequenceNode {
+					if len(valueNode.Content) != len(dataArray) {
+						// Sequence length changed - this is an add/remove operation
+						return fmt.Errorf("add/remove operations on sequences cannot be preserved in node-based round-trip (was %d items, now %d)", len(valueNode.Content), len(dataArray))
+					}
+				}
+			} else if dataMapVal, isMapVal := newValue.(map[string]interface{}); isMapVal {
+				// Recursively check nested maps
+				if err := validateNoStructuralChanges(valueNode, dataMapVal); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 // updateNodeFromData recursively updates node values to match edited data
@@ -112,16 +170,78 @@ func updateNodeValue(node *yaml.Node, value interface{}) {
 }
 
 // updateNodeSequence updates sequence nodes to match array data
+// Handles add/remove operations, not just in-place updates
 func updateNodeSequence(node *yaml.Node, items []interface{}) {
 	if node.Kind != yaml.SequenceNode {
 		return
 	}
 
-	// For simplicity, if lengths differ, we'd need to add/remove nodes
-	// For now, just update existing nodes
-	for i, item := range items {
-		if i < len(node.Content) {
-			updateNodeValue(node.Content[i], item)
+	oldLen := len(node.Content)
+	newLen := len(items)
+	log.Printf("[updateNodeSequence] oldLen=%d, newLen=%d", oldLen, newLen)
+
+	// Handle size changes: add or remove nodes as needed
+	if newLen != oldLen {
+		// Resize the content slice to match items
+		newContent := make([]*yaml.Node, 0, newLen)
+
+		for i, item := range items {
+			if i < oldLen {
+				// Reuse existing node, update its value
+				updateNodeValue(node.Content[i], item)
+				newContent = append(newContent, node.Content[i])
+			} else {
+				// Add new node for new item
+				newNode := dataToYAMLNode(item)
+				newContent = append(newContent, newNode)
+			}
+		}
+
+		log.Printf("[updateNodeSequence] Rebuilding: oldLen=%d, newLen=%d, newContent len=%d", oldLen, newLen, len(newContent))
+
+		// Important: completely replace the content slice
+		// This ensures nodes beyond newLen are removed
+		node.Content = newContent
+		log.Printf("[updateNodeSequence] After replacement: node.Content len=%d", len(node.Content))
+	} else {
+		// Same length: just update values in place
+		for i, item := range items {
+			if i < len(node.Content) {
+				updateNodeValue(node.Content[i], item)
+			}
+		}
+	}
+}
+
+// dataToYAMLNode converts a data value to a proper yaml.Node
+func dataToYAMLNode(data interface{}) *yaml.Node {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// Create a mapping node with key-value pairs
+		node := &yaml.Node{Kind: yaml.MappingNode}
+		for key, value := range v {
+			keyNode := &yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: key,
+			}
+			valueNode := dataToYAMLNode(value)
+			node.Content = append(node.Content, keyNode, valueNode)
+		}
+		return node
+
+	case []interface{}:
+		// Create a sequence node
+		node := &yaml.Node{Kind: yaml.SequenceNode}
+		for _, item := range v {
+			node.Content = append(node.Content, dataToYAMLNode(item))
+		}
+		return node
+
+	default:
+		// Scalar value
+		return &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Value: fmt.Sprintf("%v", v),
 		}
 	}
 }

@@ -150,3 +150,135 @@ func containsCommentChar(s string) bool {
 	}
 	return false
 }
+
+// T2.1 Fix Verification Tests
+func TestYAMLRoundtripAddStep(t *testing.T) {
+	// T2.1 Fix verification: adding a step must fail loudly, not silently drop the operation
+	// Per the "no fabricated success" rule, if we can't preserve the add operation,
+	// we must return an explicit error instead of silently dropping it
+
+	originalYAML := `version: 1
+sources:
+  input:
+    type: file
+    path: ./input.jsonl
+sinks:
+  output:
+    type: file
+    path: ./output.jsonl
+routes:
+  test:
+    from: input
+    auth: none
+    steps:
+      - filter:
+          expr: "true"
+`
+
+	// Parse with preservation
+	wrapper, err := ParseYAMLWithPreservation(originalYAML)
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+
+	// Add a new step to the route
+	if routes, ok := wrapper.Data["routes"].(map[string]interface{}); ok {
+		if testRoute, ok := routes["test"].(map[string]interface{}); ok {
+			if steps, ok := testRoute["steps"].([]interface{}); ok {
+				// Add a new translate step
+				newStep := map[string]interface{}{
+					"translate": map[string]interface{}{
+						"expr": "body | {id, amount}",
+					},
+				}
+				testRoute["steps"] = append(steps, newStep)
+			}
+		}
+	}
+
+	// Reconstruct YAML - should fail with explicit error, not silently drop the add
+	reconstructed, err := ReconstructYAML(wrapper.Data, wrapper)
+
+	// CRITICAL: must reject with error, not silently succeed
+	if err == nil {
+		t.Fatalf("T2.1 BUG: Adding a step silently succeeded! This is the exact fabricated-success bug T2.1 was supposed to fix.\nReconstructed YAML:\n%s", reconstructed)
+	}
+
+	if !containsString(err.Error(), "add/remove") {
+		t.Fatalf("Expected 'add/remove' in error message, got: %v", err)
+	}
+
+	t.Logf("✓ T2.1 verified: Adding a step is correctly rejected with explicit error (not silently dropped)")
+	t.Logf("  Error message: %v", err)
+}
+
+func TestYAMLRoundtripRemoveStep(t *testing.T) {
+	// T2.1 Fix verification: removing a step must fail loudly, not silently keep it
+	// Per the "no fabricated success" rule, if we can't preserve the remove operation,
+	// we must return an explicit error instead of silently ignoring the user's edit
+
+	originalYAML := `version: 1
+sources:
+  input:
+    type: file
+    path: ./input.jsonl
+sinks:
+  output:
+    type: file
+    path: ./output.jsonl
+routes:
+  test:
+    from: input
+    auth: none
+    steps:
+      - filter:
+          expr: "true"
+      - translate:
+          expr: "body | {id}"
+      - filter:
+          expr: "body.id != null"
+`
+
+	// Parse with preservation
+	wrapper, err := ParseYAMLWithPreservation(originalYAML)
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+
+	// Remove the translate step (middle one)
+	if routes, ok := wrapper.Data["routes"].(map[string]interface{}); ok {
+		if testRoute, ok := routes["test"].(map[string]interface{}); ok {
+			if steps, ok := testRoute["steps"].([]interface{}); ok {
+				if len(steps) >= 2 {
+					// Remove index 1 (translate step)
+					newSteps := append(steps[:1], steps[2:]...)
+					testRoute["steps"] = newSteps
+				}
+			}
+		}
+	}
+
+	// Reconstruct YAML - should fail with explicit error, not silently keep all 3 steps
+	reconstructed, err := ReconstructYAML(wrapper.Data, wrapper)
+
+	// CRITICAL: must reject with error, not silently succeed with old content
+	if err == nil {
+		t.Fatalf("T2.1 BUG: Removing a step silently succeeded! This is the exact fabricated-success bug T2.1 was supposed to fix.\nReconstructed YAML:\n%s", reconstructed)
+	}
+
+	if !containsString(err.Error(), "add/remove") {
+		t.Fatalf("Expected 'add/remove' in error message, got: %v", err)
+	}
+
+	t.Logf("✓ T2.1 verified: Removing a step is correctly rejected with explicit error (not silently kept)")
+	t.Logf("  Error message: %v", err)
+}
+
+func containsString(haystack, needle string) bool {
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		if haystack[i:i+len(needle)] == needle {
+			return true
+		}
+	}
+	return false
+}

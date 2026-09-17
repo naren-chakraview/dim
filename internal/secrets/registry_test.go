@@ -58,10 +58,14 @@ func TestSecretRegistrationDomainScoped(t *testing.T) {
 		t.Fatalf("got %q, want %q", val, "payments-key-123")
 	}
 
-	// Resolve from different domain should fail without explicit syntax
+	// Cross-domain access must be DENIED (T1.13 authorization check)
+	// Even with explicit syntax (domain.name), cross-domain is blocked
 	_, err = store.Resolve("orders", "payments.api-key")
-	if err != nil {
-		t.Fatalf("failed to resolve with explicit cross-domain syntax: %v", err)
+	if err == nil {
+		t.Fatalf("T1.13 BUG: Cross-domain access was allowed")
+	}
+	if !containsErrorString(err.Error(), "cross-domain") {
+		t.Fatalf("Expected cross-domain error, got: %v", err)
 	}
 }
 
@@ -86,6 +90,10 @@ func TestSecretAccessControlImplicit(t *testing.T) {
 }
 
 func TestSecretAccessControlExplicit(t *testing.T) {
+	// T1.13 Fix: Cross-domain access is explicitly blocked, even with explicit syntax
+	// The explicit syntax documents intent but does NOT grant access.
+	// This enforces domain-scoping isolation required by governance model.
+
 	store := NewInMemoryStore()
 
 	// Register secret in payments domain
@@ -98,13 +106,16 @@ func TestSecretAccessControlExplicit(t *testing.T) {
 		t.Fatalf("failed to register: %v", err)
 	}
 
-	// Resolve with explicit cross-domain syntax should work
+	// CRITICAL: Cross-domain resolution must be DENIED, not allowed
+	// Even with explicit syntax (domain.name), a route in "orders" domain
+	// cannot access secrets from "payments" domain
 	val, err := store.Resolve("orders", "payments.api-key")
-	if err != nil {
-		t.Fatalf("failed to resolve with explicit syntax: %v", err)
+	if err == nil {
+		t.Fatalf("T1.13 BUG: Cross-domain access was allowed! Got value: %q. "+
+			"Domain-scoping authorization check failed.", val)
 	}
-	if val != "payments-key" {
-		t.Fatalf("got %q, want %q", val, "payments-key")
+	if !containsErrorString(err.Error(), "cross-domain") {
+		t.Fatalf("Expected 'cross-domain' error, got: %v", err)
 	}
 }
 
@@ -219,4 +230,14 @@ func TestParseSecretRef(t *testing.T) {
 				tt.ref, gotDomain, gotName, tt.wantDomain, tt.wantName)
 		}
 	}
+}
+
+// Helper: check if a string contains a substring
+func containsErrorString(err, substr string) bool {
+	for i := 0; i+len(substr) <= len(err); i++ {
+		if err[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }

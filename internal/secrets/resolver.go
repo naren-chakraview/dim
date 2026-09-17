@@ -55,6 +55,7 @@ func (r *Resolver) ResolveInRoute(routeDomain string, text string) (string, erro
 
 // ValidateSecretReferences checks that all ${SECRET:ref} references are resolvable
 // Returns error if any secrets cannot be resolved in the route's domain
+// T1.13 Authorization: Cross-domain access is blocked entirely, including explicit syntax
 func (r *Resolver) ValidateSecretReferences(routeDomain string, text string) error {
 	if text == "" {
 		return nil
@@ -66,20 +67,19 @@ func (r *Resolver) ValidateSecretReferences(routeDomain string, text string) err
 	for _, match := range matches {
 		ref := match[1]
 
-		// Try to resolve
+		// Check for cross-domain syntax early
+		refDomain, refName := parseSecretRef(ref)
+		if refDomain != "" {
+			// Cross-domain access is explicitly forbidden by domain-scoping policy
+			return fmt.Errorf("cross-domain secret access denied: route in domain %q cannot access %q from domain %q",
+				routeDomain, refName, refDomain)
+		}
+
+		// Try to resolve same-domain or global secret
 		_, err := r.store.Resolve(routeDomain, ref)
 		if err != nil {
-			// Check if it's a cross-domain reference (contains a dot)
-			refDomain, _ := parseSecretRef(ref)
-			if refDomain != "" {
-				// Explicit cross-domain syntax — needs to be audited
-				continue
-			}
-
-			// Implicit cross-domain access attempt
-			return fmt.Errorf("secret resolution failed: %s (route domain: %s). "+
-				"If this secret is in a different domain, use explicit syntax: ${SECRET:domain.name}",
-				ref, routeDomain)
+			// Secret not found in same domain or global
+			return fmt.Errorf("secret not found: %s (route domain: %s)", ref, routeDomain)
 		}
 	}
 

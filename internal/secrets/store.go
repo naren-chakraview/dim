@@ -59,7 +59,7 @@ func (s *InMemoryStore) Register(entry SecretEntry) error {
 // Resolve retrieves a secret, checking domain access
 // Returns error if:
 // - secret not found
-// - requesting route is in different domain and syntax doesn't use explicit cross-domain marker
+// - requesting route attempts cross-domain access (blocked by domain-scoping)
 func (s *InMemoryStore) Resolve(requestingDomain, secretRef string) (string, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -67,17 +67,17 @@ func (s *InMemoryStore) Resolve(requestingDomain, secretRef string) (string, err
 	// Parse secretRef: could be "name" (global) or "domain.name" (explicit cross-domain)
 	refDomain, refName := parseSecretRef(secretRef)
 
-	// If explicit domain in reference, use it (cross-domain access)
+	// CRITICAL: Cross-domain access is explicitly blocked, even with explicit syntax
+	// The explicit syntax (domain.name) documents intent but does NOT grant access
+	// This enforces the domain-scoping isolation required by the governance model
 	if refDomain != "" {
-		key := makeKey(refDomain, refName)
-		if entry, ok := s.secrets[key]; ok {
-			return entry.Value, nil
-		}
-		return "", fmt.Errorf("secret not found: %s (domain: %s)", refName, refDomain)
+		// Attempted cross-domain access
+		return "", fmt.Errorf("cross-domain secret access denied: route in domain %q cannot access %q from domain %q",
+			requestingDomain, refName, refDomain)
 	}
 
-	// No explicit domain - try to resolve in requesting domain first, then global
-	// Try scoped to requesting domain
+	// Only same-domain and global secrets are accessible
+	// Try scoped to requesting domain first
 	if requestingDomain != "" {
 		key := makeKey(requestingDomain, refName)
 		if entry, ok := s.secrets[key]; ok {

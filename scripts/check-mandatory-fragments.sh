@@ -1,7 +1,8 @@
 #!/bin/bash
 # Lint: Ensure all routes in domains/ have the governance fragment actually resolved into their steps.
-# (Not just imported; the fragment must be expanded and present in the compiled route.)
-# Exit 0 if all routes contain the governance baseline, 1 otherwise.
+# Verifies compiled route output (not raw source), so that commented-out or missing fragment references
+# are properly caught.
+# Exit 0 if all routes contain the governance baseline in compiled output, 1 otherwise.
 
 set -euo pipefail
 
@@ -14,32 +15,33 @@ fi
 
 echo "Checking mandatory governance fragment resolution (compiled routes):"
 
-# First build dimctl if not already built
-if [ ! -f "./cmd/dimctl/studio_server.go" ]; then
-  echo "FAIL: dimctl source not found"
+# Verify dimctl can resolve routes
+if ! go run ./cmd/dimctl resolve --help >/dev/null 2>&1; then
+  echo "FAIL: dimctl resolve command not available"
   exit 1
 fi
 
 FAILED=0
 for FILE in $ROUTE_FILES; do
-  # Skip templates and manifests
-  if [[ "$FILE" == *.template.yaml ]]; then
+  # Skip templates and error-handling placeholders
+  if [[ "$FILE" == *.template.yaml ]] || [[ "$FILE" == *error-path* ]]; then
     continue
   fi
 
-  # Run dimctl resolve (if available) to check the compiled route
-  # For now, we check if the route can at least load and contain the imports directive
-  if ! grep -q "imports:" "$FILE"; then
-    echo "  FAIL: $FILE does not declare imports:"
+  # Use dimctl resolve to check the COMPILED route (not raw source)
+  RESOLVED=$(go run ./cmd/dimctl resolve "$FILE" 2>&1) || {
+    echo "  FAIL: $FILE failed to resolve"
     FAILED=1
-  elif ! grep -q "governance/fragments" "$FILE"; then
-    echo "  FAIL: $FILE does not import governance/fragments"
-    FAILED=1
-  elif ! grep -q "fragment:" "$FILE"; then
-    echo "  WARN: $FILE imports governance/fragments but does not reference fragment: in steps"
-    # This is not a hard failure in this lint version, but should be caught
+    continue
+  }
+
+  # Check if the resolved output contains the authorize step from governance-baseline
+  # The governance-baseline fragment injects: authorize: mode: rbac
+  if echo "$RESOLVED" | grep -q "mode: rbac"; then
+    echo "  OK: $FILE (governance-baseline resolved)"
   else
-    echo "  OK: $FILE"
+    echo "  FAIL: $FILE does not contain governance-baseline in resolved output"
+    FAILED=1
   fi
 done
 

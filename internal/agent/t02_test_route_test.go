@@ -62,26 +62,20 @@ func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
 	}
 	enc.Close()
 
-	// Create a fixture that will FAIL (expected output doesn't match)
+	// Create a fixture that will FAIL (uses correct format with expected_error)
+	// This fixture expects an error but the route allows the message through,
+	// so it should report as failed
 	fixturesYAML := map[string]interface{}{
 		"route": "test",
-		"cases": []interface{}{
+		"fixtures": []interface{}{
 			map[string]interface{}{
-				"name": "this fixture should fail",
+				"name": "this fixture should fail - expects error but route succeeds",
 				"input": map[string]interface{}{
 					"body": map[string]interface{}{
 						"id": "test-123",
 					},
 				},
-				"expect": map[string]interface{}{
-					"output": []interface{}{
-						map[string]interface{}{
-							"body": map[string]interface{}{
-								"id": "WRONG-ID", // Wrong: actual will be test-123
-							},
-						},
-					},
-				},
+				"expected_error": true, // Fixture expects an error, but route won't error
 			},
 		},
 	}
@@ -112,28 +106,94 @@ func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
 	// After T0.2 fix: should return passed: false (fixture actually ran and failed)
 
 	if operErr != nil {
-		t.Logf("Operation error: %v", operErr)
-		// Note: may fail on fixture execution due to missing adapters, but that's OK —
-		// we're testing the path taken, not whether the full pipeline works in test isolation
+		t.Logf("TestRoute error: %v", operErr)
+		// Note: may fail on fixture execution due to missing adapters in test isolation.
+		// As long as we got an error (not a fabricated passed response), that's still valid.
+		// The key is we didn't get passed: true silently.
 		return
 	}
 
 	if resp == nil {
-		t.Fatal("TestRoute returned nil response")
+		t.Fatalf("TestRoute returned nil response")
 	}
 
-	t.Logf("TestRoute returned: passed=%v, total=%d, failed=%d", resp.Passed, resp.Summary.Total, resp.Summary.Failed)
-
-	// The key test: passed should NOT just be "len(fixtures) > 0"
-	// It should reflect actual fixture results
-	if resp.Passed == true && resp.Summary.Failed == 0 {
-		// If there's at least one fixture and it marked as failed,
-		// overall passed should be false
-		if resp.Summary.Total > 0 {
-			t.Logf("✓ TestRoute correctly reported results based on fixture execution")
-			t.Logf("  (Had %d fixtures, passed=%v, failed=%d)", resp.Summary.Total, resp.Passed, resp.Summary.Failed)
-		}
+	// Critical assertion: with a deliberately failing fixture, passed should be false
+	if resp.Passed {
+		t.Fatalf("TestRoute returned passed: true, but fixture was designed to fail. "+
+			"This is the fake-pass bug. Response: total=%d, passed=%d, failed=%d",
+			resp.Summary.Total, resp.Summary.Passed, resp.Summary.Failed)
 	}
+
+	// Also verify a fixture was actually loaded and executed
+	if resp.Summary.Total == 0 {
+		t.Fatalf("No fixtures were loaded. Fixture YAML format may be wrong. "+
+			"Expected 'fixtures:' key with list of fixtures, not 'cases:'")
+	}
+
+	t.Logf("✓ T0.2 verified: TestRoute correctly ran fixture and reported failed result")
+	t.Logf("  Fixtures loaded: %d, Passed: %d, Failed: %d, Overall passed: %v",
+		resp.Summary.Total, resp.Summary.Passed, resp.Summary.Failed, resp.Passed)
+}
+
+func TestT02_TestRouteRejectsEmptyFixtures(t *testing.T) {
+	// T0.2 Critical fix: TestRoute must reject zero fixtures with an explicit error,
+	// not return passed: true (the original fake-pass bug)
+
+	tmpDir := t.TempDir()
+
+	// Valid route
+	validRoute := `
+version: 1
+sources:
+  input:
+    type: file
+    path: ./input.jsonl
+sinks:
+  output:
+    type: file
+    path: ./output.jsonl
+routes:
+  test:
+    from: input
+    auth: none
+    error_path:
+      target: output
+    steps:
+      - filter:
+          expr: "true"
+`
+
+	routePath := filepath.Join(tmpDir, "route.yaml")
+	if err := os.WriteFile(routePath, []byte(validRoute), 0644); err != nil {
+		t.Fatalf("Failed to write route: %v", err)
+	}
+
+	// Empty fixtures file (no fixtures loaded)
+	emptyFixtures := "route: test\nfixtures: []"
+	fixturesPath := filepath.Join(tmpDir, "fixtures.yaml")
+	if err := os.WriteFile(fixturesPath, []byte(emptyFixtures), 0644); err != nil {
+		t.Fatalf("Failed to write fixtures: %v", err)
+	}
+
+	req := TestRequest{
+		RouteConfigPath: routePath,
+		FixturesPath:    fixturesPath,
+		TimeoutMs:       5000,
+	}
+
+	resp, operErr := TestRoute(context.Background(), req)
+
+	// Critical: must return an error for zero fixtures, not passed: true
+	if operErr == nil {
+		t.Fatalf("TestRoute should reject zero fixtures with an error, but got: passed=%v, error=nil", resp.Passed)
+	}
+
+	if operErr.Code != "NO_FIXTURES" {
+		t.Fatalf("Expected NO_FIXTURES error, got %s: %s", operErr.Code, operErr.Message)
+	}
+
+	t.Logf("✓ T0.2 verified: TestRoute correctly rejects zero fixtures with explicit error")
+	t.Logf("  Error: %s - %s", operErr.Code, operErr.Message)
 }
 
 func TestT02_TestRouteReturnsErrors(t *testing.T) {
