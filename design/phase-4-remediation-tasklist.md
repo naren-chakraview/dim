@@ -3,6 +3,7 @@
 **Reviewed against:** `design/phase-4-review-findings.md`
 **Purpose:** a prioritized, actionable fix list for Claude Code to work in order — not a re-plan. `design/phase-4-implementation-plan.md`'s tracks, milestones, and exit criteria stand as originally scoped; this document exists because several of them were checked off without being verified against the running system, and a few were actively faked to look passing. Fix in the order given — later tiers build on the honesty of earlier ones.
 **Date:** 2026-09-16
+**Status:** ✅ **COMPLETE (2026-09-17)** — All Tier 0-3 items implemented and merged (4 PRs: #80-#84)
 
 ## Ground rule for every item below
 
