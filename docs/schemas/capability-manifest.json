@@ -1,245 +1,244 @@
 {
   "capabilities": [
     {
-      "name": "http-source",
-      "type": "adapter",
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "http"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "HTTP webhook/request source"
-    },
-    {
-      "name": "http-sink",
-      "type": "adapter",
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "http"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "HTTP POST sink"
-    },
-    {
-      "name": "file-source",
-      "type": "adapter",
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "file"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "File-based event source"
-    },
-    {
-      "name": "file-sink",
-      "type": "adapter",
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "file"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "File-based event sink"
-    },
-    {
-      "name": "sftp-source",
-      "type": "adapter",
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "sftp"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "SFTP source"
-    },
-    {
-      "name": "sftp-sink",
-      "type": "adapter",
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "sftp"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "SFTP sink"
-    },
-    {
-      "name": "exec-source",
-      "type": "adapter",
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "exec"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "Executable/command source"
-    },
-    {
-      "name": "exec-sink",
-      "type": "adapter",
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "exec"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "Executable/command sink"
-    },
-    {
-      "name": "filter-step",
-      "type": "step",
-      "config_schema": {
-        "title": "filter",
-        "type": "object"
-      },
-      "description": "Boolean predicate to include/exclude messages using JSONata"
-    },
-    {
-      "name": "translate-step",
-      "type": "step",
-      "config_schema": {
-        "title": "translate",
-        "type": "object"
-      },
-      "description": "Transform message body using JSONata expression"
-    },
-    {
-      "name": "route-step",
-      "type": "step",
-      "config_schema": {
-        "title": "route",
-        "type": "object"
-      },
-      "description": "Route messages to different sinks based on conditions"
-    },
-    {
-      "name": "wiretap-step",
-      "type": "step",
-      "config_schema": {
-        "title": "wiretap",
-        "type": "object"
-      },
-      "description": "Clone messages to secondary sink for monitoring/logging"
-    },
-    {
-      "name": "idempotent-step",
-      "type": "step",
-      "config_schema": {
-        "title": "idempotent",
-        "type": "object"
-      },
-      "description": "Prevent duplicate message processing"
-    },
-    {
-      "name": "authorize-step",
-      "type": "step",
-      "config_schema": {
-        "title": "authorize",
-        "type": "object"
-      },
-      "description": "Authorization/authentication step (RBAC or ABAC)"
-    },
-    {
-      "name": "claim-check",
-      "type": "eip",
       "config_schema": {
         "type": "object"
       },
-      "description": "Externalize large message payloads to reduce memory usage"
+      "description": "Boolean predicate to include/exclude messages",
+      "name": "filter",
+      "type": "step"
     },
     {
-      "name": "content-based-router",
-      "type": "eip",
       "config_schema": {
         "type": "object"
       },
-      "description": "Route messages based on content evaluation"
+      "description": "Transform the message body using a JSONata expression",
+      "name": "translate",
+      "type": "step"
     },
     {
-      "name": "dead-letter-queue",
-      "type": "eip",
       "config_schema": {
         "type": "object"
       },
-      "description": "Capture and route failed messages"
+      "description": "Route messages to different branches based on content evaluation",
+      "name": "route",
+      "type": "step"
     },
     {
+      "config_schema": {
+        "type": "object"
+      },
+      "description": "Duplicate the message to a secondary sink without altering main flow",
       "name": "wiretap",
-      "type": "eip",
+      "type": "step"
+    },
+    {
       "config_schema": {
         "type": "object"
       },
-      "description": "Clone messages for observation without affecting flow"
+      "description": "Suppress duplicate messages using a deduplication key",
+      "name": "idempotent",
+      "type": "step"
+    },
+    {
+      "config_schema": {
+        "type": "object"
+      },
+      "description": "Enforce authorization policies (RBAC or ABAC)",
+      "name": "authorize",
+      "type": "step"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "http"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "http-source adapter",
+      "name": "http-source",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "ht"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "http-sink adapter",
+      "name": "http-sink",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "file"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "file-source adapter",
+      "name": "file-source",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "fi"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "file-sink adapter",
+      "name": "file-sink",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "s3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "s3-source adapter",
+      "name": "s3-source",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "s3-sink"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "s3-sink adapter",
+      "name": "s3-sink",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "sftp"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "sftp-source adapter",
+      "name": "sftp-source",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "sf"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "sftp-sink adapter",
+      "name": "sftp-sink",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "kafka"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "kafka-source adapter",
+      "name": "kafka-source",
+      "type": "adapter"
+    },
+    {
+      "config_schema": {
+        "properties": {
+          "type": {
+            "enum": [
+              "kaf"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "type": "object"
+      },
+      "description": "kafka-sink adapter",
+      "name": "kafka-sink",
+      "type": "adapter"
     }
   ],
-  "generated_at": "2026-09-12T20:53:23Z",
-  "interface_version": "1.0.0",
-  "schema_version": "1.0.0"
+  "generated": true,
+  "version": "1.0.0"
 }

@@ -72,6 +72,14 @@ jobs:
           github.ref == 'refs/heads/main' ||
           github.ref == 'refs/heads/master'
 
+      # MERGE GATE 11: Verify capability manifest is in sync with implementation
+      - name: Verify capability manifest
+        run: bash scripts/verify-manifest.sh
+        if: |
+          github.event_name == 'pull_request' ||
+          github.ref == 'refs/heads/main' ||
+          github.ref == 'refs/heads/master'
+
       # MERGE GATE 6: Vulnerability check
       - name: Check for vulnerabilities
         run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
