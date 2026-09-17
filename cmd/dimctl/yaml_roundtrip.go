@@ -84,6 +84,9 @@ func validateNoStructuralChanges(node *yaml.Node, data interface{}) error {
 		return nil
 	}
 
+	// Collect keys from both node and data to detect additions/deletions
+	nodeKeys := make(map[string]bool)
+
 	// Walk through all key-value pairs in the node
 	for i := 0; i < len(node.Content); i += 2 {
 		if i+1 >= len(node.Content) {
@@ -93,6 +96,7 @@ func validateNoStructuralChanges(node *yaml.Node, data interface{}) error {
 		keyNode := node.Content[i]
 		valueNode := node.Content[i+1]
 		key := keyNode.Value
+		nodeKeys[key] = true
 
 		if newValue, exists := dataMap[key]; exists {
 			// Key exists - recursively check nested structures
@@ -109,6 +113,20 @@ func validateNoStructuralChanges(node *yaml.Node, data interface{}) error {
 					return err
 				}
 			}
+		}
+	}
+
+	// Check for new keys in data that don't exist in node (additions)
+	for key := range dataMap {
+		if !nodeKeys[key] {
+			return fmt.Errorf("cannot add new top-level key %q via studio editor - add/remove operations cannot be preserved in node-based round-trip", key)
+		}
+	}
+
+	// Check for keys in node that don't exist in data (deletions)
+	for key := range nodeKeys {
+		if _, exists := dataMap[key]; !exists {
+			return fmt.Errorf("cannot delete top-level key %q via studio editor - add/remove operations cannot be preserved in node-based round-trip", key)
 		}
 	}
 
@@ -258,13 +276,16 @@ func ReconstructYAML(data map[string]interface{}, wrapper *YAMLNodeWrapper) (str
 	return marshallYAML(data)
 }
 
-// marshallYAML is a helper that marshals map to YAML
+// marshallYAML is a helper that marshals map to YAML with consistent formatting
 func marshallYAML(data map[string]interface{}) (string, error) {
-	out, err := yaml.Marshal(data)
-	if err != nil {
+	var buf strings.Builder
+	encoder := yaml.NewEncoder(&buf)
+	// Use 2-space indentation to prevent reformatting on saves
+	encoder.SetIndent(2)
+	if err := encoder.Encode(data); err != nil {
 		return "", err
 	}
-	return string(out), nil
+	return buf.String(), nil
 }
 
 // RouteData represents a loaded route with its metadata and content
