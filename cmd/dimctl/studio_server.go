@@ -15,6 +15,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/naren-chakraview/dim/internal/config"
+	"github.com/naren-chakraview/dim/internal/validation"
 )
 
 //go:embed web_dist/*
@@ -108,8 +109,8 @@ func (s *StudioServer) validateRouteData(route map[string]interface{}, wrapper *
 	}
 
 	// Perform static contract conformance checks (same as CLI)
-	// (Import validation package if not already imported)
-	// Note: this requires importing internal/validation at the top of studio_server.go
+	contractWarnings := validation.PerformStaticContractChecks(cfg)
+	allWarnings := contractWarnings
 
 	// Route version for lineage tracking
 	routeVersion := ""
@@ -122,8 +123,8 @@ func (s *StudioServer) validateRouteData(route map[string]interface{}, wrapper *
 		}
 	}
 
-	// All checks passed
-	return true, []string{}, []string{}, routeVersion, nil
+	// All checks passed, return warnings (if any)
+	return true, []string{}, allWarnings, routeVersion, nil
 }
 
 func (s *StudioServer) handleSPA(fileServer http.Handler) http.HandlerFunc {
