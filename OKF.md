@@ -9,9 +9,10 @@ A living document for tracking business intent, architectural decisions, concurr
 **Phase 3 Delivered:** Distributed clustering, claim-check pattern, plugin SDK (Go+WASM), multi-tenant quotas, e2e release pipeline  
 **Phase 4 Delivered (2026-09-09):** GitOps deployment, visual route authoring, agent-facing MCP interface, machine-readable capabilities, agent-assisted design, impact analysis  
 **Phase 4 Remediation (2026-09-17):** Fixed fabricated success patterns (T0.1-T0.4), verified validation/testing chains (T1.1-T1.13), refined visual tooling (T2.1-T2.6), completed agent consumability (T3.1-T3.9)  
-**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B, 100+ Phase 2, 120+ Phase 3, 150+ Phase 4, 28 Phase 4 Remediation
+**Phase 4 Remediation Pass 2 (2026-09-17):** Fixed 5 critical residuals where operations silently dropped work (T0.2, T2.1, T0.4, T1.13, T3.5): test_route zero-fixtures, studio add/remove, fragment lint, domain secrets, manifest enum  
+**Tests Passing:** 440+ Phase 0, 93+ Phase 1 Track B, 100+ Phase 2, 120+ Phase 3, 150+ Phase 4, 28 Phase 4 Remediation, 30+ Remediation Pass 2
 
-**Note:** Phases 0-4 production-ready (v0.9.0). Phase 4 Remediation (28 items across Tier 0-3) completed 2026-09-17: eliminated all fabricated success, verified validation chains real, wired CI verification gates, indexed contract references, exposed impact queries via agent interface. Decisions implemented except where marked "Phase 5+" or "Future."
+**Note:** Phases 0-4 production-ready (v0.9.0). Phase 4 Remediation (28 items across Tier 0-3) completed 2026-09-17: eliminated all fabricated success, verified validation chains real, wired CI verification gates, indexed contract references, exposed impact queries via agent interface. Pass 2 (2026-09-17) fixed residual "silent success" bugs in test_route, studio round-trip, fragment lint, domain secrets, and manifest generation. Decisions implemented except where marked "Phase 5+" or "Future."
 
 ## Business intent
 
