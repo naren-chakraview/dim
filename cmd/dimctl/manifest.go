@@ -136,9 +136,13 @@ func extractStepType(ref string) string {
 }
 
 func extractAdapterTypeEnum(adapterType string) string {
-	// Convert "http-source" to "http"
-	if len(adapterType) > 7 {
+	// Convert "http-source" to "http" and "http-sink" to "http"
+	// Remove "-source" (7 chars) or "-sink" (5 chars) suffix
+	if len(adapterType) > 7 && adapterType[len(adapterType)-7:] == "-source" {
 		return adapterType[:len(adapterType)-7]
+	}
+	if len(adapterType) > 5 && adapterType[len(adapterType)-5:] == "-sink" {
+		return adapterType[:len(adapterType)-5]
 	}
 	return adapterType
 }

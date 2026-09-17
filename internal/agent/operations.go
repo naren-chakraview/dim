@@ -283,6 +283,14 @@ func GetCapabilities(ctx context.Context, req CapabilitiesRequest) (*Capabilitie
 			{"sftp", "sink", "SFTP sink"},
 			{"exec", "source", "Executable/command source"},
 			{"exec", "sink", "Executable/command sink"},
+			{"s3", "source", "AWS S3 source"},
+			{"s3", "sink", "AWS S3 sink"},
+			{"kafka", "source", "Apache Kafka source"},
+			{"kafka", "sink", "Apache Kafka sink"},
+			{"amqp", "source", "AMQP source"},
+			{"amqp", "sink", "AMQP sink"},
+			{"database", "source", "SQL database source"},
+			{"database", "sink", "SQL database sink"},
 		}
 
 		for _, a := range adapters {
@@ -317,6 +325,11 @@ func GetCapabilities(ctx context.Context, req CapabilitiesRequest) (*Capabilitie
 			{"wiretap", "Clone messages to secondary sink for monitoring/logging"},
 			{"idempotent", "Prevent duplicate message processing"},
 			{"authorize", "Authorization/authentication step (RBAC or ABAC)"},
+			{"contract", "Enforce schema contracts on message payloads"},
+			{"claim_check", "Externalize large payloads to reduce memory usage"},
+			{"claim_resolve", "Retrieve externalized payloads from claim check store"},
+			{"aggregate", "Combine multiple messages into a single message"},
+			{"split", "Decompose a message into multiple messages"},
 		}
 
 		for _, s := range steps {
