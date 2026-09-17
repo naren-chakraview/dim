@@ -48,13 +48,17 @@ func ReconstructYAMLFromNode(wrapper *YAMLNodeWrapper) (string, error) {
 	// Update node values in-place from the edited data
 	updateNodeFromData(wrapper.RootNode, wrapper.Data)
 
-	// Encode the modified node tree back to YAML
-	out, err := yaml.Marshal(wrapper.RootNode)
-	if err != nil {
+	// Encode the modified node tree back to YAML using an encoder with proper indentation
+	// This preserves the original formatting instead of reformatting everything
+	buf := &strings.Builder{}
+	encoder := yaml.NewEncoder(buf)
+	encoder.SetIndent(2) // Use 2-space indentation to match common style
+	if err := encoder.Encode(wrapper.RootNode); err != nil {
 		return "", err
 	}
+	encoder.Close()
 
-	return string(out), nil
+	return buf.String(), nil
 }
 
 // updateNodeFromData recursively updates node values to match edited data
@@ -112,16 +116,69 @@ func updateNodeValue(node *yaml.Node, value interface{}) {
 }
 
 // updateNodeSequence updates sequence nodes to match array data
+// Handles add/remove operations, not just in-place updates
 func updateNodeSequence(node *yaml.Node, items []interface{}) {
 	if node.Kind != yaml.SequenceNode {
 		return
 	}
 
-	// For simplicity, if lengths differ, we'd need to add/remove nodes
-	// For now, just update existing nodes
-	for i, item := range items {
-		if i < len(node.Content) {
-			updateNodeValue(node.Content[i], item)
+	// Handle size changes: add or remove nodes as needed
+	if len(items) != len(node.Content) {
+		// Resize the content slice to match items
+		newContent := make([]*yaml.Node, 0, len(items))
+
+		for i, item := range items {
+			if i < len(node.Content) {
+				// Reuse existing node, update its value
+				updateNodeValue(node.Content[i], item)
+				newContent = append(newContent, node.Content[i])
+			} else {
+				// Add new node for new item
+				newNode := dataToYAMLNode(item)
+				newContent = append(newContent, newNode)
+			}
+		}
+
+		node.Content = newContent
+	} else {
+		// Same length: just update values in place
+		for i, item := range items {
+			if i < len(node.Content) {
+				updateNodeValue(node.Content[i], item)
+			}
+		}
+	}
+}
+
+// dataToYAMLNode converts a data value to a proper yaml.Node
+func dataToYAMLNode(data interface{}) *yaml.Node {
+	switch v := data.(type) {
+	case map[string]interface{}:
+		// Create a mapping node with key-value pairs
+		node := &yaml.Node{Kind: yaml.MappingNode}
+		for key, value := range v {
+			keyNode := &yaml.Node{
+				Kind:  yaml.ScalarNode,
+				Value: key,
+			}
+			valueNode := dataToYAMLNode(value)
+			node.Content = append(node.Content, keyNode, valueNode)
+		}
+		return node
+
+	case []interface{}:
+		// Create a sequence node
+		node := &yaml.Node{Kind: yaml.SequenceNode}
+		for _, item := range v {
+			node.Content = append(node.Content, dataToYAMLNode(item))
+		}
+		return node
+
+	default:
+		// Scalar value
+		return &yaml.Node{
+			Kind:  yaml.ScalarNode,
+			Value: fmt.Sprintf("%v", v),
 		}
 	}
 }

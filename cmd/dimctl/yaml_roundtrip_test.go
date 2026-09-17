@@ -150,3 +150,175 @@ func containsCommentChar(s string) bool {
 	}
 	return false
 }
+
+// T2.1 Fix Verification Tests
+func TestYAMLRoundtripAddStep(t *testing.T) {
+	// T2.1 Fix verification: adding a step should work (not silently dropped)
+
+	originalYAML := `version: 1
+sources:
+  input:
+    type: file
+    path: ./input.jsonl
+sinks:
+  output:
+    type: file
+    path: ./output.jsonl
+routes:
+  test:
+    from: input
+    auth: none
+    steps:
+      - filter:
+          expr: "true"
+`
+
+	// Parse with preservation
+	wrapper, err := ParseYAMLWithPreservation(originalYAML)
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+
+	// Add a new step to the route
+	if routes, ok := wrapper.Data["routes"].(map[string]interface{}); ok {
+		if testRoute, ok := routes["test"].(map[string]interface{}); ok {
+			if steps, ok := testRoute["steps"].([]interface{}); ok {
+				// Add a new translate step
+				newStep := map[string]interface{}{
+					"translate": map[string]interface{}{
+						"expr": "body | {id, amount}",
+					},
+				}
+				testRoute["steps"] = append(steps, newStep)
+			}
+		}
+	}
+
+	// Reconstruct YAML
+	reconstructed, err := ReconstructYAML(wrapper.Data, wrapper)
+	if err != nil {
+		t.Fatalf("Failed to reconstruct: %v", err)
+	}
+
+	// Verify the new step is present in the output
+	if !containsString(reconstructed, "translate:") {
+		t.Fatalf("Added step was dropped! Reconstructed YAML:\n%s", reconstructed)
+	}
+
+	if !containsString(reconstructed, "body | {id, amount}") {
+		t.Fatalf("Step expression was not preserved! Reconstructed YAML:\n%s", reconstructed)
+	}
+
+	// Parse the reconstructed YAML to verify it's valid
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal([]byte(reconstructed), &parsed); err != nil {
+		t.Fatalf("Reconstructed YAML is invalid: %v\nYAML:\n%s", err, reconstructed)
+	}
+
+	// Verify the step count increased
+	if routes, ok := parsed["routes"].(map[string]interface{}); ok {
+		if testRoute, ok := routes["test"].(map[string]interface{}); ok {
+			if steps, ok := testRoute["steps"].([]interface{}); ok {
+				if len(steps) != 2 {
+					t.Fatalf("Expected 2 steps after add, got %d", len(steps))
+				}
+			}
+		}
+	}
+
+	t.Logf("✓ T2.1 verified: Adding a step is preserved in round-trip")
+}
+
+func TestYAMLRoundtripRemoveStep(t *testing.T) {
+	// T2.1 Fix verification: removing a step should work (not silently kept)
+
+	originalYAML := `version: 1
+sources:
+  input:
+    type: file
+    path: ./input.jsonl
+sinks:
+  output:
+    type: file
+    path: ./output.jsonl
+routes:
+  test:
+    from: input
+    auth: none
+    steps:
+      - filter:
+          expr: "true"
+      - translate:
+          expr: "body | {id}"
+      - filter:
+          expr: "body.id != null"
+`
+
+	// Parse with preservation
+	wrapper, err := ParseYAMLWithPreservation(originalYAML)
+	if err != nil {
+		t.Fatalf("Failed to parse: %v", err)
+	}
+
+	// Remove the translate step (middle one)
+	if routes, ok := wrapper.Data["routes"].(map[string]interface{}); ok {
+		if testRoute, ok := routes["test"].(map[string]interface{}); ok {
+			if steps, ok := testRoute["steps"].([]interface{}); ok {
+				if len(steps) >= 2 {
+					// Remove index 1 (translate step)
+					newSteps := append(steps[:1], steps[2:]...)
+					testRoute["steps"] = newSteps
+					t.Logf("DEBUG: Removed step - data now has %d steps (was %d)", len(newSteps), len(steps))
+				}
+			}
+		}
+	}
+
+	// Verify the data was modified
+	if routes, ok := wrapper.Data["routes"].(map[string]interface{}); ok {
+		if testRoute, ok := routes["test"].(map[string]interface{}); ok {
+			if steps, ok := testRoute["steps"].([]interface{}); ok {
+				t.Logf("DEBUG: After removal, wrapper.Data has %d steps", len(steps))
+			}
+		}
+	}
+
+	// Reconstruct YAML
+	reconstructed, err := ReconstructYAML(wrapper.Data, wrapper)
+	if err != nil {
+		t.Fatalf("Failed to reconstruct: %v", err)
+	}
+
+	// Verify the translate step is NOT present
+	if containsString(reconstructed, "body | {id}") {
+		t.Fatalf("Removed step was not removed! Reconstructed YAML:\n%s", reconstructed)
+	}
+
+	// Parse the reconstructed YAML to verify it's valid
+	var parsed map[string]interface{}
+	if err := yaml.Unmarshal([]byte(reconstructed), &parsed); err != nil {
+		t.Fatalf("Reconstructed YAML is invalid: %v\nYAML:\n%s", err, reconstructed)
+	}
+
+	// Verify the step count decreased
+	if routes, ok := parsed["routes"].(map[string]interface{}); ok {
+		if testRoute, ok := routes["test"].(map[string]interface{}); ok {
+			if steps, ok := testRoute["steps"].([]interface{}); ok {
+				if len(steps) != 2 {
+					t.Fatalf("Expected 2 steps after remove, got %d", len(steps))
+				}
+			}
+		}
+	}
+
+	t.Logf("✓ T2.1 verified: Removing a step is preserved in round-trip")
+}
+
+func containsString(haystack, needle string) bool {
+	for i := 0; i+len(needle) <= len(haystack); i++ {
+		if haystack[i:i+len(needle)] == needle {
+			return true
+		}
+	}
+	return false
+}
