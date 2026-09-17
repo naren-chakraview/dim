@@ -1,121 +1,170 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
-// CommentMap stores comments indexed by key names for reconstruction
-type CommentMap struct {
-	HeadComments map[string]string // Comments above keys
-	LineComments map[string]string // Inline comments after keys
-	RawYAML      string             // Original YAML for fallback
+// YAMLNodeWrapper preserves the original node tree along with parsed data
+type YAMLNodeWrapper struct {
+	RootNode *yaml.Node                 // Original parsed node tree (preserves order/comments)
+	Data     map[string]interface{}     // Parsed map for editing
+	FilePath string                     // Source file path for reference
 }
 
-// ParseYAMLWithComments parses YAML and tracks comments
-func ParseYAMLWithComments(yamlStr string) (map[string]interface{}, map[string]string, error) {
+// ParseYAMLWithPreservation parses YAML while preserving the node tree
+func ParseYAMLWithPreservation(yamlStr string) (*YAMLNodeWrapper, error) {
+	// Parse to node tree (preserves order and comments)
+	var rootNode yaml.Node
+	if err := yaml.Unmarshal([]byte(yamlStr), &rootNode); err != nil {
+		return nil, err
+	}
+
+	// Also parse to map for editing
 	var data map[string]interface{}
-	comments := make(map[string]string)
-
-	// Parse with go-yaml's node representation to preserve comments
-	var node yaml.Node
-	if err := yaml.Unmarshal([]byte(yamlStr), &node); err != nil {
-		return nil, nil, err
-	}
-
-	// Walk nodes and extract comments using key names
-	// The root node is a Document, the actual content is in node.Content[0]
-	if len(node.Content) > 0 {
-		extractCommentsFromNode(node.Content[0], comments)
-	}
-
-	// Also parse into map for easier access
 	if err := yaml.Unmarshal([]byte(yamlStr), &data); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	return data, comments, nil
+	return &YAMLNodeWrapper{
+		RootNode: &rootNode,
+		Data:     data,
+	}, nil
 }
 
-// extractCommentsFromNode recursively walks the YAML node tree and extracts comments
-func extractCommentsFromNode(node *yaml.Node, comments map[string]string) {
-	if node == nil {
-		return
+// ReconstructYAMLFromNode rebuilds YAML from a node wrapper, preserving structure and comments
+func ReconstructYAMLFromNode(wrapper *YAMLNodeWrapper) (string, error) {
+	if wrapper == nil || wrapper.RootNode == nil {
+		// Fallback to marshaling if no node available
+		return marshallYAML(wrapper.Data)
 	}
 
-	// Handle mapping nodes (key-value pairs)
-	if node.Kind == yaml.MappingNode {
-		// Process key-value pairs in the mapping
-		for i := 0; i < len(node.Content); i += 2 {
-			keyNode := node.Content[i]
-			valueNode := node.Content[i+1]
+	// Update node values in-place from the edited data
+	updateNodeFromData(wrapper.RootNode, wrapper.Data)
 
-			if keyNode.Value != "" {
-				key := keyNode.Value
-
-				// Store head comment (comment above the key)
-				if keyNode.HeadComment != "" {
-					comments[key+"_head"] = keyNode.HeadComment
-				}
-
-				// Store line comment (inline comment)
-				if keyNode.LineComment != "" {
-					comments[key+"_line"] = keyNode.LineComment
-				}
-
-				// Recursively process nested mappings
-				if valueNode.Kind == yaml.MappingNode {
-					extractCommentsFromNode(valueNode, comments)
-				}
-			}
-		}
-	}
-}
-
-// ReconstructYAML rebuilds YAML from data and comments
-func ReconstructYAML(data map[string]interface{}, comments map[string]string) (string, error) {
-	out, err := yaml.Marshal(data)
+	// Encode the modified node tree back to YAML
+	out, err := yaml.Marshal(wrapper.RootNode)
 	if err != nil {
 		return "", err
 	}
 
-	result := string(out)
+	return string(out), nil
+}
 
-	// Reinsert head comments (comments above keys)
-	for key, comment := range comments {
-		if strings.HasSuffix(key, "_head") {
-			actualKey := strings.TrimSuffix(key, "_head")
-			// Find the key in the YAML and add comment above it
-			pattern := regexp.MustCompile(`(?m)^(` + regexp.QuoteMeta(actualKey) + `:)`)
-			result = pattern.ReplaceAllString(result, comment+"\n$1")
-		}
+// updateNodeFromData recursively updates node values to match edited data
+// This preserves the original node structure, order, and comments
+func updateNodeFromData(node *yaml.Node, data map[string]interface{}) {
+	if node == nil {
+		return
 	}
 
-	// Reinsert line comments (inline comments)
-	for key, comment := range comments {
-		if strings.HasSuffix(key, "_line") {
-			actualKey := strings.TrimSuffix(key, "_line")
-			// Find the key line and add inline comment
-			pattern := regexp.MustCompile(`(?m)(` + regexp.QuoteMeta(actualKey) + `:\s*.*)$`)
-			result = pattern.ReplaceAllString(result, "$1 "+comment)
+	if node.Kind == yaml.MappingNode && len(node.Content)%2 == 0 {
+		// Process key-value pairs
+		for i := 0; i < len(node.Content); i += 2 {
+			keyNode := node.Content[i]
+			valueNode := node.Content[i+1]
+			key := keyNode.Value
+
+			if newValue, exists := data[key]; exists {
+				// Key still exists in edited data - update its value
+				updateNodeValue(valueNode, newValue)
+			}
 		}
+	} else if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+		// Handle document root
+		updateNodeFromData(node.Content[0], data)
+	}
+}
+
+// updateNodeValue recursively updates a node to match a new value
+func updateNodeValue(node *yaml.Node, value interface{}) {
+	if node == nil {
+		return
 	}
 
-	return result, nil
+	switch v := value.(type) {
+	case map[string]interface{}:
+		if node.Kind == yaml.MappingNode {
+			// Recursively update nested mapping
+			updateNodeFromData(node, v)
+		} else {
+			// Node type mismatch - would need to replace node
+			// For now, this shouldn't happen in well-formed edits
+		}
+
+	case []interface{}:
+		if node.Kind == yaml.SequenceNode {
+			// Update sequence items
+			updateNodeSequence(node, v)
+		}
+
+	default:
+		// Scalar value - update the node's Value
+		node.Value = fmt.Sprintf("%v", v)
+		node.Kind = yaml.ScalarNode
+	}
+}
+
+// updateNodeSequence updates sequence nodes to match array data
+func updateNodeSequence(node *yaml.Node, items []interface{}) {
+	if node.Kind != yaml.SequenceNode {
+		return
+	}
+
+	// For simplicity, if lengths differ, we'd need to add/remove nodes
+	// For now, just update existing nodes
+	for i, item := range items {
+		if i < len(node.Content) {
+			updateNodeValue(node.Content[i], item)
+		}
+	}
+}
+
+// ReconstructYAML rebuilds YAML from data (fallback, no node preservation)
+func ReconstructYAML(data map[string]interface{}, wrapper *YAMLNodeWrapper) (string, error) {
+	// If we have a wrapper with a node, use node-based reconstruction
+	if wrapper != nil && wrapper.RootNode != nil {
+		wrapper.Data = data
+		return ReconstructYAMLFromNode(wrapper)
+	}
+
+	// Fallback: marshal the data (loses order and comments)
+	return marshallYAML(data)
+}
+
+// marshallYAML is a helper that marshals map to YAML
+func marshallYAML(data map[string]interface{}) (string, error) {
+	out, err := yaml.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }
 
 // RouteData represents a loaded route with its metadata and content
+// Note: Node is not JSON-serializable, so we only serialize the Data field
 type RouteData struct {
 	Name     string                 `json:"name"`
 	Domain   string                 `json:"domain"`
 	FilePath string                 `json:"filePath"`
 	Data     map[string]interface{} `json:"data"`
-	Comments map[string]string      `json:"comments"`
+	Node     *YAMLNodeWrapper       `json:"-"` // Preserved for round-trip fidelity
+}
+
+// MarshalJSON ensures RouteData serializes correctly (excluding Node)
+func (r *RouteData) MarshalJSON() ([]byte, error) {
+	type Alias RouteData
+	return json.Marshal(&struct {
+		*Alias
+	}{
+		Alias: (*Alias)(r),
+	})
 }
 
 // DiscoverRoutes finds all *.yaml files in domains/ (not test files)
@@ -154,18 +203,19 @@ func DiscoverRoutes(workDir string) (map[string]*RouteData, error) {
 				continue
 			}
 
-			data, comments, err := ParseYAMLWithComments(string(content))
+			wrapper, err := ParseYAMLWithPreservation(string(content))
 			if err != nil {
 				log.Printf("Warning: failed to parse %s: %v", filePath, err)
 				continue
 			}
+			wrapper.FilePath = filePath
 
 			routes[routeName] = &RouteData{
 				Name:     routeName,
 				Domain:   domain,
 				FilePath: filePath,
-				Data:     data,
-				Comments: comments,
+				Data:     wrapper.Data,
+				Node:     wrapper,
 			}
 		}
 	}

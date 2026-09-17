@@ -180,12 +180,12 @@ routes:
     from: source
 `
 
-	data, comments, err := ParseYAMLWithComments(yaml)
+	wrapper, err := ParseYAMLWithPreservation(yaml)
 	if err != nil {
 		t.Fatalf("parse failed: %v", err)
 	}
 
-	reconstructed, err := ReconstructYAML(data, comments)
+	reconstructed, err := ReconstructYAMLFromNode(wrapper)
 	if err != nil {
 		t.Fatalf("reconstruct failed: %v", err)
 	}

@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { useSchemaForm, FormField, JSONSchema, getStepSchema } from '../hooks/useSchemaForm';
+import React, { useState, useCallback, useEffect } from 'react';
+import { useSchemaForm, FormField, JSONSchema, getStepSchema, getStepSchemaSync } from '../hooks/useSchemaForm';
 import { JSONataEditor } from './JSONataEditor';
 import '../styles/SchemaForm.css';
 
@@ -33,9 +33,36 @@ export function SchemaForm({
 }: SchemaFormProps) {
   const [errors, setErrors] = useState<string[]>([]);
   const [touched, setTouched] = useState<Set<string>>(new Set());
+  const [loadedSchema, setLoadedSchema] = useState<JSONSchema | undefined>(customSchema);
 
-  // Get schema from step type or use custom schema
-  const schema = customSchema || (stepType ? getStepSchema(stepType) : undefined);
+  // Load schema from backend if step type is provided
+  useEffect(() => {
+    if (customSchema) {
+      setLoadedSchema(customSchema);
+      return;
+    }
+
+    if (!stepType) {
+      setLoadedSchema(undefined);
+      return;
+    }
+
+    // Fetch schema asynchronously
+    let mounted = true;
+    (async () => {
+      const schema = await getStepSchema(stepType);
+      if (mounted) {
+        setLoadedSchema(schema);
+      }
+    })();
+
+    return () => {
+      mounted = false;
+    };
+  }, [stepType, customSchema]);
+
+  // Get schema - use loaded schema or custom schema
+  const schema = loadedSchema || (stepType ? getStepSchemaSync(stepType) : undefined);
   const { fields, validate } = useSchemaForm(schema, value);
 
   const handleChange = useCallback(
@@ -163,23 +190,15 @@ function renderInput(
   onChange: (value: any) => void,
   onBlur: () => void
 ) {
-  // Temporarily use textarea for expr fields until JSONataEditor is debugged
+  // Use JSONata editor for expression fields (expr, expression, condition)
   if (isJSONataField(field.name)) {
     return (
-      <textarea
+      <JSONataEditor
         value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={onChange}
         onBlur={onBlur}
         placeholder={field.placeholder || 'Enter JSONata expression...'}
-        rows={4}
-        style={{
-          fontFamily: 'Monaco, monospace',
-          fontSize: '12px',
-          padding: '8px',
-          border: '1px solid #ddd',
-          borderRadius: '4px',
-          width: '100%',
-        }}
+        height="200px"
       />
     );
   }
