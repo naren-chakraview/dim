@@ -74,7 +74,7 @@ func waitForKafka(ctx context.Context) error {
 	}
 }
 
-// waitForS3 polls the MinIO health endpoint until it's responsive
+// waitForS3 polls the LocalStack S3 endpoint until it's responsive
 func waitForS3(ctx context.Context) error {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -84,13 +84,13 @@ func waitForS3(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			conn, err := net.DialTimeout("tcp", "localhost:9000", 2*time.Second)
+			conn, err := net.DialTimeout("tcp", "localhost:4566", 2*time.Second)
 			if err != nil {
 				continue
 			}
 			conn.Close()
 
-			// MinIO is listening; it's ready
+			// LocalStack is listening; it's ready
 			return nil
 		}
 	}
