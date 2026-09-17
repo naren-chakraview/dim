@@ -220,26 +220,26 @@ func TestKafkaAdapterRoundTrip(t *testing.T) {
 	t.Logf("✓ Kafka adapter: broker connectivity verified, message produced and consumed")
 }
 
-// TestS3AdapterRoundTrip tests S3ClaimCheckStore adapter with MinIO
+// TestS3AdapterRoundTrip tests S3ClaimCheckStore adapter with LocalStack
 func TestS3AdapterRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
-	// Configure environment for MinIO
-	os.Setenv("S3_ENDPOINT", "http://localhost:9000")
-	os.Setenv("AWS_ACCESS_KEY_ID", "minioadmin")
-	os.Setenv("AWS_SECRET_ACCESS_KEY", "minioadmin")
-	os.Setenv("S3_BUCKET", "e2e-test-bucket")
+	// Configure environment for LocalStack
+	os.Setenv("S3_ENDPOINT", "http://localhost:4566")
+	os.Setenv("AWS_ACCESS_KEY_ID", "test")
+	os.Setenv("AWS_SECRET_ACCESS_KEY", "test")
+	os.Setenv("S3_BUCKET", "test-bucket")
 	os.Setenv("S3_REGION", "us-east-1")
 	os.Setenv("S3_PREFIX", "e2e-test/")
 
-	// Create S3ClaimCheckStore adapter with MinIO configuration
+	// Create S3ClaimCheckStore adapter with LocalStack configuration
 	store, err := claimcheck.NewS3ClaimCheckStore(claimcheck.S3StoreConfig{
-		Bucket:    "e2e-test-bucket",
+		Bucket:    "test-bucket",
 		Region:    "us-east-1",
 		Prefix:    "e2e-test/",
-		Endpoint:  "http://localhost:9000",
-		AccessKey: "minioadmin",
-		SecretKey: "minioadmin",
+		Endpoint:  "http://localhost:4566",
+		AccessKey: "test",
+		SecretKey: "test",
 	})
 	if err != nil {
 		t.Fatalf("failed to create S3 claim-check store: %v", err)
