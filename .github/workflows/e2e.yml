@@ -82,7 +82,7 @@ jobs:
               for bucket_attempt in {1..5}; do
                 if aws s3 mb s3://test-bucket \
                   --endpoint-url http://localhost:4566 \
-                  --region us-east-1 2>&1 | grep -qE "(Successfully|already)"; then
+                  --region us-east-1 2>&1; then
                   echo "✓ Bucket created or already exists"
 
                   # Verify
