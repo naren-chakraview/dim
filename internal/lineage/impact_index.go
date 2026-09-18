@@ -148,6 +148,96 @@ func ExtractAllReferences(route config.RouteSpec, routeName string) []ImpactRefe
 				ConfigPath: routeName,
 			})
 		}
+
+		// Contract step
+		if step.Contract != nil {
+			refs = append(refs, ImpactReference{
+				SourceType: "step",
+				SourcePath: stepPath + ".contract",
+				SourceName: fmt.Sprintf("%s.steps[%d]", routeName, i),
+				TargetType: "step-type",
+				TargetName: "contract",
+				IsStatic:   true,
+				ConfigPath: routeName,
+			})
+			// If contract has an ID, also track the contract reference
+			if step.Contract.ID != "" {
+				refs = append(refs, ImpactReference{
+					SourceType: "step",
+					SourcePath: stepPath + ".contract.id",
+					SourceName: fmt.Sprintf("%s.steps[%d].contract", routeName, i),
+					TargetType: "contract",
+					TargetName: step.Contract.ID,
+					IsStatic:   true,
+					ConfigPath: routeName,
+				})
+			}
+		}
+
+		// Claim check step
+		if step.ClaimCheck != nil {
+			refs = append(refs, ImpactReference{
+				SourceType: "step",
+				SourcePath: stepPath + ".claim_check",
+				SourceName: fmt.Sprintf("%s.steps[%d]", routeName, i),
+				TargetType: "step-type",
+				TargetName: "claim_check",
+				IsStatic:   true,
+				ConfigPath: routeName,
+			})
+		}
+
+		// Claim resolve step
+		if step.ClaimResolve != nil {
+			refs = append(refs, ImpactReference{
+				SourceType: "step",
+				SourcePath: stepPath + ".claim_resolve",
+				SourceName: fmt.Sprintf("%s.steps[%d]", routeName, i),
+				TargetType: "step-type",
+				TargetName: "claim_resolve",
+				IsStatic:   true,
+				ConfigPath: routeName,
+			})
+		}
+
+		// Wiretap step
+		if step.Wiretap != nil {
+			refs = append(refs, ImpactReference{
+				SourceType: "step",
+				SourcePath: stepPath + ".wiretap",
+				SourceName: fmt.Sprintf("%s.steps[%d]", routeName, i),
+				TargetType: "step-type",
+				TargetName: "wiretap",
+				IsStatic:   true,
+				ConfigPath: routeName,
+			})
+		}
+
+		// Idempotent step
+		if step.Idempotent != nil {
+			refs = append(refs, ImpactReference{
+				SourceType: "step",
+				SourcePath: stepPath + ".idempotent",
+				SourceName: fmt.Sprintf("%s.steps[%d]", routeName, i),
+				TargetType: "step-type",
+				TargetName: "idempotent",
+				IsStatic:   true,
+				ConfigPath: routeName,
+			})
+		}
+
+		// Route step
+		if step.Route != nil {
+			refs = append(refs, ImpactReference{
+				SourceType: "step",
+				SourcePath: stepPath + ".route",
+				SourceName: fmt.Sprintf("%s.steps[%d]", routeName, i),
+				TargetType: "step-type",
+				TargetName: "route",
+				IsStatic:   true,
+				ConfigPath: routeName,
+			})
+		}
 	}
 
 	return refs
