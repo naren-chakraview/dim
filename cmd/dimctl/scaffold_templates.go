@@ -12,6 +12,7 @@ sources:
 routes:
   passthrough:
     from: input
+    auth: none
     error_path:
       target: error
     steps:
@@ -40,6 +41,7 @@ sources:
 routes:
   with-transform:
     from: input
+    auth: none
     error_path:
       target: error
     steps:
@@ -68,6 +70,7 @@ sources:
 routes:
   with-contract:
     from: input
+    auth: none
     error_path:
       target: error
     contracts:

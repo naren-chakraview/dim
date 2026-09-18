@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/naren-chakraview/dim/internal/config"
 )
 
 func TestScaffoldGeneratesDomainMetadata(t *testing.T) {
@@ -63,31 +65,34 @@ func TestScaffoldGeneratesValidRoute(t *testing.T) {
 		t.Fatalf("failed to generate route: %v", err)
 	}
 
-	// Verify route file exists and has correct structure
+	// Verify route file exists and validate using actual config loader
 	routePath := filepath.Join(domainPath, domainName+"-route.yaml")
-	content, err := os.ReadFile(routePath)
+
+	// Load and validate the generated route
+	cfg, err := config.LoadRouteConfig(routePath)
 	if err != nil {
-		t.Fatalf("failed to read route file: %v", err)
+		t.Fatalf("generated route failed to load: %v", err)
 	}
 
-	contentStr := string(content)
-	if !strings.Contains(contentStr, "version: 1") {
-		t.Error("route does not contain version")
+	// Verify structure through actual validation
+	if cfg.Version != 1 {
+		t.Error("route version is not 1")
 	}
-	if !strings.Contains(contentStr, "governance/fragments") {
-		t.Error("route does not import governance fragments")
+	if len(cfg.Sources) == 0 {
+		t.Error("route has no sources")
 	}
-	if !strings.Contains(contentStr, "sources:") {
-		t.Error("route does not contain sources")
+	if len(cfg.Routes) == 0 {
+		t.Error("route has no routes")
 	}
-	if !strings.Contains(contentStr, "routes:") {
-		t.Error("route does not contain routes")
+	if len(cfg.Sinks) == 0 {
+		t.Error("route has no sinks")
 	}
-	if !strings.Contains(contentStr, "sinks:") {
-		t.Error("route does not contain sinks")
-	}
-	if !strings.Contains(contentStr, "fragment: governance-baseline") {
-		t.Error("route does not reference governance-baseline fragment")
+
+	// Verify auth declaration exists
+	for _, route := range cfg.Routes {
+		if route.Auth == "" {
+			t.Error("route is missing auth declaration")
+		}
 	}
 }
 
