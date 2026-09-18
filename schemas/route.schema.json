@@ -3,7 +3,12 @@
   "type": "object",
   "title": "Route Configuration Schema",
   "description": "JSON Schema for dim route configuration (Phase 0). Validates route definitions with sources, sinks, and pipeline steps.",
-  "required": ["version", "sources", "sinks", "routes"],
+  "required": [
+    "version",
+    "sources",
+    "sinks",
+    "routes"
+  ],
   "additionalProperties": false,
   "properties": {
     "version": {
@@ -45,11 +50,18 @@
       "type": "object",
       "title": "Source Adapter",
       "description": "A named message input (HTTP, file, etc.)",
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["http", "file", "sftp", "exec"],
+          "enum": [
+            "http",
+            "file",
+            "sftp",
+            "exec"
+          ],
           "title": "Source Type",
           "description": "The adapter type for this source"
         },
@@ -65,7 +77,14 @@
         },
         "method": {
           "type": "string",
-          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "HEAD"
+          ],
           "title": "HTTP Method",
           "description": "HTTP method for HTTP sources (default: POST)"
         }
@@ -75,11 +94,18 @@
       "type": "object",
       "title": "Sink Adapter",
       "description": "A named message output (HTTP, file, etc.)",
-      "required": ["type"],
+      "required": [
+        "type"
+      ],
       "properties": {
         "type": {
           "type": "string",
-          "enum": ["http", "file", "sftp", "exec"],
+          "enum": [
+            "http",
+            "file",
+            "sftp",
+            "exec"
+          ],
           "title": "Sink Type",
           "description": "The adapter type for this sink"
         },
@@ -95,7 +121,14 @@
         },
         "method": {
           "type": "string",
-          "enum": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
+          "enum": [
+            "GET",
+            "POST",
+            "PUT",
+            "PATCH",
+            "DELETE",
+            "HEAD"
+          ],
           "title": "HTTP Method",
           "description": "HTTP method for HTTP sinks (default: POST)"
         }
@@ -105,7 +138,11 @@
       "type": "object",
       "title": "Route Definition",
       "description": "A pipeline definition flowing messages from a source through steps to error handling",
-      "required": ["from", "error_path", "steps"],
+      "required": [
+        "from",
+        "error_path",
+        "steps"
+      ],
       "properties": {
         "from": {
           "type": "string",
@@ -123,7 +160,9 @@
             },
             {
               "type": "string",
-              "enum": ["none"],
+              "enum": [
+                "none"
+              ],
               "description": "No authorization required"
             },
             {
@@ -133,7 +172,10 @@
               "properties": {
                 "mode": {
                   "type": "string",
-                  "enum": ["rbac", "abac"],
+                  "enum": [
+                    "rbac",
+                    "abac"
+                  ],
                   "title": "Authorization Mode",
                   "description": "Authorization mode: 'rbac' (role-based) or 'abac' (attribute-based)"
                 },
@@ -160,7 +202,9 @@
       "type": "object",
       "title": "Error Handling",
       "description": "Where and how to route messages that fail processing",
-      "required": ["target"],
+      "required": [
+        "target"
+      ],
       "properties": {
         "target": {
           "type": "string",
@@ -177,7 +221,9 @@
       "type": "object",
       "title": "Retry Policy",
       "description": "Retry configuration for transient failures",
-      "required": ["max_attempts"],
+      "required": [
+        "max_attempts"
+      ],
       "properties": {
         "max_attempts": {
           "type": "integer",
@@ -204,23 +250,48 @@
       "title": "Pipeline Step",
       "description": "A single processing step in the pipeline (filter, translate, route, wiretap, idempotent, or authorize)",
       "oneOf": [
-        { "$ref": "#/definitions/filter_step" },
-        { "$ref": "#/definitions/translate_step" },
-        { "$ref": "#/definitions/route_step" },
-        { "$ref": "#/definitions/wiretap_step" },
-        { "$ref": "#/definitions/idempotent_step" },
-        { "$ref": "#/definitions/authorize_step" }
+        {
+          "$ref": "#/definitions/filter_step"
+        },
+        {
+          "$ref": "#/definitions/translate_step"
+        },
+        {
+          "$ref": "#/definitions/route_step"
+        },
+        {
+          "$ref": "#/definitions/wiretap_step"
+        },
+        {
+          "$ref": "#/definitions/idempotent_step"
+        },
+        {
+          "$ref": "#/definitions/authorize_step"
+        },
+        {
+          "$ref": "#/definitions/contract_step"
+        },
+        {
+          "$ref": "#/definitions/claim_check_step"
+        },
+        {
+          "$ref": "#/definitions/claim_resolve_step"
+        }
       ]
     },
     "filter_step": {
       "type": "object",
       "title": "Filter Step",
       "description": "Boolean predicate to include/exclude messages",
-      "required": ["filter"],
+      "required": [
+        "filter"
+      ],
       "properties": {
         "filter": {
           "type": "object",
-          "required": ["expr"],
+          "required": [
+            "expr"
+          ],
           "properties": {
             "expr": {
               "type": "string",
@@ -235,11 +306,15 @@
       "type": "object",
       "title": "Translate Step",
       "description": "Transform the message body using a JSONata expression",
-      "required": ["translate"],
+      "required": [
+        "translate"
+      ],
       "properties": {
         "translate": {
           "type": "object",
-          "required": ["expr"],
+          "required": [
+            "expr"
+          ],
           "properties": {
             "expr": {
               "type": "string",
@@ -254,11 +329,15 @@
       "type": "object",
       "title": "Content-Based Router Step",
       "description": "Route messages to different branches based on content evaluation",
-      "required": ["route"],
+      "required": [
+        "route"
+      ],
       "properties": {
         "route": {
           "type": "object",
-          "required": ["expr"],
+          "required": [
+            "expr"
+          ],
           "properties": {
             "expr": {
               "type": "string",
@@ -293,11 +372,15 @@
       "type": "object",
       "title": "Wiretap Step",
       "description": "Duplicate the message to a secondary sink without altering main flow",
-      "required": ["wiretap"],
+      "required": [
+        "wiretap"
+      ],
       "properties": {
         "wiretap": {
           "type": "object",
-          "required": ["sink"],
+          "required": [
+            "sink"
+          ],
           "properties": {
             "sink": {
               "type": "string",
@@ -312,11 +395,15 @@
       "type": "object",
       "title": "Idempotent Deduplication Step",
       "description": "Suppress duplicate messages using a deduplication key",
-      "required": ["idempotent"],
+      "required": [
+        "idempotent"
+      ],
       "properties": {
         "idempotent": {
           "type": "object",
-          "required": ["key_expr"],
+          "required": [
+            "key_expr"
+          ],
           "properties": {
             "key_expr": {
               "type": "string",
@@ -331,15 +418,22 @@
       "type": "object",
       "title": "Authorization Step",
       "description": "Enforce authorization policies (RBAC or ABAC)",
-      "required": ["authorize"],
+      "required": [
+        "authorize"
+      ],
       "properties": {
         "authorize": {
           "type": "object",
-          "required": ["mode"],
+          "required": [
+            "mode"
+          ],
           "properties": {
             "mode": {
               "type": "string",
-              "enum": ["rbac", "abac"],
+              "enum": [
+                "rbac",
+                "abac"
+              ],
               "title": "Authorization Mode",
               "description": "Authorization mode: 'rbac' (role-based) or 'abac' (attribute-based)"
             },
@@ -350,6 +444,78 @@
           }
         }
       }
+    },
+    "contract_step": {
+      "type": "object",
+      "title": "Contract Step",
+      "description": "Enforce schema contracts on message payloads",
+      "properties": {
+        "contract": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Contract identifier"
+            },
+            "strict": {
+              "type": "boolean",
+              "description": "Enforce strictly"
+            }
+          },
+          "required": [
+            "id"
+          ]
+        }
+      },
+      "required": [
+        "contract"
+      ]
+    },
+    "claim_check_step": {
+      "type": "object",
+      "title": "Claim Check Step",
+      "description": "Externalize large payloads to reduce memory usage",
+      "properties": {
+        "claim_check": {
+          "type": "object",
+          "properties": {
+            "store": {
+              "type": "string",
+              "description": "Storage backend"
+            },
+            "id_header": {
+              "type": "string",
+              "description": "Header for claim ID"
+            }
+          }
+        }
+      },
+      "required": [
+        "claim_check"
+      ]
+    },
+    "claim_resolve_step": {
+      "type": "object",
+      "title": "Claim Resolve Step",
+      "description": "Retrieve externalized payloads from claim check store",
+      "properties": {
+        "claim_resolve": {
+          "type": "object",
+          "properties": {
+            "store": {
+              "type": "string",
+              "description": "Storage backend"
+            },
+            "id_header": {
+              "type": "string",
+              "description": "Header for claim ID"
+            }
+          }
+        }
+      },
+      "required": [
+        "claim_resolve"
+      ]
     }
   }
 }
