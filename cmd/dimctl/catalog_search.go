@@ -116,7 +116,7 @@ func (c *OpenLineageClient) QueryDatasets(ctx context.Context, domain string) ([
 	return results, nil
 }
 
-func Search(ctx context.Context, query, filterType, filterDomain string) (*SearchResults, error) {
+func Search(ctx context.Context, query, filterType, filterDomain, filterConnType string) (*SearchResults, error) {
 	start := time.Now()
 	results := &SearchResults{Query: query}
 
@@ -128,6 +128,16 @@ func Search(ctx context.Context, query, filterType, filterDomain string) (*Searc
 		if err != nil {
 			// Distinguish between "no results" and "registry unreachable"
 			return nil, fmt.Errorf("registry unreachable: %w", err)
+		}
+		// Filter by domain if specified
+		if filterDomain != "" {
+			var filtered []CatalogResult
+			for _, c := range contracts {
+				if c.Domain == filterDomain {
+					filtered = append(filtered, c)
+				}
+			}
+			contracts = filtered
 		}
 		results.Results = append(results.Results, contracts...)
 	}

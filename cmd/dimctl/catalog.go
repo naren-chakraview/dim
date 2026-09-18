@@ -23,14 +23,16 @@ var searchCmd = &cobra.Command{
 }
 
 var (
-	searchType   string
-	searchDomain string
-	outputJSON   bool
+	searchType       string
+	searchDomain     string
+	searchConnType   string
+	outputJSON       bool
 )
 
 func init() {
 	searchCmd.Flags().StringVar(&searchType, "type", "", "Filter by type: contract, product")
 	searchCmd.Flags().StringVar(&searchDomain, "domain", "", "Filter by domain")
+	searchCmd.Flags().StringVar(&searchConnType, "connection-type", "", "Filter connections by type: http, file, kafka, s3, database, amqp")
 	searchCmd.Flags().BoolVar(&outputJSON, "json", false, "Output as JSON")
 
 	catalogCmd.AddCommand(searchCmd)
@@ -39,7 +41,7 @@ func init() {
 func runSearch(cmd *cobra.Command, args []string) error {
 	query := args[0]
 
-	results, err := Search(context.Background(), query, searchType, searchDomain)
+	results, err := Search(context.Background(), query, searchType, searchDomain, searchConnType)
 	if err != nil {
 		return fmt.Errorf("search failed: %w", err)
 	}
