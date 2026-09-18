@@ -191,9 +191,20 @@ type RouteState struct {
 	RecentMessages []Message `json:"recentMessages"`
 }
 
+// RoutePair represents a message flow from one route to another
+type RoutePair struct {
+	SourceRoute      string `json:"sourceRoute"`      // Route that produces messages
+	SourceSink       string `json:"sourceSink"`       // Sink that receives messages from source route
+	TargetRoute      string `json:"targetRoute"`      // Route that receives messages
+	TargetSource     string `json:"targetSource"`     // Source that receives messages from source sink
+	MessagesFlowed   int64  `json:"messagesFlowed"`   // Number of messages that flowed from source to target
+	LastSeenAt       time.Time `json:"lastSeenAt"`    // Last time a message flowed on this pair
+}
+
 // ViewerServer manages multiple route viewers and serves the HTTP endpoint
 type ViewerServer struct {
 	viewers map[string]*RouteViewer
+	pairs   map[string]*RoutePair // key: "source_route:sink:target_route:source"
 	mu      sync.RWMutex
 }
 
@@ -201,6 +212,7 @@ type ViewerServer struct {
 func NewViewerServer() *ViewerServer {
 	return &ViewerServer{
 		viewers: make(map[string]*RouteViewer),
+		pairs:   make(map[string]*RoutePair),
 	}
 }
 
@@ -230,6 +242,54 @@ func (vs *ViewerServer) GetAllViewers() []*RouteViewer {
 	return result
 }
 
+// RecordRoutePair records a message flow from one route's sink to another route's source
+func (vs *ViewerServer) RecordRoutePair(sourceRoute, sourceSink, targetRoute, targetSource string) {
+	vs.mu.Lock()
+	defer vs.mu.Unlock()
+
+	key := fmt.Sprintf("%s:%s:%s:%s", sourceRoute, sourceSink, targetRoute, targetSource)
+
+	if pair, exists := vs.pairs[key]; exists {
+		pair.MessagesFlowed++
+		pair.LastSeenAt = time.Now().UTC()
+	} else {
+		vs.pairs[key] = &RoutePair{
+			SourceRoute:    sourceRoute,
+			SourceSink:     sourceSink,
+			TargetRoute:    targetRoute,
+			TargetSource:   targetSource,
+			MessagesFlowed: 1,
+			LastSeenAt:     time.Now().UTC(),
+		}
+	}
+}
+
+// GetAllPairs returns all route pairs (pairing relationships)
+func (vs *ViewerServer) GetAllPairs() []*RoutePair {
+	vs.mu.RLock()
+	defer vs.mu.RUnlock()
+
+	result := make([]*RoutePair, 0, len(vs.pairs))
+	for _, pair := range vs.pairs {
+		result = append(result, pair)
+	}
+	return result
+}
+
+// GetPairsForRoute returns all routes that pair with a given route (either as source or target)
+func (vs *ViewerServer) GetPairsForRoute(routeName string) []*RoutePair {
+	vs.mu.RLock()
+	defer vs.mu.RUnlock()
+
+	var result []*RoutePair
+	for _, pair := range vs.pairs {
+		if pair.SourceRoute == routeName || pair.TargetRoute == routeName {
+			result = append(result, pair)
+		}
+	}
+	return result
+}
+
 // HandleRoutes is the HTTP handler for /debug/routes
 func (vs *ViewerServer) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -247,8 +307,40 @@ func (vs *ViewerServer) HandleRoutes(w http.ResponseWriter, r *http.Request) {
 	// Sort by route name for consistent output
 	sort.Slice(states, func(i, j int) bool { return states[i].Name < states[j].Name })
 
+	// Include route pairings (Tier 1 Viewer Pairing)
+	pairs := vs.GetAllPairs()
+
 	response := map[string]interface{}{
 		"routes":    states,
+		"pairs":     pairs,
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	json.NewEncoder(w).Encode(response)
+}
+
+// HandleRoutePairs is the HTTP handler for /debug/route-pairs
+func (vs *ViewerServer) HandleRoutePairs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	routeName := r.URL.Query().Get("route")
+	var pairs []*RoutePair
+
+	if routeName != "" {
+		// Get pairings for a specific route
+		pairs = vs.GetPairsForRoute(routeName)
+	} else {
+		// Get all pairings
+		pairs = vs.GetAllPairs()
+	}
+
+	response := map[string]interface{}{
+		"pairs":     pairs,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
 
@@ -263,6 +355,7 @@ func StartServer(addr string) (*ViewerServer, *http.Server, error) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/debug/routes", viewer.HandleRoutes)
+	mux.HandleFunc("/debug/route-pairs", viewer.HandleRoutePairs)
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		fmt.Fprintf(w, `{"status":"healthy"}`)

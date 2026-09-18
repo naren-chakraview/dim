@@ -424,3 +424,103 @@ func TestRecordMessageErrors(t *testing.T) {
 			successCount, errorCount)
 	}
 }
+
+// Test 13: Route pairing tracking (Tier 1 Viewer Pairing)
+func TestRoutePairingTracking(t *testing.T) {
+	vs := NewViewerServer()
+
+	// Record a route pair: route-1's kafka-sink feeds to route-2's kafka-source
+	vs.RecordRoutePair("route-1", "kafka-sink", "route-2", "kafka-source")
+	vs.RecordRoutePair("route-1", "kafka-sink", "route-2", "kafka-source")
+	vs.RecordRoutePair("route-2", "http-sink", "route-3", "http-source")
+
+	pairs := vs.GetAllPairs()
+	if len(pairs) != 2 {
+		t.Errorf("expected 2 unique pairs, got %d", len(pairs))
+	}
+
+	// Find the first pair and check it was incremented
+	for _, pair := range pairs {
+		if pair.SourceRoute == "route-1" && pair.TargetRoute == "route-2" {
+			if pair.MessagesFlowed != 2 {
+				t.Errorf("expected 2 messages flowed, got %d", pair.MessagesFlowed)
+			}
+		}
+	}
+}
+
+// Test 14: Get route pairings for specific route
+func TestGetPairsForRoute(t *testing.T) {
+	vs := NewViewerServer()
+
+	// Set up pairings
+	vs.RecordRoutePair("route-1", "sink-a", "route-2", "source-b")
+	vs.RecordRoutePair("route-1", "sink-c", "route-3", "source-d")
+	vs.RecordRoutePair("route-4", "sink-e", "route-1", "source-f")
+
+	// Get pairs for route-1 (both as source and target)
+	pairs := vs.GetPairsForRoute("route-1")
+	if len(pairs) != 3 {
+		t.Errorf("expected 3 pairs for route-1, got %d", len(pairs))
+	}
+
+	// Verify route-1 appears as source or target
+	for _, pair := range pairs {
+		if pair.SourceRoute != "route-1" && pair.TargetRoute != "route-1" {
+			t.Errorf("route-1 not found in pair: %v", pair)
+		}
+	}
+}
+
+// Test 15: Route pairs endpoint returns valid JSON
+func TestRoutePairsEndpointJSON(t *testing.T) {
+	vs := NewViewerServer()
+
+	vs.RecordRoutePair("route-1", "kafka-sink", "route-2", "kafka-source")
+	vs.RecordRoutePair("route-2", "http-sink", "route-3", "http-source")
+
+	// Test all pairs endpoint
+	req := httptest.NewRequest("GET", "/debug/route-pairs", nil)
+	w := httptest.NewRecorder()
+
+	vs.HandleRoutePairs(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+		t.Errorf("response is not valid JSON: %v", err)
+	}
+
+	if _, hasPairs := response["pairs"]; !hasPairs {
+		t.Errorf("response missing 'pairs' field")
+	}
+}
+
+// Test 16: Route pairs endpoint with query parameter
+func TestRoutePairsEndpointWithQuery(t *testing.T) {
+	vs := NewViewerServer()
+
+	vs.RecordRoutePair("route-1", "kafka-sink", "route-2", "kafka-source")
+	vs.RecordRoutePair("route-2", "http-sink", "route-3", "http-source")
+
+	// Test filtered pairs endpoint
+	req := httptest.NewRequest("GET", "/debug/route-pairs?route=route-1", nil)
+	w := httptest.NewRecorder()
+
+	vs.HandleRoutePairs(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Errorf("expected status 200, got %d", w.Code)
+	}
+
+	var response map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &response)
+
+	pairsData := response["pairs"].([]interface{})
+	if len(pairsData) != 1 {
+		t.Errorf("expected 1 pair for route-1, got %d", len(pairsData))
+	}
+}
