@@ -37,6 +37,18 @@ func LoadRouteConfig(path string) (*RouteConfig, error) {
 		return nil, fmt.Errorf("failed to parse YAML: %w", err)
 	}
 
+	// Preserve the original imports list before resolution
+	var originalImports []string
+	if importsVal, ok := rawConfig["imports"]; ok {
+		if importsList, ok := importsVal.([]interface{}); ok {
+			for _, imp := range importsList {
+				if impStr, ok := imp.(string); ok {
+					originalImports = append(originalImports, impStr)
+				}
+			}
+		}
+	}
+
 	// First, resolve named imports (imports: directive with fragment: references)
 	namedResolved, err := ResolveNamedImports(rawConfig, filepath.Dir(path))
 	if err != nil {
@@ -61,6 +73,9 @@ func LoadRouteConfig(path string) (*RouteConfig, error) {
 	if err := yaml.Unmarshal(resolvedYAML, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse resolved YAML: %w", err)
 	}
+
+	// Restore the original imports list for validation purposes
+	config.Imports = originalImports
 
 	// Validate against JSON Schema
 	if err := validateRouteConfig(&config); err != nil {

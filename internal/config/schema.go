@@ -3,6 +3,7 @@ package config
 // RouteConfig represents the complete route configuration loaded from YAML
 type RouteConfig struct {
 	Version        int                       `yaml:"version" json:"version"`
+	Imports        []string                  `yaml:"imports,omitempty" json:"imports,omitempty"`
 	Sources        map[string]SourceSpec     `yaml:"sources" json:"sources"`
 	Sinks          map[string]SinkSpec       `yaml:"sinks" json:"sinks"`
 	Routes         map[string]RouteSpec      `yaml:"routes" json:"routes"`

@@ -181,15 +181,35 @@ func checkAuthDeclaration(cfg *config.RouteConfig) []CritiqueFinding {
 func checkUnusedImports(cfg *config.RouteConfig) []CritiqueFinding {
 	var findings []CritiqueFinding
 
-	// Note: By the time we reach this check, imports have been resolved and expanded
-	// into actual steps. We can't detect "unused" imports directly from RouteConfig.
-	//
-	// This check is a placeholder for static analysis at the raw YAML level,
-	// which would require access to the original parsed YAML before fragment expansion.
-	// That analysis would be done in the loader or a separate lint pass.
-	//
-	// For now, this always returns empty findings as imports are validated during
-	// schema resolution and check-mandatory-fragments.sh catches missing imports.
+	// Check for unused imports
+	if len(cfg.Imports) == 0 {
+		return findings
+	}
+
+	// By the time we reach this check, fragments have been resolved and expanded into steps.
+	// We can detect if imports were declared but resulted in no steps being added.
+	// This is an indirect check: if imports exist but all routes have no steps or only
+	// explicitly-defined steps (not from fragments), the imports may be unused.
+
+	// Count total steps across all routes
+	var totalSteps int
+	for _, route := range cfg.Routes {
+		totalSteps += len(route.Steps)
+	}
+
+	// If there are imports but no steps, that's suspicious
+	if totalSteps == 0 && len(cfg.Imports) > 0 {
+		for _, importPath := range cfg.Imports {
+			findings = append(findings, CritiqueFinding{
+				Category: "clarity",
+				Severity: "info",
+				Path:     "$.imports",
+				Issue:    fmt.Sprintf("Unused import: '%s' (imported but no fragments referenced in routes)", importPath),
+				Action:   "Remove this import if no routes reference its fragments",
+				Example:  fmt.Sprintf("# Remove this line if not needed:\nimports:\n  # - %s", importPath),
+			})
+		}
+	}
 
 	return findings
 }

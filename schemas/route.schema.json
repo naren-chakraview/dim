@@ -17,6 +17,14 @@
       "description": "Route configuration version. Must be 1 for Phase 0.",
       "const": 1
     },
+    "imports": {
+      "type": "array",
+      "title": "Fragment Imports",
+      "description": "Paths to files containing named fragment definitions",
+      "items": {
+        "type": "string"
+      }
+    },
     "sources": {
       "type": "object",
       "title": "Message Sources",
