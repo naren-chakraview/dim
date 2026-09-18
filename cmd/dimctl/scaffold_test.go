@@ -45,6 +45,33 @@ func TestScaffoldGeneratesValidRoute(t *testing.T) {
 	tmpDir := t.TempDir()
 	originalDir, _ := os.Getwd()
 	defer os.Chdir(originalDir)
+
+	// Copy schema file to temp directory for config validation
+	// Find the project root by searching for go.mod or schemas directory
+	schemaDir := filepath.Join(tmpDir, "schemas")
+	os.MkdirAll(schemaDir, 0755)
+
+	// Try to find schema file relative to current directory (go up the tree)
+	var schemaPath string
+	for i := 0; i < 5; i++ {
+		testPath := filepath.Join(originalDir, strings.Repeat("../", i), "schemas/route.schema.json")
+		if _, err := os.Stat(testPath); err == nil {
+			schemaPath = testPath
+			break
+		}
+	}
+	if schemaPath == "" {
+		t.Fatalf("could not find schemas/route.schema.json in expected locations")
+	}
+
+	schemaData, err := os.ReadFile(schemaPath)
+	if err != nil {
+		t.Fatalf("failed to read schema file: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(schemaDir, "route.schema.json"), schemaData, 0644); err != nil {
+		t.Fatalf("failed to write schema file: %v", err)
+	}
+
 	os.Chdir(tmpDir)
 
 	// Copy governance fragments for validation
