@@ -50,6 +50,30 @@
     },
     {
       "config_schema": {
+        "type": "object"
+      },
+      "description": "Enforce schema contracts on message payloads",
+      "name": "contract",
+      "type": "step"
+    },
+    {
+      "config_schema": {
+        "type": "object"
+      },
+      "description": "Externalize large payloads to reduce memory usage",
+      "name": "claim_check",
+      "type": "step"
+    },
+    {
+      "config_schema": {
+        "type": "object"
+      },
+      "description": "Retrieve externalized payloads from claim check store",
+      "name": "claim_resolve",
+      "type": "step"
+    },
+    {
+      "config_schema": {
         "properties": {
           "type": {
             "enum": [
