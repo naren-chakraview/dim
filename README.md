@@ -2,7 +2,7 @@
 
 A declarative, configuration-driven integration middleware for routing, transforming, and auditing messages between systems — without code, configuration-first.
 
-**Status:** ✅ **Phase 0 Production Ready (v0.5.0, 2026-09-03)** | ✅ **Phase 1 Complete (v0.6.0)** | ✅ **Phase 2 Complete (v0.7.0-beta)** | ✅ **Phase 3 Complete (v0.8.0-beta)** | ✅ **Phase 4 Complete (v0.9.0-beta, 2026-09-09)** | ✅ **Phase 4 Remediation Complete (2026-09-17)**
+**Status:** ✅ **Phase 0 Production Ready (v0.5.0)** | ✅ **Phase 1 Complete (v0.6.0)** | ✅ **Phase 2 Complete (v0.7.0-beta)** | ✅ **Phase 3 Complete (v0.8.0-beta)** | ✅ **Phase 4 Complete (v0.9.0-beta)** | ✅ **Phase 4 Remediation Complete (v0.10.0, 2026-09-17)**
 
 - Phase 0: Complete. 440+ tests, security audit passed.
 - Phase 1 Track A: Complete (R1-R21). Governance, CLI, daemon, observability, schema registry, SFTP, OpenLineage dead-letter.
@@ -10,8 +10,8 @@ A declarative, configuration-driven integration middleware for routing, transfor
 - Phase 2 Track B: Complete (M2.1-M2.7). Aggregator, splitter, database adapters, fragment params, obligations/redaction, purge-log auto-export, static contract checking.
 - Phase 3: Complete (M3.1-M3.5). Distributed clustering (Postgres dedup, lineage), claim-check pattern (in-memory/S3), plugin SDK (native-Go, WASM), multi-tenant resource quotas, e2e release pipeline.
 - Phase 4: Complete (M4.1-M4.9). GitOps deployment, visual route authoring, agent-facing MCP interface, machine-readable capabilities, agent-assisted design, impact analysis.
-- **Phase 4 Remediation:** Complete (Tier 0-3, 28 items). Fixed fabricated success patterns, verified validation chains real, wired CI verification gates, indexed contract references, exposed impact queries via agent interface.
-  - **Pass 2 (2026-09-17):** Fixed 5 critical residual issues where operations silently dropped work: test_route zero-fixtures fake-pass, studio add/remove silent no-op, fragment lint checked raw source not compiled, domain secrets test pinned cross-domain access, manifest generator off-by-two bug.
+- **Phase 4 Remediation:** Complete (11 items, all merged). Fixed security bypass in domain secrets, studio silent no-ops, phantom adapters in manifest, plus 8 quick wins (hot reload verification, scaffold auth, catalog filters, studio schemas, viewer pairing, bundle cleanup, unused imports detection, impact analysis enhancements).
+  - **All items:** Domain-scoped secrets ✅ | Studio no-ops ✅ | Manifest wiring ✅ | Hot reload ✅ | Scaffold auth ✅ | Catalog filters ✅ | Studio schemas ✅ | Viewer pairing ✅ | Dead bundles ✅ | Unused imports ✅ | Impact analysis ✅
 
 ## What is dim?
 
