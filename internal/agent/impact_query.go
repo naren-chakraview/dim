@@ -53,12 +53,14 @@ func QueryImpact(req ImpactQueryRequest, index *lineage.RouteImpactIndex) (*Impa
 		refs = index.SinkReferences[req.ChangeName]
 	case "source":
 		refs = index.SourceReferences[req.ChangeName]
+	case "connection":
+		refs = index.ConnectionReferences[req.ChangeName]
 	case "step-type":
 		refs = index.StepTypeReferences[req.ChangeName]
 	default:
 		return nil, &OperationErr{
 			Code:    "INVALID_REQUEST",
-			Message: fmt.Sprintf("unknown change_type: %s", req.ChangeType),
+			Message: fmt.Sprintf("unknown change_type: %s (supported: contract, sink, source, connection, step-type)", req.ChangeType),
 		}
 	}
 

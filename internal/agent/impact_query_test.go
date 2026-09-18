@@ -165,6 +165,77 @@ func TestQuerySinkImpact(t *testing.T) {
 	}
 }
 
+func TestQueryConnectionImpact(t *testing.T) {
+	// Test that connection type is supported
+	index := &lineage.RouteImpactIndex{
+		ConnectionReferences: map[string][]lineage.ImpactReference{
+			"kafka-cluster": {
+				{SourceType: "route", SourceName: "route1", TargetType: "connection", TargetName: "kafka-cluster", IsStatic: false, Uncertainty: "dynamic reference"},
+			},
+		},
+		ContractReferences:   make(map[string][]lineage.ImpactReference),
+		SinkReferences:       make(map[string][]lineage.ImpactReference),
+		SourceReferences:     make(map[string][]lineage.ImpactReference),
+		StepTypeReferences:   make(map[string][]lineage.ImpactReference),
+	}
+
+	req := ImpactQueryRequest{
+		ChangeType: "connection",
+		ChangeName: "kafka-cluster",
+	}
+
+	resp, err := QueryImpact(req, index)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(resp.UncertainRefs) != 1 {
+		t.Fatalf("expected 1 uncertain reference, got %d", len(resp.UncertainRefs))
+	}
+
+	if resp.Confidence != 0.0 {
+		t.Fatalf("expected 0%% confidence (all dynamic), got %.0f%%", resp.Confidence*100)
+	}
+}
+
+func TestQueryStepLevelContractImpact(t *testing.T) {
+	// Test step-level contract indexing
+	// When a contract step references a contract ID, it should be indexed
+	index := &lineage.RouteImpactIndex{
+		ContractReferences: map[string][]lineage.ImpactReference{
+			"payment-schema": {
+				// Reference from a contract step
+				{
+					SourceType: "step",
+					SourceName: "validate-payments.steps[0].contract",
+					TargetType: "contract",
+					TargetName: "payment-schema",
+					IsStatic:   true,
+				},
+			},
+		},
+		SinkReferences:       make(map[string][]lineage.ImpactReference),
+		SourceReferences:     make(map[string][]lineage.ImpactReference),
+		ConnectionReferences: make(map[string][]lineage.ImpactReference),
+		StepTypeReferences:   make(map[string][]lineage.ImpactReference),
+	}
+
+	req := ImpactQueryRequest{
+		ChangeType: "contract",
+		ChangeName: "payment-schema",
+	}
+
+	resp, err := QueryImpact(req, index)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Even though source is "step", we should find the reference
+	if len(resp.References) != 1 {
+		t.Fatalf("expected 1 reference, got %d", len(resp.References))
+	}
+}
+
 func TestImpactLevelCalculation(t *testing.T) {
 	tests := []struct {
 		routeCount int
