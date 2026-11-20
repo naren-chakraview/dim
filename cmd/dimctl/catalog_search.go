@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"time"
 )
@@ -42,13 +43,23 @@ func NewOpenLineageClient() *OpenLineageClient {
 	}
 }
 
-func (c *ApicurioClient) QueryContracts(ctx context.Context, subject string) ([]CatalogResult, error) {
-	url := fmt.Sprintf("%s/apis/registry/v2/search/artifacts", c.baseURL)
+// QueryContracts searches the Apicurio registry. A non-empty group restricts the
+// search to that registry group, which is how a domain maps onto contracts: the
+// registry does the filtering, and each result is labelled with that group.
+func (c *ApicurioClient) QueryContracts(ctx context.Context, subject, group string) ([]CatalogResult, error) {
+	params := url.Values{}
 	if subject != "" {
-		url += "?search=" + subject
+		params.Set("search", subject)
+	}
+	if group != "" {
+		params.Set("group", group)
+	}
+	reqURL := fmt.Sprintf("%s/apis/registry/v2/search/artifacts", c.baseURL)
+	if len(params) > 0 {
+		reqURL += "?" + params.Encode()
 	}
 
-	req, _ := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, _ := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	resp, err := c.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("apicurio request failed: %w", err)
@@ -59,22 +70,24 @@ func (c *ApicurioClient) QueryContracts(ctx context.Context, subject string) ([]
 		return nil, fmt.Errorf("apicurio returned %d", resp.StatusCode)
 	}
 
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("apicurio response read failed: %w", err)
+	}
 	var apicurioResp ApicurioResponse
-	body, _ := io.ReadAll(resp.Body)
 	if err := json.Unmarshal(body, &apicurioResp); err != nil {
-		return nil, nil
+		// An unreadable body must not look like "no contracts".
+		return nil, fmt.Errorf("apicurio returned an unreadable response: %w", err)
 	}
 
 	var results []CatalogResult
 	for _, artifact := range apicurioResp.Artifacts {
-		// Note: Apicurio API doesn't currently return artifact update time
-		// in the search results endpoint; Updated field left empty
-		// TODO: Query full artifact details to get actual UpdatedOn timestamp
 		results = append(results, CatalogResult{
 			Type:    "contract",
 			Name:    artifact.ID,
+			Domain:  group,
 			Subject: artifact.ID,
-			Updated: "", // Not fabricated; actual timestamp requires additional API call
+			Updated: "", // Not fabricated; the search response does not carry an update time
 			URL:     fmt.Sprintf("%s/ui/artifacts/%s", c.baseURL, artifact.ID),
 		})
 	}
@@ -98,12 +111,16 @@ func (c *OpenLineageClient) QueryDatasets(ctx context.Context, domain string) ([
 		return nil, fmt.Errorf("openlineage returned %d", resp.StatusCode)
 	}
 
-	var results []CatalogResult
-	body, _ := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("openlineage response read failed: %w", err)
+	}
 	var datasets []OpenLineageDataset
 	if err := json.Unmarshal(body, &datasets); err != nil {
-		return results, nil
+		return nil, fmt.Errorf("openlineage returned an unreadable response: %w", err)
 	}
+
+	var results []CatalogResult
 
 	for _, ds := range datasets {
 		results = append(results, CatalogResult{
@@ -124,20 +141,12 @@ func Search(ctx context.Context, query, filterType, filterDomain, filterConnType
 	openlineage := NewOpenLineageClient()
 
 	if filterType == "" || filterType == "contract" {
-		contracts, err := apicurio.QueryContracts(ctx, query)
+		// The domain filter is applied by the registry (group), not by comparing a
+		// field the query never fills in.
+		contracts, err := apicurio.QueryContracts(ctx, query, filterDomain)
 		if err != nil {
 			// Distinguish between "no results" and "registry unreachable"
 			return nil, fmt.Errorf("registry unreachable: %w", err)
-		}
-		// Filter by domain if specified
-		if filterDomain != "" {
-			var filtered []CatalogResult
-			for _, c := range contracts {
-				if c.Domain == filterDomain {
-					filtered = append(filtered, c)
-				}
-			}
-			contracts = filtered
 		}
 		results.Results = append(results.Results, contracts...)
 	}
