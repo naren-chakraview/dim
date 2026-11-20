@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -36,54 +35,8 @@ func serveAgent(addr string) error {
 	// Create MCP server
 	mcpServer := agent.NewMCPServer()
 
-	// Create HTTP server that wraps MCP protocol
-	mux := http.NewServeMux()
-
-	// Health check endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
-		response := mcpServer.TestConnection(ctx)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-	})
-
-	// List operations endpoint
-	mux.HandleFunc("/operations", func(w http.ResponseWriter, r *http.Request) {
-		operations := mcpServer.ListOperations()
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"operations": operations,
-		})
-	})
-
-	// Call operation endpoint
-	mux.HandleFunc("/call", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		var req struct {
-			Operation string          `json:"operation"`
-			Request   json.RawMessage `json:"request"`
-		}
-
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, fmt.Sprintf("Invalid request: %v", err), http.StatusBadRequest)
-			return
-		}
-
-		// Execute operation with timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-
-		response := mcpServer.CallOperation(ctx, req.Operation, req.Request)
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-	})
+	// Every wire protocol (MCP, A2A, REST) is served by the agent package.
+	mux := mcpServer.Handler()
 
 	// Create HTTP server
 	server := &http.Server{

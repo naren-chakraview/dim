@@ -159,6 +159,17 @@ func (s *MCPServer) CallOperation(ctx context.Context, operationName string, raw
 		}
 	}
 
+	// Reject a request the operation's schema does not describe, before it runs. An
+	// unknown field would otherwise be dropped silently and the operation would run
+	// with defaults.
+	if opErr := checkRequestFields(operationName, rawRequest); opErr != nil {
+		return &ResponseEnvelope{
+			InterfaceVersion: s.version,
+			Timestamp:        time.Now().UTC(),
+			Error:            opErr,
+		}
+	}
+
 	// Call the operation handler
 	result, opErr := operation.Handler(ctx, rawRequest)
 
