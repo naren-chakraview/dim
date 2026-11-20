@@ -102,7 +102,8 @@ func TestSchemaAdapterEnumMatchesImplementedAdapters(t *testing.T) {
 		t.Fatal(err)
 	}
 	// internal/adapters/{http,file,s3,kafka,amqp,database}: each has a source and a sink.
-	want := []string{"amqp", "database", "file", "http", "kafka", "s3"}
+	// sftp is a source type served by the file adapter's SFTP mode (file.NewSFTPSource).
+	want := []string{"amqp", "database", "file", "http", "kafka", "s3", "sftp"}
 	sorted := append([]string(nil), got...)
 	sort.Strings(sorted)
 	if !reflect.DeepEqual(sorted, want) {
@@ -143,8 +144,8 @@ func TestServedCatalogCounts(t *testing.T) {
 	for _, c := range resp.Capabilities {
 		counts[c.Type]++
 	}
-	if counts["adapter"] != 12 || counts["step"] != 9 || counts["eip"] != 4 {
-		t.Errorf("counts = %v, want adapter=12 step=9 eip=4", counts)
+	if counts["adapter"] != 14 || counts["step"] != 9 || counts["eip"] != 4 {
+		t.Errorf("counts = %v, want adapter=14 step=9 eip=4", counts)
 	}
 }
 
