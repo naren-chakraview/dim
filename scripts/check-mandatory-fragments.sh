@@ -28,6 +28,15 @@ for FILE in $ROUTE_FILES; do
     continue
   fi
 
+  # The route must reference the fragment itself, as an uncommented step item.
+  # The compiled-output check alone is fooled by an inline authorize block with the
+  # same policy text, which would pass without the mandatory fragment.
+  if ! grep -qE '^[[:space:]]*-[[:space:]]*fragment:[[:space:]]*governance-baseline[[:space:]]*$' "$FILE"; then
+    echo "  FAIL: $FILE does not reference the governance-baseline fragment (uncommented '- fragment: governance-baseline' step)"
+    FAILED=1
+    continue
+  fi
+
   # Use dimctl resolve to check the COMPILED route (not raw source)
   RESOLVED=$(go run ./cmd/dimctl resolve "$FILE" 2>&1) || {
     echo "  FAIL: $FILE failed to resolve"
@@ -38,7 +47,7 @@ for FILE in $ROUTE_FILES; do
   # Check if the resolved output contains the authorize step from governance-baseline
   # The governance-baseline fragment injects: authorize: mode: rbac
   if echo "$RESOLVED" | grep -q "mode: rbac"; then
-    echo "  OK: $FILE (governance-baseline resolved)"
+    echo "  OK: $FILE (governance-baseline referenced and resolved)"
   else
     echo "  FAIL: $FILE does not contain governance-baseline in resolved output"
     FAILED=1
