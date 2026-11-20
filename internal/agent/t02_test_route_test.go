@@ -2,14 +2,31 @@ package agent
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
 
+// isolatePipelinePort gives this test its own HTTP port. TestRoute's pipeline
+// always opens an HTTP source, and the default 8080 is shared with other packages
+// that run in parallel under `go test ./...`.
+func isolatePipelinePort(t *testing.T) {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	t.Setenv("DIM_HTTP_PORT", strconv.Itoa(port))
+}
+
 func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
+	isolatePipelinePort(t)
 	// T0.2 Proof: TestRoute now actually runs fixtures via the real fixture runner,
 	// not just checking if fixtures exist. A route with failing fixtures
 	// correctly returns passed: false.
@@ -135,6 +152,7 @@ func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
 }
 
 func TestT02_TestRouteRejectsEmptyFixtures(t *testing.T) {
+	isolatePipelinePort(t)
 	// T0.2 Critical fix: TestRoute must reject zero fixtures with an explicit error,
 	// not return passed: true (the original fake-pass bug)
 
@@ -196,6 +214,7 @@ routes:
 }
 
 func TestT02_TestRouteReturnsErrors(t *testing.T) {
+	isolatePipelinePort(t)
 	// Verify that pipeline build failures and other real errors are returned,
 	// not silently masked
 
