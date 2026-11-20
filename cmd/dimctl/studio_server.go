@@ -9,7 +9,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -54,13 +53,26 @@ func StartServer(port int, workDir string) error {
 		log.Printf("Warning: could not watch domains directory: %v", err)
 	}
 
-	// Set up HTTP routes
-	http.HandleFunc("/api/routes", server.handleGetRoutes)
-	http.HandleFunc("/api/routes/", server.handleSaveRoute)
-	http.HandleFunc("/api/route", server.handleGetRoute)
-	http.HandleFunc("/api/save", server.handleSave)
-	http.HandleFunc("/api/schema", server.handleGetSchema)
-	http.HandleFunc("/api/validate", server.handleValidate)
+	// Set up HTTP routes (the same mux the tests exercise)
+	mux := server.newMux()
+
+	// Start file watcher in background
+	go server.watchFiles()
+
+	addr := fmt.Sprintf("localhost:%d", port)
+	log.Printf("Studio running at http://%s", addr)
+	return http.ListenAndServe(addr, mux)
+}
+
+// newMux registers every studio route. StartServer serves this mux, so tests
+// that drive it exercise exactly the routes the UI calls.
+func (s *StudioServer) newMux() *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/routes", s.handleGetRoutes)
+	mux.HandleFunc("/api/route", s.handleGetRoute)
+	mux.HandleFunc("/api/save", s.handleSave)
+	mux.HandleFunc("/api/schema", s.handleGetSchema)
+	mux.HandleFunc("/api/validate", s.handleValidate)
 
 	// Serve embedded web assets (React app)
 	distFS, err := fs.Sub(webAssets, "web_dist")
@@ -68,29 +80,38 @@ func StartServer(port int, workDir string) error {
 		log.Printf("Warning: could not embed web assets: %v", err)
 	} else {
 		fsHandler := http.FileServer(http.FS(distFS))
-		http.HandleFunc("/", server.handleSPA(fsHandler))
+		mux.HandleFunc("/", s.handleSPA(fsHandler))
 	}
-
-	// Start file watcher in background
-	go server.watchFiles()
-
-	addr := fmt.Sprintf("localhost:%d", port)
-	log.Printf("Studio running at http://%s", addr)
-	return http.ListenAndServe(addr, nil)
+	return mux
 }
 
 // validateRouteData performs in-process validation of a route configuration.
 // Returns (valid, errors, warnings, routeVersion, error).
 // Uses the same validation as dimctl validate command.
-func (s *StudioServer) validateRouteData(route map[string]interface{}, wrapper *YAMLNodeWrapper) (bool, []string, []string, string, error) {
-	// Reconstruct YAML from the route data, using the node wrapper to preserve order/comments
-	yamlStr, err := ReconstructYAML(route, wrapper)
+//
+// validationDir is the directory the route will live in. Relative imports
+// (e.g. ../governance/fragments.yaml) resolve against the directory of the file
+// being validated, so the temp file MUST live beside the real route file.
+func (s *StudioServer) validateRouteData(route map[string]interface{}, wrapper *YAMLNodeWrapper, validationDir string) (bool, []string, []string, string, error) {
+	// The temp file is only ever validated, never written to a route file. With a
+	// source node we use the exact bytes the save would write; in-editor validation
+	// (no file) has no node and uses the validation-only serializer.
+	var yamlStr string
+	var err error
+	if wrapper != nil {
+		yamlStr, err = ReconstructYAML(route, wrapper)
+	} else {
+		yamlStr, err = marshalForValidation(route)
+	}
 	if err != nil {
 		return false, []string{fmt.Sprintf("Failed to reconstruct YAML: %v", err)}, []string{}, "", nil
 	}
 
 	// Write to a temporary file for validation
-	tempFile := filepath.Join(s.workDir, ".studio_validate_temp.yaml")
+	if validationDir == "" {
+		validationDir = s.workDir
+	}
+	tempFile := filepath.Join(validationDir, ".studio_validate_temp.yaml")
 	if err := ioutil.WriteFile(tempFile, []byte(yamlStr), 0644); err != nil {
 		return false, []string{fmt.Sprintf("Failed to write temp file: %v", err)}, []string{}, "", nil
 	}
@@ -161,68 +182,6 @@ func (s *StudioServer) handleGetRoutes(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(response)
-}
-
-func (s *StudioServer) handleSaveRoute(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var editData map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&editData); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	routeName := r.URL.Query().Get("route")
-	if routeName == "" {
-		http.Error(w, "route parameter required", http.StatusBadRequest)
-		return
-	}
-
-	// Reconstruct YAML (no wrapper since this is from handleSaveRoute)
-	yamlStr, err := ReconstructYAML(editData, nil)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	// Write temp file and validate
-	tempPath := filepath.Join(s.workDir, ".studio_temp.yaml")
-	if err := ioutil.WriteFile(tempPath, []byte(yamlStr), 0644); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	// Run dimctl validate
-	cmd := exec.Command("go", "run", "./cmd/dimctl", "validate", tempPath)
-	cmd.Dir = s.workDir
-	if err := cmd.Run(); err != nil {
-		os.Remove(tempPath)
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"validation_failed","error":"%s"}`, err.Error())
-		return
-	}
-
-	// Validation passed; write to actual file
-	// For now, we'll look for the route in the routes map and save to its file path
-	routes, _ := DiscoverRoutes(s.workDir)
-	if route, ok := routes[routeName]; ok {
-		if err := ioutil.WriteFile(route.FilePath, []byte(yamlStr), 0644); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	} else {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status":"error","error":"route not found"}`)
-		return
-	}
-
-	os.Remove(tempPath)
-
-	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"status":"ok","message":"Route saved and validated"}`)
 }
 
 func (s *StudioServer) watchFiles() {
@@ -296,7 +255,8 @@ func (s *StudioServer) handleSave(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Find the route by name to get its wrapper
+	// The file must be an existing discovered route. There is no fallback that
+	// re-serializes without the original node tree: that would drop comments.
 	var wrapper *YAMLNodeWrapper
 	for _, route := range routes {
 		if route.FilePath == req.FilePath {
@@ -304,9 +264,19 @@ func (s *StudioServer) handleSave(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 	}
+	if wrapper == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"valid":   false,
+			"errors":  []string{fmt.Sprintf("save refused: %q is not a discovered route file; nothing was written", req.FilePath)},
+		})
+		return
+	}
 
-	// Perform real validation before saving
-	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route, wrapper)
+	// Validate beside the real route file so relative imports resolve correctly.
+	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route, wrapper, filepath.Dir(req.FilePath))
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -391,7 +361,7 @@ func (s *StudioServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Perform real in-process validation (no wrapper for in-editor validation)
-	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route, nil)
+	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route, nil, "")
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Validation error: %v", err), http.StatusInternalServerError)
 		return
