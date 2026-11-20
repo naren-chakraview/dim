@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
@@ -22,6 +23,10 @@ type FileSource struct {
 	config         SourceConfig
 	outChan        *engine.Channel
 	closed         chan struct{}
+	lifecycle      sync.Mutex // guards running and stopped
+	running        bool       // Start's loop is active
+	stopped        bool       // Close has been called
+	closeOnce      sync.Once
 	pollTicker     *time.Ticker
 	lastModTime    map[string]time.Time
 	pending        map[string]pendingFile // versions seen but not yet settled
@@ -122,6 +127,14 @@ func NewSFTPSourceWithDomain(host string, port int, user string, password string
 // Start begins polling the configured directory for new files.
 // It blocks until the context is cancelled.
 func (fs *FileSource) Start(ctx context.Context) error {
+	fs.lifecycle.Lock()
+	if fs.stopped {
+		fs.lifecycle.Unlock()
+		return nil // Close ran before Start: nothing to poll
+	}
+	fs.running = true
+	fs.lifecycle.Unlock()
+
 	// Initial poll
 	if err := fs.poll(ctx); err != nil {
 		log.Printf("[WARN] initial poll failed: %v", err)
@@ -136,7 +149,7 @@ func (fs *FileSource) Start(ctx context.Context) error {
 			}
 		case <-ctx.Done():
 			fs.pollTicker.Stop()
-			close(fs.closed)
+			fs.signalClosed()
 			return ctx.Err()
 		}
 	}
@@ -402,9 +415,26 @@ func (fs *FileSource) pollSFTP(ctx context.Context) error {
 	return nil
 }
 
-// Close closes the file source and stops polling
+// Close stops polling. If Start is running, Close waits for its loop to exit, which
+// happens once its context is cancelled. A source that was built but never started
+// (test_route builds pipelines this way) returns at once, instead of waiting for a
+// loop that never runs.
 func (fs *FileSource) Close() error {
+	fs.lifecycle.Lock()
+	fs.stopped = true
+	running := fs.running
+	fs.lifecycle.Unlock()
+
 	fs.pollTicker.Stop()
+	if !running {
+		fs.signalClosed()
+		return nil
+	}
 	<-fs.closed
 	return nil
+}
+
+// signalClosed closes fs.closed exactly once.
+func (fs *FileSource) signalClosed() {
+	fs.closeOnce.Do(func() { close(fs.closed) })
 }
