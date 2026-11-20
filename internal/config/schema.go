@@ -4,6 +4,7 @@ package config
 type RouteConfig struct {
 	Version       int                   `yaml:"version" json:"version"`
 	Imports       []string              `yaml:"imports,omitempty" json:"imports,omitempty"`
+	UnusedImports []string              `yaml:"-" json:"-"` // declared imports no route referenced (set by LoadRouteConfig)
 	Sources       map[string]SourceSpec `yaml:"sources" json:"sources"`
 	Sinks         map[string]SinkSpec   `yaml:"sinks" json:"sinks"`
 	Routes        map[string]RouteSpec  `yaml:"routes" json:"routes"`

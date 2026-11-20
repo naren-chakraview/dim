@@ -50,7 +50,7 @@ func LoadRouteConfig(path string) (*RouteConfig, error) {
 	}
 
 	// First, resolve named imports (imports: directive with fragment: references)
-	namedResolved, err := ResolveNamedImports(rawConfig, filepath.Dir(path))
+	namedResolved, unusedImports, err := ResolveNamedImportsDetailed(rawConfig, filepath.Dir(path))
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve named imports: %w", err)
 	}
@@ -76,6 +76,7 @@ func LoadRouteConfig(path string) (*RouteConfig, error) {
 
 	// Restore the original imports list for validation purposes
 	config.Imports = originalImports
+	config.UnusedImports = unusedImports
 
 	// Validate against JSON Schema
 	if err := validateRouteConfig(&config); err != nil {
