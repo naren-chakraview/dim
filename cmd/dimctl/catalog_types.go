@@ -20,9 +20,11 @@ type SearchResults struct {
 }
 
 type ApicurioArtifact struct {
-	ID      string `json:"id"`
-	Type    string `json:"type"`
-	Content string `json:"content,omitempty"`
+	ID         string `json:"id"`
+	Type       string `json:"type"`
+	Content    string `json:"content,omitempty"`
+	GroupID    string `json:"groupId,omitempty"`
+	ModifiedOn string `json:"modifiedOn,omitempty"`
 }
 
 type ApicurioResponse struct {
