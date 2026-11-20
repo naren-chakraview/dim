@@ -434,13 +434,22 @@ func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteCo
 	// Track which sinks we've already created to avoid duplicates
 	createdSinks := make(map[string]bool)
 
+	// Every route writes to one shared output channel, and to one shared error
+	// channel per error sink. Each sink is created once and reads its shared
+	// channel, so all routes reach it. (A channel per route would connect only the
+	// first route to the sink, and the others' results would never be written.)
+	outputCh := engine.NewChannel("executors-to-output-sink", 100)
+	errorChs := make(map[string]*engine.Channel)
+
 	// First pass: create all route executors wrapped in generation managers and sinks
 	for routeName, routeSpec := range cfg.Routes {
-		// Create channels for this route
-		outputCh := engine.NewChannel(fmt.Sprintf("executor-%s-to-sink", routeName), 100)
 		var errorCh *engine.Channel
 		if routeSpec.ErrorPath != nil {
-			errorCh = engine.NewChannel(fmt.Sprintf("executor-%s-to-error-sink", routeName), 100)
+			target := routeSpec.ErrorPath.Target
+			if errorChs[target] == nil {
+				errorChs[target] = engine.NewChannel(fmt.Sprintf("executors-to-error-sink-%s", target), 100)
+			}
+			errorCh = errorChs[target]
 		}
 
 		// Build contract store from route config (M0.3.5)
@@ -538,7 +547,7 @@ func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteCo
 					errorSinkPath = "./output/errors.jsonl"
 				}
 
-				errorSink, err := file.NewFileSink(errorSinkPath, errorCh)
+				errorSink, err := file.NewFileSink(errorSinkPath, errorChs[errorSinkName])
 				if err != nil {
 					return nil, nil, nil, nil, fmt.Errorf("failed to create error sink for route %q: %w", routeName, err)
 				}
