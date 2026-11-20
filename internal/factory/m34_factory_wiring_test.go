@@ -2,6 +2,8 @@ package factory
 
 import (
 	"context"
+	"net"
+	"strconv"
 	"testing"
 
 	"github.com/naren-chakraview/dim/internal/config"
@@ -46,13 +48,11 @@ func TestSingleRouteWithTenantManager(t *testing.T) {
 		t.Fatalf("RegisterTenant failed: %v", err)
 	}
 
-	// Build pipeline with tenant manager (M3.4+)
+	// Build pipeline with tenant manager (M3.4+). The route's HTTP ingest port is
+	// isolated: 8080 is often held by another process, and tests must not depend on it.
+	t.Setenv("DIM_HTTP_PORT", freeTCPPort(t))
 	executor, _, _, _, _, _, err := BuildSingleRoutePipelineWithTracing(ctx, cfg, nil, tenantManager)
 	if err != nil {
-		// Port 8080 may be in use during concurrent test runs; skip in that case
-		if errStr := err.Error(); errStr == "failed to create HTTP source: failed to listen on port 8080: listen tcp :8080: bind: address already in use" {
-			t.Skip("Port 8080 in use; skipping")
-		}
 		t.Fatalf("BuildSingleRoutePipelineWithTracing failed: %v", err)
 	}
 
@@ -108,4 +108,16 @@ func TestTenantManagerRegistration(t *testing.T) {
 	if len(names) != 2 {
 		t.Errorf("Expected 2 tenants, got %d", len(names))
 	}
+}
+
+// freeTCPPort returns a loopback port nothing is listening on right now.
+func freeTCPPort(t *testing.T) string {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	return strconv.Itoa(port)
 }

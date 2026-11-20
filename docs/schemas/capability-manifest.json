@@ -177,6 +177,94 @@
       "description": "file sink adapter"
     },
     {
+      "name": "sftp-source",
+      "type": "adapter",
+      "config_schema": {
+        "description": "A named message input (HTTP, file, etc.)",
+        "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sources (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sources",
+            "title": "File Path",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "sftp"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sources",
+            "title": "URL",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "Source Adapter",
+        "type": "object"
+      },
+      "description": "sftp source adapter"
+    },
+    {
+      "name": "sftp-sink",
+      "type": "adapter",
+      "config_schema": {
+        "description": "A named message output (HTTP, file, etc.)",
+        "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sinks (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sinks",
+            "title": "File Path",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "sftp"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sinks",
+            "title": "URL",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "Sink Adapter",
+        "type": "object"
+      },
+      "description": "sftp sink adapter"
+    },
+    {
       "name": "s3-source",
       "type": "adapter",
       "config_schema": {

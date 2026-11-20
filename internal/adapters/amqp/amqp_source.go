@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/naren-chakraview/dim/internal/secrets"
 	"log"
 	"sync"
 	"time"
@@ -266,4 +267,18 @@ func (as *AMQPSource) Checkpoint() (interface{}, error) {
 	return map[string]interface{}{
 		"messages_consumed": as.messageCount,
 	}, nil
+}
+
+// NewAMQPSourceWithDomain is NewAMQPSource with domain-scoped secret resolution: the
+// URL and queue name are resolved for domain and refused if they cannot be.
+func NewAMQPSourceWithDomain(url, queueName string, outChan *engine.Channel, domain string, resolver *secrets.Resolver) (*AMQPSource, error) {
+	urlV, err := secrets.ResolveScoped(resolver, domain, url)
+	if err != nil {
+		return nil, fmt.Errorf("amqp url: %w", err)
+	}
+	queueV, err := secrets.ResolveScoped(resolver, domain, queueName)
+	if err != nil {
+		return nil, fmt.Errorf("amqp queue: %w", err)
+	}
+	return NewAMQPSource(urlV, queueV, outChan)
 }

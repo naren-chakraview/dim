@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
@@ -22,10 +23,16 @@ type FileSource struct {
 	config         SourceConfig
 	outChan        *engine.Channel
 	closed         chan struct{}
+	lifecycle      sync.Mutex // guards running and stopped
+	running        bool       // Start's loop is active
+	stopped        bool       // Close has been called
+	closeOnce      sync.Once
 	pollTicker     *time.Ticker
 	lastModTime    map[string]time.Time
-	domain         string            // domain context for this source (used for secret resolution)
-	secretResolver *secrets.Resolver // optional domain-scoped secret resolver
+	pending        map[string]pendingFile // versions seen but not yet settled
+	settle         time.Duration          // settle window; zero means defaultSettleWindow
+	domain         string                 // domain context for this source (used for secret resolution)
+	secretResolver *secrets.Resolver      // optional domain-scoped secret resolver
 }
 
 // SourceConfig defines configuration for file polling
@@ -120,6 +127,14 @@ func NewSFTPSourceWithDomain(host string, port int, user string, password string
 // Start begins polling the configured directory for new files.
 // It blocks until the context is cancelled.
 func (fs *FileSource) Start(ctx context.Context) error {
+	fs.lifecycle.Lock()
+	if fs.stopped {
+		fs.lifecycle.Unlock()
+		return nil // Close ran before Start: nothing to poll
+	}
+	fs.running = true
+	fs.lifecycle.Unlock()
+
 	// Initial poll
 	if err := fs.poll(ctx); err != nil {
 		log.Printf("[WARN] initial poll failed: %v", err)
@@ -134,7 +149,7 @@ func (fs *FileSource) Start(ctx context.Context) error {
 			}
 		case <-ctx.Done():
 			fs.pollTicker.Stop()
-			close(fs.closed)
+			fs.signalClosed()
 			return ctx.Err()
 		}
 	}
@@ -193,7 +208,21 @@ func (fs *FileSource) pollLocal(ctx context.Context) error {
 
 		lastMod := info.ModTime()
 		if lastModTime, exists := fs.lastModTime[fullPath]; exists && lastMod.Equal(lastModTime) {
-			// File hasn't been modified since last poll
+			// This version of the file has already been emitted
+			continue
+		}
+
+		// Wait until the file is settled before reading it. A producer writing in place
+		// is still writing while its size or mtime changes, so reading it then would emit
+		// partial (or empty) content.
+		if !fs.isSettled(fullPath, info.Size(), lastMod) {
+			continue
+		}
+
+		if info.Size() == 0 {
+			log.Printf("[WARN] skipping empty file %s (settled at size 0)", fullPath)
+			fs.lastModTime[fullPath] = lastMod
+			delete(fs.pending, fullPath)
 			continue
 		}
 
@@ -201,6 +230,13 @@ func (fs *FileSource) pollLocal(ctx context.Context) error {
 		data, err := os.ReadFile(fullPath)
 		if err != nil {
 			log.Printf("[WARN] failed to read file %s: %v", fullPath, err)
+			continue
+		}
+
+		// The file must not have changed while it was being read. If it did, its new
+		// version starts a new settle window on the next poll.
+		if after, err := os.Stat(fullPath); err != nil || after.Size() != int64(len(data)) || !after.ModTime().Equal(lastMod) {
+			delete(fs.pending, fullPath)
 			continue
 		}
 
@@ -216,6 +252,7 @@ func (fs *FileSource) pollLocal(ctx context.Context) error {
 			continue
 		}
 		fs.lastModTime[fullPath] = lastMod
+		delete(fs.pending, fullPath)
 
 		// Move file to processed directory if configured
 		if fs.config.ProcessedDir != "" {
@@ -228,6 +265,38 @@ func (fs *FileSource) pollLocal(ctx context.Context) error {
 
 	return nil
 }
+
+// isSettled reports whether a file has kept the same size and mtime for at least the
+// settle window. The first time a version is seen, it starts the window and is not
+// yet settled.
+func (fs *FileSource) isSettled(path string, size int64, mtime time.Time) bool {
+	if fs.pending == nil {
+		fs.pending = make(map[string]pendingFile)
+	}
+	p, seen := fs.pending[path]
+	if !seen || p.size != size || !p.mtime.Equal(mtime) {
+		fs.pending[path] = pendingFile{size: size, mtime: mtime, since: time.Now()}
+		return false
+	}
+	return time.Since(p.since) >= fs.settleWindow()
+}
+
+func (fs *FileSource) settleWindow() time.Duration {
+	if fs.settle > 0 {
+		return fs.settle
+	}
+	return defaultSettleWindow
+}
+
+// pendingFile is a file version that has been seen but not yet settled.
+type pendingFile struct {
+	size  int64
+	mtime time.Time
+	since time.Time
+}
+
+// defaultSettleWindow is how long a file must stay unchanged before it is read.
+const defaultSettleWindow = time.Second
 
 // pollSFTP polls an SFTP server for new files (R21.2).
 // Supports both password and private-key authentication.
@@ -346,9 +415,26 @@ func (fs *FileSource) pollSFTP(ctx context.Context) error {
 	return nil
 }
 
-// Close closes the file source and stops polling
+// Close stops polling. If Start is running, Close waits for its loop to exit, which
+// happens once its context is cancelled. A source that was built but never started
+// (test_route builds pipelines this way) returns at once, instead of waiting for a
+// loop that never runs.
 func (fs *FileSource) Close() error {
+	fs.lifecycle.Lock()
+	fs.stopped = true
+	running := fs.running
+	fs.lifecycle.Unlock()
+
 	fs.pollTicker.Stop()
+	if !running {
+		fs.signalClosed()
+		return nil
+	}
 	<-fs.closed
 	return nil
+}
+
+// signalClosed closes fs.closed exactly once.
+func (fs *FileSource) signalClosed() {
+	fs.closeOnce.Do(func() { close(fs.closed) })
 }

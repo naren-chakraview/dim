@@ -85,7 +85,7 @@ func (a *FileSinkAdapter) Stop() error {
 // It reads from a source channel and sends to the appropriate executor's input channel.
 // Updated for M0.2.10: works with GenerationManager for hot reload support.
 type MessageRouter struct {
-	sourceOutCh    *engine.Channel
+	inputs         []RouterInput
 	generationMgrs map[string]*engine.GenerationManager
 	defaultRoute   string
 	ctx            context.Context
@@ -93,28 +93,46 @@ type MessageRouter struct {
 	wg             sync.WaitGroup
 }
 
-// NewMessageRouter creates a new router for multi-route scenarios.
-// It reads from sourceOutCh and routes to the appropriate generation manager based on message.Metadata.Route.
-// M0.2.10: Updated to use GenerationManager for hot reload support.
+// RouterInput is one source's output channel and the routes that read from it.
+type RouterInput struct {
+	Ch *engine.Channel
+	// Routes are the routes bound to this source (its `from:` routes). A message
+	// goes to each of them; with several, each gets its own copy.
+	Routes []string
+	// HonorMessageRoute: the message's own Metadata.Route selects the route (the HTTP
+	// source sets it from the X-Route header). Other sources do not set it.
+	HonorMessageRoute bool
+}
+
+// NewMessageRouter creates a router with one HTTP-style input: messages go to the
+// route named in Metadata.Route, or to defaultRoute when none is named.
 func NewMessageRouter(sourceOutCh *engine.Channel, generationMgrs map[string]*engine.GenerationManager, defaultRoute string) *MessageRouter {
+	return NewSourceRouter([]RouterInput{{Ch: sourceOutCh, HonorMessageRoute: true}}, generationMgrs, defaultRoute)
+}
+
+// NewSourceRouter creates a router that reads each input and sends its messages to
+// the routes bound to that input. An input with no bound routes falls back to
+// defaultRoute. Each route's generation manager is used at send time, so a hot
+// reload takes effect for the next message.
+func NewSourceRouter(inputs []RouterInput, generationMgrs map[string]*engine.GenerationManager, defaultRoute string) *MessageRouter {
 	return &MessageRouter{
-		sourceOutCh:    sourceOutCh,
+		inputs:         inputs,
 		generationMgrs: generationMgrs,
 		defaultRoute:   defaultRoute,
 	}
 }
 
-// Start begins the routing loop in a goroutine.
-// It reads messages from the source channel and routes them to the correct executor.
+// Start starts one routing goroutine per input.
 func (r *MessageRouter) Start(ctx context.Context) error {
 	r.ctx, r.cancel = context.WithCancel(ctx)
-	r.wg.Add(1)
-
-	go func() {
-		defer r.wg.Done()
-		r.routeMessages()
-	}()
-
+	for _, in := range r.inputs {
+		in := in
+		r.wg.Add(1)
+		go func() {
+			defer r.wg.Done()
+			r.routeMessages(in)
+		}()
+	}
 	return nil
 }
 
@@ -127,46 +145,57 @@ func (r *MessageRouter) Stop() error {
 	return nil
 }
 
-// routeMessages reads from the source channel and routes messages to generation managers.
-// M0.2.10: Updated to route to active generation for hot reload support.
-func (r *MessageRouter) routeMessages() {
+// targets returns the routes a message from in goes to.
+func (r *MessageRouter) targets(in RouterInput, msg *engine.Message) []string {
+	if in.HonorMessageRoute && msg.Metadata.Route != "" {
+		return []string{msg.Metadata.Route}
+	}
+	if len(in.Routes) == 0 {
+		return []string{r.defaultRoute}
+	}
+	return in.Routes
+}
+
+// routeMessages reads one input and delivers each message to its target routes.
+func (r *MessageRouter) routeMessages(in RouterInput) {
 	for {
-		// Read a message from the source
-		msg, err := r.sourceOutCh.Recv(r.ctx)
+		msg, err := in.Ch.Recv(r.ctx)
 		if err != nil {
-			// Context cancelled or channel error
 			log.Printf("[DEBUG] MessageRouter: recv error: %v", err)
 			return
 		}
-
-		// If channel is closed, msg is nil
 		if msg == nil {
 			return
 		}
 
-		// Determine the target route
-		routeName := msg.Metadata.Route
-		if routeName == "" {
-			routeName = r.defaultRoute
+		targets := r.targets(in, msg)
+		for _, routeName := range targets {
+			out := msg
+			if len(targets) > 1 {
+				// Each route gets its own copy, so one route's steps cannot change another's.
+				cp := *msg
+				cp.Metadata.Route = routeName
+				out = &cp
+			}
+			r.deliver(routeName, out)
 		}
+	}
+}
 
-		// Get the generation manager for this route
-		gm, ok := r.generationMgrs[routeName]
-		if !ok {
-			log.Printf("[WARN] MessageRouter: no generation manager for route %q, correlation_id=%s", routeName, msg.Metadata.CorrelationID)
-			continue
-		}
-
-		// Get the active generation's input channel and send the message
-		inputCh := gm.GetActiveInputChannel()
-		if inputCh == nil {
-			log.Printf("[WARN] MessageRouter: no active generation for route %q, correlation_id=%s", routeName, msg.Metadata.CorrelationID)
-			continue
-		}
-
-		if err := inputCh.Send(r.ctx, msg); err != nil {
-			log.Printf("[WARN] MessageRouter: failed to send to route %q (active generation): %v", routeName, err)
-		}
+// deliver sends a message to a route's active generation.
+func (r *MessageRouter) deliver(routeName string, msg *engine.Message) {
+	gm, ok := r.generationMgrs[routeName]
+	if !ok {
+		log.Printf("[WARN] MessageRouter: no generation manager for route %q, correlation_id=%s", routeName, msg.Metadata.CorrelationID)
+		return
+	}
+	inputCh := gm.GetActiveInputChannel()
+	if inputCh == nil {
+		log.Printf("[WARN] MessageRouter: no active generation for route %q, correlation_id=%s", routeName, msg.Metadata.CorrelationID)
+		return
+	}
+	if err := inputCh.Send(r.ctx, msg); err != nil {
+		log.Printf("[WARN] MessageRouter: failed to send to route %q (active generation): %v", routeName, err)
 	}
 }
 
@@ -261,16 +290,23 @@ func BuildSingleRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteC
 	outputCh := engine.NewChannel("executor-to-sink", 100)
 	errorCh := engine.NewChannel("executor-to-error-sink", 100)
 
-	// Create HTTP source
-	var sources []SourceAdapter
-	httpSrc, err := http.NewHTTPSource(getHTTPPort(), "/ingest", inputCh)
+	// The route's source adapters (from its `sources:` entries) write into inputCh.
+	resolver, err := secretResolver(ctx)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, fmt.Errorf("failed to create HTTP source: %w", err)
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("secret provider: %w", err)
 	}
-	sources = append(sources, &HTTPSourceAdapter{
-		source: httpSrc,
-		outCh:  inputCh,
-	})
+	bindings, err := buildSourceBindings(ctx, cfg, resolver)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+	var sources []SourceAdapter
+	for _, b := range bindings {
+		if !containsString(b.routes, routeName) {
+			continue
+		}
+		sources = append(sources, b.adapter)
+		go forwardMessages(ctx, b.out, inputCh)
+	}
 
 	// Build contract store from route config (M0.3.5)
 	contractStore := config.NewContractStore()
@@ -414,18 +450,25 @@ func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteCo
 
 	// Create a shared channel for the HTTP source
 	// The router will read from this and distribute to individual generation managers
-	sourceOutCh := engine.NewChannel("http-to-router", 100)
-
-	// Create HTTP source (shared across all routes)
-	var sources []SourceAdapter
-	httpSrc, err := http.NewHTTPSource(getHTTPPort(), "/ingest", sourceOutCh)
+	// One adapter per configured source; each source feeds the routes that read from it.
+	resolver, err := secretResolver(ctx)
 	if err != nil {
-		return nil, nil, nil, nil, fmt.Errorf("failed to create HTTP source: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("secret provider: %w", err)
 	}
-	sources = append(sources, &HTTPSourceAdapter{
-		source: httpSrc,
-		outCh:  sourceOutCh,
-	})
+	bindings, err := buildSourceBindings(ctx, cfg, resolver)
+	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	var sources []SourceAdapter
+	var routerInputs []RouterInput
+	for _, b := range bindings {
+		sources = append(sources, b.adapter)
+		routerInputs = append(routerInputs, RouterInput{
+			Ch:                b.out,
+			Routes:            b.routes,
+			HonorMessageRoute: b.typ == "http" || b.typ == "",
+		})
+	}
 
 	// Build generation managers for each route
 	generationMgrs := make(map[string]*engine.GenerationManager)
@@ -565,7 +608,29 @@ func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteCo
 	}
 
 	// Create the message router with generation managers
-	router := NewMessageRouter(sourceOutCh, generationMgrs, defaultRoute)
+	router := NewSourceRouter(routerInputs, generationMgrs, defaultRoute)
 
 	return generationMgrs, router, sources, sinks, nil
+}
+
+// forwardMessages copies messages from a source's output to a route's input until ctx ends.
+func forwardMessages(ctx context.Context, from, to *engine.Channel) {
+	for {
+		msg, err := from.Recv(ctx)
+		if err != nil || msg == nil {
+			return
+		}
+		if err := to.Send(ctx, msg); err != nil {
+			return
+		}
+	}
+}
+
+func containsString(list []string, s string) bool {
+	for _, v := range list {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }
