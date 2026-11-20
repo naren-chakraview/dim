@@ -30,24 +30,51 @@ import (
 // - Fragment names are duplicated across imports
 // - Circular imports are detected
 func ResolveNamedImports(cfg map[string]interface{}, basePath string) (map[string]interface{}, error) {
+	resolved, _, err := ResolveNamedImportsDetailed(cfg, basePath)
+	return resolved, err
+}
+
+// ResolveNamedImportsDetailed resolves named imports and also returns the imports
+// that no route referenced. An import is used when a step references one of the
+// fragments it defines.
+func ResolveNamedImportsDetailed(cfg map[string]interface{}, basePath string) (map[string]interface{}, []string, error) {
 	if basePath == "" {
 		basePath = "."
 	}
 
 	resolver := &namedImportResolver{
-		basePath: basePath,
-		cache:    make(map[string]map[string]interface{}), // path -> fragment name -> steps
-		visiting: make(map[string]bool),                   // for cycle detection
+		basePath:       basePath,
+		cache:          make(map[string]map[string]interface{}), // path -> fragment name -> steps
+		visiting:       make(map[string]bool),                   // for cycle detection
+		fragmentSource: make(map[string]string),                 // fragment name -> import path
+		usedSources:    make(map[string]bool),                   // import paths referenced by a step
 	}
 
 	resolved, err := resolver.resolve(cfg)
-	return resolved, err
+	if err != nil {
+		return nil, nil, err
+	}
+	return resolved, resolver.unusedImports(cfg), nil
 }
 
 type namedImportResolver struct {
-	basePath string
-	cache    map[string]map[string]interface{} // path -> (fragment name -> steps list)
-	visiting map[string]bool                   // cycle detection
+	basePath       string
+	cache          map[string]map[string]interface{} // path -> (fragment name -> steps list)
+	visiting       map[string]bool                   // cycle detection
+	fragmentSource map[string]string                 // fragment name -> import path that defines it
+	usedSources    map[string]bool                   // import paths with at least one referenced fragment
+}
+
+// unusedImports lists declared imports in declaration order that no route referenced.
+func (r *namedImportResolver) unusedImports(cfg map[string]interface{}) []string {
+	var unused []string
+	list, _ := cfg["imports"].([]interface{})
+	for _, item := range list {
+		if path, ok := item.(string); ok && !r.usedSources[path] {
+			unused = append(unused, path)
+		}
+	}
+	return unused
 }
 
 func (r *namedImportResolver) resolve(cfg map[string]interface{}) (map[string]interface{}, error) {
@@ -84,9 +111,10 @@ func (r *namedImportResolver) resolve(cfg map[string]interface{}) (map[string]in
 			}
 		}
 
-		// Merge into allFragments
+		// Merge into allFragments and remember which import defines each fragment
 		for name, steps := range fragments {
 			allFragments[name] = steps
+			r.fragmentSource[name] = importPathStr
 		}
 	}
 
@@ -255,6 +283,9 @@ func (r *namedImportResolver) expandFragmentsInRoute(route map[string]interface{
 			}
 
 			// Fragment should be a list of step maps
+			// The fragment exists, so the import that defines it is in use.
+			r.usedSources[r.fragmentSource[fragmentNameStr]] = true
+
 			fragmentSteps, ok := fragment.([]interface{})
 			if !ok {
 				return nil, fmt.Errorf("fragment %q is not a list of steps", fragmentNameStr)

@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { Canvas } from './components/Canvas';
 import { SchemaForm } from './components/SchemaForm';
 import { ValidationPanel, ValidationResult } from './components/ValidationPanel';
+import { LivePanel } from './components/LivePanel';
 import { RouteConfig, Route } from './types/route';
 import './App.css';
 
@@ -384,6 +385,9 @@ export function App() {
           )}
         </div>
       </div>
+
+      {/* Live state from the running viewer, read-only, beside the definition */}
+      <LivePanel routeName={selectedRouteKey} />
 
       {/* Validation Panel - Bottom */}
       <ValidationPanel
