@@ -37,9 +37,18 @@ type RetryPolicy struct {
 // Supports 1 to N workers for concurrent processing (M0.2+).
 // Supports configurable retry logic with exponential backoff (M0.2.2+).
 // Supports distributed tracing with OpenTelemetry (M0.5.1+).
+// MessageObserver receives the outcome of each message an executor processes.
+// The viewer implements it so the studio can show live route state.
+type MessageObserver interface {
+	RecordMessage(correlationID string, latency time.Duration, success bool)
+}
+
 type Executor struct {
 	// name is a diagnostic identifier for this executor
 	name string
+
+	// observer, if set, is told the outcome of every processed message
+	observer MessageObserver
 
 	// inputCh receives messages to process
 	inputCh *Channel
@@ -349,7 +358,12 @@ func (e *Executor) processMessageIteration(ctx context.Context, workerID int, ms
 	}
 
 	// Process the message through all steps
+	processStart := time.Now()
 	result, procErr, failedStepIndex := e.processMessageWithErrorTracking(ctx, msg)
+	if e.observer != nil {
+		// A message a filter drops is processed without error, so it counts as success.
+		e.observer.RecordMessage(msg.Metadata.CorrelationID, time.Since(processStart), procErr == nil)
+	}
 
 	// Close message span with appropriate status
 	if msgSpan != nil {
@@ -442,6 +456,24 @@ func (e *Executor) InFlightCount() int {
 
 // GetInputChannel returns the executor's input channel.
 // Used for routing messages from a source to this executor.
+// GetOutputChannel returns the channel this executor sends results to. A reload
+// reuses it, so the new generation feeds the same sink.
+func (e *Executor) GetOutputChannel() *Channel {
+	return e.outputCh
+}
+
+// GetErrorChannel returns the channel dead-letter envelopes go to, or nil if the
+// route has no error path.
+func (e *Executor) GetErrorChannel() *Channel {
+	return e.errorCh
+}
+
+// SetObserver sets the observer told the outcome of each processed message.
+// Call it before the executor runs.
+func (e *Executor) SetObserver(o MessageObserver) {
+	e.observer = o
+}
+
 func (e *Executor) GetInputChannel() *Channel {
 	return e.inputCh
 }
