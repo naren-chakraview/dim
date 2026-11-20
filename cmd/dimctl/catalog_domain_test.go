@@ -29,7 +29,7 @@ func mockRegistries(t *testing.T) (apicurioURL, openlineageURL string) {
 		var out []ApicurioArtifact
 		for _, a := range artifacts {
 			if group == "" || a.group == group {
-				out = append(out, ApicurioArtifact{ID: a.id, Type: "JSON"})
+				out = append(out, ApicurioArtifact{ID: a.id, Type: "JSON", GroupID: a.group, ModifiedOn: "2026-11-20T12:54:00Z"})
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -60,6 +60,22 @@ func mockRegistries(t *testing.T) (apicurioURL, openlineageURL string) {
 }
 
 // No filters: Search returns contracts and products together, through the real path.
+// Results carry the registry's group and modification time.
+func TestApicurioResultsCarryGroupAndUpdated(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"count":1,"artifacts":[{"id":"order-schema","type":"JSON","groupId":"payments","modifiedOn":"2026-11-20T12:54:00Z"}]}`))
+	}))
+	defer srv.Close()
+	client := &ApicurioClient{baseURL: srv.URL, client: srv.Client()}
+	got, err := client.QueryContracts(context.Background(), "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Domain != "payments" || got[0].Updated != "2026-11-20T12:54:00Z" {
+		t.Fatalf("unlabelled result: %+v", got)
+	}
+}
+
 func TestSearchNoFiltersReturnsBothKinds(t *testing.T) {
 	a, o := mockRegistries(t)
 	t.Setenv("APICURIO_URL", a)

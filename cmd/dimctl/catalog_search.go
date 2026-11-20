@@ -44,8 +44,8 @@ func NewOpenLineageClient() *OpenLineageClient {
 }
 
 // QueryContracts searches the Apicurio registry. A non-empty group restricts the
-// search to that registry group, which is how a domain maps onto contracts: the
-// registry does the filtering, and each result is labelled with that group.
+// search to that registry group (verified against Apicurio 3.3.5's v2 search API);
+// each result is labelled with the group the registry reports for it.
 func (c *ApicurioClient) QueryContracts(ctx context.Context, subject, group string) ([]CatalogResult, error) {
 	params := url.Values{}
 	if subject != "" {
@@ -82,12 +82,17 @@ func (c *ApicurioClient) QueryContracts(ctx context.Context, subject, group stri
 
 	var results []CatalogResult
 	for _, artifact := range apicurioResp.Artifacts {
+		// The registry reports each artifact's group and modification time.
+		domain := artifact.GroupID
+		if domain == "" {
+			domain = group
+		}
 		results = append(results, CatalogResult{
 			Type:    "contract",
 			Name:    artifact.ID,
-			Domain:  group,
+			Domain:  domain,
 			Subject: artifact.ID,
-			Updated: "", // Not fabricated; the search response does not carry an update time
+			Updated: artifact.ModifiedOn,
 			URL:     fmt.Sprintf("%s/ui/artifacts/%s", c.baseURL, artifact.ID),
 		})
 	}
