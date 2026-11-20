@@ -444,14 +444,59 @@
               "type": "string",
               "enum": [
                 "rbac",
-                "abac"
+                "abac",
+                "pbac"
               ],
               "title": "Authorization Mode",
-              "description": "Authorization mode: 'rbac' (role-based) or 'abac' (attribute-based)"
+              "description": "Authorization mode: 'rbac' (role-based), 'abac' (attribute-based) or 'pbac' (policy decision point)"
             },
-            "rules": {
-              "title": "Authorization Rules",
-              "description": "Authorization rules for this mode"
+            "require_roles": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "title": "Required Roles",
+              "description": "Roles required in RBAC mode"
+            },
+            "expr": {
+              "type": "string",
+              "title": "Expression",
+              "description": "JSONata expression evaluated in ABAC mode"
+            },
+            "pdp": {
+              "type": "object",
+              "title": "PDP",
+              "description": "Policy decision point settings for PBAC mode",
+              "required": [
+                "endpoint"
+              ],
+              "properties": {
+                "endpoint": {
+                  "type": "string",
+                  "title": "Endpoint",
+                  "description": "PDP service endpoint (e.g., http://localhost:8181)"
+                },
+                "timeout": {
+                  "type": "integer",
+                  "title": "Timeout (ms)",
+                  "description": "Timeout in milliseconds (default: 5000)"
+                }
+              }
+            },
+            "on_deny": {
+              "type": "object",
+              "title": "On Deny",
+              "description": "Routing on authorization denial",
+              "required": [
+                "target"
+              ],
+              "properties": {
+                "target": {
+                  "type": "string",
+                  "title": "Target Sink",
+                  "description": "Sink name to route denied messages to"
+                }
+              }
             }
           }
         }
@@ -490,14 +535,27 @@
       "properties": {
         "claim_check": {
           "type": "object",
+          "title": "Claim Check Options",
           "properties": {
-            "store": {
+            "payload_field": {
               "type": "string",
-              "description": "Storage backend"
+              "title": "Payload Field",
+              "description": "Field to extract (default: \"body\")"
             },
-            "id_header": {
+            "remove_payload": {
+              "type": "boolean",
+              "title": "Remove Payload",
+              "description": "Remove the original payload after storing it (default: true)"
+            },
+            "ticket_field_path": {
               "type": "string",
-              "description": "Header for claim ID"
+              "title": "Ticket Field Path",
+              "description": "Where to store the claim ticket (default: \"_claim_check\")"
+            },
+            "content_type": {
+              "type": "string",
+              "title": "Content Type",
+              "description": "MIME type hint for the stored payload"
             }
           }
         }
@@ -513,14 +571,17 @@
       "properties": {
         "claim_resolve": {
           "type": "object",
+          "title": "Claim Resolve Options",
           "properties": {
-            "store": {
+            "ticket_field_path": {
               "type": "string",
-              "description": "Storage backend"
+              "title": "Ticket Field Path",
+              "description": "Where the claim ticket is (default: \"_claim_check\")"
             },
-            "id_header": {
+            "payload_field_path": {
               "type": "string",
-              "description": "Header for claim ID"
+              "title": "Payload Field Path",
+              "description": "Where to restore the payload (default: \"body\")"
             }
           }
         }
