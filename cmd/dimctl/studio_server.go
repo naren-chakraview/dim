@@ -360,8 +360,33 @@ func (s *StudioServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Perform real in-process validation (no wrapper for in-editor validation)
-	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route, nil, "")
+	// The editor sends only the route body, so find the route's file by its name
+	// (the single key under "routes"). Its imports resolve beside that file.
+	routeName, ok := singleRouteName(req.Route)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"valid":  false,
+			"errors": []string{"validation refused: the route body must contain exactly one route under \"routes\""},
+		})
+		return
+	}
+	routes, err := DiscoverRoutes(s.workDir)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	discovered, found := routes[routeName]
+	if !found {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"valid":  false,
+			"errors": []string{fmt.Sprintf("validation refused: route %q is not a discovered route file; its imports cannot be resolved", routeName)},
+		})
+		return
+	}
+
+	valid, errs, warns, routeVersion, err := s.validateRouteData(req.Route, nil, filepath.Dir(discovered.FilePath))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Validation error: %v", err), http.StatusInternalServerError)
 		return
@@ -375,4 +400,16 @@ func (s *StudioServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 		"route_version": routeVersion,
 		"timestamp":     "", // Frontend will set timestamp
 	})
+}
+
+// singleRouteName returns the name of the only route in a route body.
+func singleRouteName(route map[string]interface{}) (string, bool) {
+	routes, ok := route["routes"].(map[string]interface{})
+	if !ok || len(routes) != 1 {
+		return "", false
+	}
+	for name := range routes {
+		return name, true
+	}
+	return "", false
 }

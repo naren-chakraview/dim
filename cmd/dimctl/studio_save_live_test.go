@@ -326,3 +326,22 @@ func anyStrings(v interface{}) []string {
 	}
 	return out
 }
+
+// /api/validate receives only the route body (the UI sends no file path). A route
+// with imports must still validate, because its relative imports resolve against
+// the directory of its own file.
+func TestLiveValidateResolvesImportsBesideRoute(t *testing.T) {
+	mux, _ := liveWorkspace(t, liveRouteYAML)
+	_, data := uiLoadRoute(t, mux)
+
+	body, _ := json.Marshal(map[string]interface{}{"route": data})
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/validate", bytes.NewReader(body)))
+	var resp map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("bad JSON (status %d): %s", rec.Code, rec.Body.String())
+	}
+	if resp["valid"] != true {
+		t.Fatalf("route with imports failed in-editor validation: %v", resp["errors"])
+	}
+}
