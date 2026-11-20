@@ -39,9 +39,16 @@ func TestFileSourceLocalPolling(t *testing.T) {
 	// Give the source time to start initial poll
 	time.Sleep(200 * time.Millisecond)
 
-	// Write test file
-	if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
-		t.Fatalf("failed to write test file: %v", err)
+	// Publish the file atomically: write it in a staging directory, then rename it
+	// into the polled directory. Writing in place lets the poller read the file
+	// between create and write, and it then emits an empty message.
+	staging := t.TempDir()
+	stagedFile := filepath.Join(staging, "test.json")
+	if err := os.WriteFile(stagedFile, []byte(testContent), 0644); err != nil {
+		t.Fatalf("failed to write staged file: %v", err)
+	}
+	if err := os.Rename(stagedFile, testFile); err != nil {
+		t.Fatalf("failed to publish test file: %v", err)
 	}
 
 	// Verify file exists and has correct content before expecting poller to pick it up
