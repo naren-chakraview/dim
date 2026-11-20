@@ -871,11 +871,11 @@ var traceTailCmd = &cobra.Command{
 		signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT)
 
 		opts := observability.TailOptions{
-			Route:      route,
-			Service:    service,
-			Limit:      limit,
-			Endpoint:   otelExporter,
-			Ctx:        ctx,
+			Route:    route,
+			Service:  service,
+			Limit:    limit,
+			Endpoint: otelExporter,
+			Ctx:      ctx,
 		}
 
 		fmt.Fprintf(os.Stderr, "Tailing spans from %s (service=%s, limit=%d)\n", service, service, limit)
@@ -924,7 +924,6 @@ var traceTailCmd = &cobra.Command{
 		}
 	},
 }
-
 
 var studioCmd = &cobra.Command{
 	Use:   "studio [dir]",

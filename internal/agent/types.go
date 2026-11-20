@@ -7,11 +7,11 @@ const AgentInterfaceVersion = "1.0.0"
 
 // ResponseEnvelope wraps all operation responses
 type ResponseEnvelope struct {
-	InterfaceVersion    string        `json:"interface_version"`
-	Timestamp           time.Time     `json:"timestamp"`
-	Result              interface{}   `json:"result,omitempty"`
-	Error               *OperationErr `json:"error,omitempty"`
-	DeprecationNotice   string        `json:"deprecation_notice,omitempty"`
+	InterfaceVersion  string        `json:"interface_version"`
+	Timestamp         time.Time     `json:"timestamp"`
+	Result            interface{}   `json:"result,omitempty"`
+	Error             *OperationErr `json:"error,omitempty"`
+	DeprecationNotice string        `json:"deprecation_notice,omitempty"`
 }
 
 // OperationErr represents an operation error
@@ -29,17 +29,17 @@ type ValidateRequest struct {
 }
 
 type ValidateResponse struct {
-	Valid       bool                 `json:"valid"`
-	Errors      []ValidationError    `json:"errors"`
-	Warnings    []string             `json:"warnings"`
-	RouteVersion string              `json:"route_version,omitempty"`
+	Valid        bool              `json:"valid"`
+	Errors       []ValidationError `json:"errors"`
+	Warnings     []string          `json:"warnings"`
+	RouteVersion string            `json:"route_version,omitempty"`
 }
 
 type ValidationError struct {
-	Code          string `json:"code"`
-	Message       string `json:"message"`
-	Path          string `json:"path"`
-	SuggestedFix  string `json:"suggested_fix,omitempty"`
+	Code         string `json:"code"`
+	Message      string `json:"message"`
+	Path         string `json:"path"`
+	SuggestedFix string `json:"suggested_fix,omitempty"`
 }
 
 // --- Test Operation ---
@@ -84,10 +84,10 @@ type ScaffoldRequest struct {
 }
 
 type ScaffoldResponse struct {
-	Success       bool     `json:"success"`
-	DomainPath    string   `json:"domain_path"`
-	FilesCreated  []string `json:"files_created"`
-	NextSteps     []string `json:"next_steps"`
+	Success      bool     `json:"success"`
+	DomainPath   string   `json:"domain_path"`
+	FilesCreated []string `json:"files_created"`
+	NextSteps    []string `json:"next_steps"`
 }
 
 // --- Lineage Operation ---
@@ -97,8 +97,8 @@ type LineageRequest struct {
 }
 
 type LineageResponse struct {
-	Found           bool             `json:"found"`
-	LineageRecords  []LineageRecord  `json:"lineage_records"`
+	Found          bool            `json:"found"`
+	LineageRecords []LineageRecord `json:"lineage_records"`
 }
 
 type LineageRecord struct {
@@ -118,8 +118,8 @@ type ProvenanceRequest struct {
 }
 
 type ProvenanceResponse struct {
-	Found             bool                `json:"found"`
-	ProvenanceChain   []ProvenanceRecord  `json:"provenance_chain"`
+	Found           bool               `json:"found"`
+	ProvenanceChain []ProvenanceRecord `json:"provenance_chain"`
 }
 
 type ProvenanceRecord struct {
@@ -143,9 +143,9 @@ type CapabilitiesResponse struct {
 }
 
 type Capability struct {
-	Name           string      `json:"name"`
-	Type           string      `json:"type"` // "adapter" | "step" | "eip"
-	ConfigSchema   interface{} `json:"config_schema"`
-	Description    string      `json:"description"`
-	Example        interface{} `json:"example,omitempty"`
+	Name         string      `json:"name"`
+	Type         string      `json:"type"` // "adapter" | "step" | "eip"
+	ConfigSchema interface{} `json:"config_schema"`
+	Description  string      `json:"description"`
+	Example      interface{} `json:"example,omitempty"`
 }

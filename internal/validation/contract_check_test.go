@@ -88,7 +88,7 @@ func TestContractCheck_MatchingContract(t *testing.T) {
 	expr := `{ "order_id": body.id, "status": "new" }`
 	contract := map[string]interface{}{
 		"order_id": "number",
-		"status":  "string",
+		"status":   "string",
 	}
 
 	result := checker.Check(expr, contract)
@@ -108,7 +108,7 @@ func TestContractCheck_MissingRequiredField(t *testing.T) {
 	expr := `{ "order_id": body.id }`
 	contract := map[string]interface{}{
 		"order_id": "number",
-		"status":  "string", // required
+		"status":   "string", // required
 	}
 
 	result := checker.Check(expr, contract)

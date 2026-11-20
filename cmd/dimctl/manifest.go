@@ -73,9 +73,9 @@ func generateManifestFromSchema(schema map[string]interface{}) map[string]interf
 							if stepType != "" {
 								if stepDef, ok := definitions[stepType+"_step"].(map[string]interface{}); ok {
 									capability := map[string]interface{}{
-										"name":           stepType,
-										"type":           "step",
-										"description":    getDescription(stepDef),
+										"name":          stepType,
+										"type":          "step",
+										"description":   getDescription(stepDef),
 										"config_schema": extractSchema(stepDef),
 									}
 									capabilities = append(capabilities, capability)

@@ -85,12 +85,12 @@ func (a *FileSinkAdapter) Stop() error {
 // It reads from a source channel and sends to the appropriate executor's input channel.
 // Updated for M0.2.10: works with GenerationManager for hot reload support.
 type MessageRouter struct {
-	sourceOutCh      *engine.Channel
-	generationMgrs   map[string]*engine.GenerationManager
-	defaultRoute     string
-	ctx              context.Context
-	cancel           context.CancelFunc
-	wg               sync.WaitGroup
+	sourceOutCh    *engine.Channel
+	generationMgrs map[string]*engine.GenerationManager
+	defaultRoute   string
+	ctx            context.Context
+	cancel         context.CancelFunc
+	wg             sync.WaitGroup
 }
 
 // NewMessageRouter creates a new router for multi-route scenarios.

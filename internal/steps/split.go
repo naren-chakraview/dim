@@ -10,17 +10,17 @@ import (
 
 // SplitStep splits one message into many by evaluating an array expression (M2.2.2, Phase 2)
 type SplitStep struct {
-	splitEvaluator   *expr.Evaluator // Compiled split expression
-	outputEvaluator  *expr.Evaluator // Compiled output transformation (optional)
-	onNonArray       string          // "error_path" or "skip"
+	splitEvaluator  *expr.Evaluator // Compiled split expression
+	outputEvaluator *expr.Evaluator // Compiled output transformation (optional)
+	onNonArray      string          // "error_path" or "skip"
 }
 
 // SplitSpec defines splitter configuration
 type SplitSpec struct {
-	Expr        string `yaml:"expr" json:"expr"`                                 // JSONata expression producing array (required)
-	OutputExpr  string `yaml:"output_expr,omitempty" json:"output_expr,omitempty"` // Optional output transformation
-	OnNonArray  string `yaml:"on_non_array,omitempty" json:"on_non_array,omitempty"` // "error_path" (default) or "skip"
-	OnError     string `yaml:"on_error,omitempty" json:"on_error,omitempty"`     // Error handling
+	Expr       string `yaml:"expr" json:"expr"`                                     // JSONata expression producing array (required)
+	OutputExpr string `yaml:"output_expr,omitempty" json:"output_expr,omitempty"`   // Optional output transformation
+	OnNonArray string `yaml:"on_non_array,omitempty" json:"on_non_array,omitempty"` // "error_path" (default) or "skip"
+	OnError    string `yaml:"on_error,omitempty" json:"on_error,omitempty"`         // Error handling
 }
 
 // NewSplitStep creates a splitter step

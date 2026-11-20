@@ -30,18 +30,18 @@ const InterfaceVersion = "1.0.0"
 
 // OperationError represents an error response from an agent operation
 type OperationError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code    string                 `json:"code"`
+	Message string                 `json:"message"`
 	Details map[string]interface{} `json:"details,omitempty"`
 }
 
 // ResponseEnvelope wraps all agent operation responses
 type ResponseEnvelope struct {
-	InterfaceVersion   string        `json:"interface_version"`
-	Timestamp          string        `json:"timestamp"`
-	Result             interface{}   `json:"result,omitempty"`
-	Error              *OperationError `json:"error,omitempty"`
-	DeprecationNotice  string        `json:"deprecation_notice,omitempty"`
+	InterfaceVersion  string          `json:"interface_version"`
+	Timestamp         string          `json:"timestamp"`
+	Result            interface{}     `json:"result,omitempty"`
+	Error             *OperationError `json:"error,omitempty"`
+	DeprecationNotice string          `json:"deprecation_notice,omitempty"`
 }
 
 // OperationMetadata describes an available operation

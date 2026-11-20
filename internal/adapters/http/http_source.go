@@ -16,12 +16,12 @@ import (
 // HTTPSource is an HTTP source adapter that listens for incoming HTTP requests
 // and converts them to messages that are sent to an output channel.
 type HTTPSource struct {
-	server         *http.Server
-	outChan        *engine.Channel
-	closed         chan struct{}
-	listener       net.Listener
-	jwtValidator   *authz.JWTValidator
-	requireAuth    bool
+	server       *http.Server
+	outChan      *engine.Channel
+	closed       chan struct{}
+	listener     net.Listener
+	jwtValidator *authz.JWTValidator
+	requireAuth  bool
 }
 
 // NewHTTPSource creates a new HTTP source adapter listening on the given port

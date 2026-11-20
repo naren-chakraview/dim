@@ -36,7 +36,7 @@ func TestLoadContractsSingleValidContract(t *testing.T) {
 		"type": "object",
 		"properties": map[string]interface{}{
 			"amount": map[string]interface{}{
-				"type": "number",
+				"type":    "number",
 				"minimum": 0.01,
 			},
 		},

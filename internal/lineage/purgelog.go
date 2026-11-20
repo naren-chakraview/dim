@@ -12,12 +12,12 @@ import (
 
 // ExportRecord represents a purge-log entry exported to S3 (M2.6.2)
 type ExportRecord struct {
-	ID                         string                 `json:"id"`
-	Route                      string                 `json:"route"`
-	IngestedAt                 time.Time              `json:"ingested_at"`
-	ExpiredAt                  time.Time              `json:"expired_at"`
-	ExpiryWarningTriggeredAt   time.Time              `json:"expiry_warning_triggered_at"`
-	Data                       map[string]interface{} `json:"data"`
+	ID                       string                 `json:"id"`
+	Route                    string                 `json:"route"`
+	IngestedAt               time.Time              `json:"ingested_at"`
+	ExpiredAt                time.Time              `json:"expired_at"`
+	ExpiryWarningTriggeredAt time.Time              `json:"expiry_warning_triggered_at"`
+	Data                     map[string]interface{} `json:"data"`
 }
 
 // S3ExportConfig configures S3 export target (M2.6.2)
@@ -32,9 +32,9 @@ type S3ExportConfig struct {
 // Evidence records are retained separately from message lineage records
 type PurgeLogReaper struct {
 	store         *Store
-	ttl           time.Duration      // How long to keep evidence records
-	warningLead   time.Duration      // Lead time before expiry to warn
-	tickerCadence time.Duration      // How often to check for expiry
+	ttl           time.Duration // How long to keep evidence records
+	warningLead   time.Duration // Lead time before expiry to warn
+	tickerCadence time.Duration // How often to check for expiry
 	stopCh        chan struct{}
 	wg            sync.WaitGroup
 	exportCh      chan *ExportRecord // Queue for S3 export (M2.6.2)
@@ -113,7 +113,7 @@ func (plr *PurgeLogReaper) Start(ctx context.Context) error {
 								Data: map[string]interface{}{
 									"id":           event.ID,
 									"subject_id":   event.SubjectID,
-									"event_type":  event.EventType,
+									"event_type":   event.EventType,
 									"purged_count": event.PurgedCount,
 									"reason":       event.Reason,
 									"purged_at":    event.PurgedAt.Format(time.RFC3339),

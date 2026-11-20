@@ -16,39 +16,39 @@ import (
 // and sends them to an output channel. Uses consumer groups for distributed consumption.
 // Supports hot-reload with graceful in-flight message draining (R17).
 type KafkaSource struct {
-	reader       *kafka.Reader
-	outChan      *engine.Channel
-	closed       chan struct{}
-	wg           sync.WaitGroup
-	config       SourceConfig
-	lastOffset   map[int32]int64 // Track last committed offset per partition
-	inFlight     int32            // Tracks messages currently being processed (R17)
-	drainCaps    chan struct{}    // Concurrent drain cap (max 10 concurrent drains) (R17)
-	mu           sync.Mutex
+	reader     *kafka.Reader
+	outChan    *engine.Channel
+	closed     chan struct{}
+	wg         sync.WaitGroup
+	config     SourceConfig
+	lastOffset map[int32]int64 // Track last committed offset per partition
+	inFlight   int32           // Tracks messages currently being processed (R17)
+	drainCaps  chan struct{}   // Concurrent drain cap (max 10 concurrent drains) (R17)
+	mu         sync.Mutex
 }
 
 // SourceConfig defines configuration for a Kafka consumer source
 type SourceConfig struct {
-	Brokers       []string      // Kafka broker addresses (e.g., ["localhost:9092"])
-	Topic         string        // Topic to consume from
-	GroupID       string        // Consumer group ID (enables distributed consumption)
-	StartOffset   int64         // Starting offset (-2=oldest, -1=newest, or specific offset)
-	MaxBytes      int           // Maximum message batch size (default: 1MB)
-	CommitInterval time.Duration // Interval for committing offsets (default: 1s)
-	SessionTimeout time.Duration // Session timeout (default: 10s)
+	Brokers          []string      // Kafka broker addresses (e.g., ["localhost:9092"])
+	Topic            string        // Topic to consume from
+	GroupID          string        // Consumer group ID (enables distributed consumption)
+	StartOffset      int64         // Starting offset (-2=oldest, -1=newest, or specific offset)
+	MaxBytes         int           // Maximum message batch size (default: 1MB)
+	CommitInterval   time.Duration // Interval for committing offsets (default: 1s)
+	SessionTimeout   time.Duration // Session timeout (default: 10s)
 	RebalanceTimeout time.Duration // Rebalance timeout (default: 60s)
 }
 
 // NewKafkaSource creates a new Kafka consumer source
 func NewKafkaSource(brokers []string, topic string, groupID string, outChan *engine.Channel) (*KafkaSource, error) {
 	return NewKafkaSourceWithConfig(SourceConfig{
-		Brokers:     brokers,
-		Topic:       topic,
-		GroupID:     groupID,
-		StartOffset: -1, // Start from newest (-1 = latest, -2 = earliest)
-		MaxBytes:    1024 * 1024,                      // 1MB default
-		CommitInterval: 1 * time.Second,
-		SessionTimeout: 10 * time.Second,
+		Brokers:          brokers,
+		Topic:            topic,
+		GroupID:          groupID,
+		StartOffset:      -1,          // Start from newest (-1 = latest, -2 = earliest)
+		MaxBytes:         1024 * 1024, // 1MB default
+		CommitInterval:   1 * time.Second,
+		SessionTimeout:   10 * time.Second,
 		RebalanceTimeout: 60 * time.Second,
 	}, outChan)
 }
@@ -73,23 +73,23 @@ func NewKafkaSourceWithConfig(config SourceConfig, outChan *engine.Channel) (*Ka
 
 	// Create Kafka reader with consumer group
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:         config.Brokers,
-		Topic:           config.Topic,
-		GroupID:         config.GroupID,
-		StartOffset:     config.StartOffset,
-		MaxBytes:        config.MaxBytes,
-		CommitInterval:  config.CommitInterval,
-		SessionTimeout:  config.SessionTimeout,
+		Brokers:          config.Brokers,
+		Topic:            config.Topic,
+		GroupID:          config.GroupID,
+		StartOffset:      config.StartOffset,
+		MaxBytes:         config.MaxBytes,
+		CommitInterval:   config.CommitInterval,
+		SessionTimeout:   config.SessionTimeout,
 		RebalanceTimeout: config.RebalanceTimeout,
 	})
 
 	ks := &KafkaSource{
-		reader:    reader,
-		outChan:   outChan,
-		closed:    make(chan struct{}),
-		config:    config,
+		reader:     reader,
+		outChan:    outChan,
+		closed:     make(chan struct{}),
+		config:     config,
 		lastOffset: make(map[int32]int64),
-		drainCaps: make(chan struct{}, 10), // Max 10 concurrent drains (R17)
+		drainCaps:  make(chan struct{}, 10), // Max 10 concurrent drains (R17)
 	}
 
 	fmt.Printf("[INFO] Kafka source created: brokers=%v topic=%s group=%s", config.Brokers, config.Topic, config.GroupID)

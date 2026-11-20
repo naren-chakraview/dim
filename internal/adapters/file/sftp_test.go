@@ -57,15 +57,15 @@ func TestResolveSecret(t *testing.T) {
 	}
 
 	// Test resolution (should fall back to env var since no resolver configured)
-	resolved := source.resolveSecret(testKey)
-	if resolved != testValue {
-		t.Errorf("secret resolution failed: expected %s, got %s", testValue, resolved)
+	resolved, err := source.resolveSecret(testKey)
+	if err != nil || resolved != testValue {
+		t.Errorf("secret resolution failed: expected %s, got %s (err %v)", testValue, resolved, err)
 	}
 
 	// Test non-existent secret returns empty
-	empty := source.resolveSecret("NONEXISTENT_SECRET")
-	if empty != "" {
-		t.Errorf("non-existent secret should return empty, got %s", empty)
+	empty, err := source.resolveSecret("NONEXISTENT_SECRET")
+	if err != nil || empty != "" {
+		t.Errorf("non-existent secret should return empty, got %s (err %v)", empty, err)
 	}
 }
 
@@ -234,7 +234,6 @@ func TestSFTPIntegration(t *testing.T) {
 	}
 }
 
-
 // TestSFTPAuthMethods tests that SFTP properly handles different auth methods (R21.2).
 func TestSFTPAuthMethods(t *testing.T) {
 	outChan := engine.NewChannel("test-auth", 10)
@@ -298,26 +297,28 @@ func TestResolveSecretWithDomainScoping(t *testing.T) {
 	store := secrets.NewInMemoryStore()
 	store.Register(secrets.SecretEntry{Name: "api-key", Value: "real-secret-value", Domain: "orders"})
 	store.Register(secrets.SecretEntry{Name: "password", Value: "real-password", Domain: "payments"})
-	
+
 	resolver := secrets.NewResolver(store)
-	
+
 	// Create a FileSource for the "orders" domain with the resolver
 	outChan := engine.NewChannel("test-domain-secret", 10)
 	source, err := NewFileSourceWithDomain("/tmp", "30s", outChan, "orders", resolver)
 	if err != nil {
 		t.Fatalf("failed to create source: %v", err)
 	}
-	
+
 	// Test same-domain resolution
-	resolved := source.resolveSecret("api-key")
-	if resolved != "real-secret-value" {
-		t.Errorf("same-domain secret resolution failed: got %q, want %q", resolved, "real-secret-value")
+	resolved, err := source.resolveSecret("api-key")
+	if err != nil || resolved != "real-secret-value" {
+		t.Errorf("same-domain secret resolution failed: got %q (err %v), want %q", resolved, err, "real-secret-value")
 	}
-	
-	// Test cross-domain denial: trying to access payments.password from orders domain
-	// With domain-scoped resolver, this should be denied (return empty, not the real value)
-	crossDomainResult := source.resolveSecret("payments.password")
-	if crossDomainResult == "real-password" {
-		t.Errorf("SECURITY BUG: cross-domain secret was resolved when it should be denied: %q", crossDomainResult)
+
+	// Cross-domain denial must surface as an error, never as a value or an env fallback
+	crossDomainResult, err := source.resolveSecret("payments.password")
+	if err == nil {
+		t.Errorf("SECURITY BUG: cross-domain access should be denied, got %q", crossDomainResult)
+	}
+	if crossDomainResult != "" {
+		t.Errorf("SECURITY BUG: denied resolution returned a value: %q", crossDomainResult)
 	}
 }

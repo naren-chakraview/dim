@@ -8,22 +8,22 @@ import (
 
 // ImpactQueryRequest asks what would be affected by a change
 type ImpactQueryRequest struct {
-	ChangeType    string `json:"change_type"`    // "contract" | "sink" | "source" | "step-type"
-	ChangeName    string `json:"change_name"`    // Name of what's changing
+	ChangeType    string `json:"change_type"`              // "contract" | "sink" | "source" | "step-type"
+	ChangeName    string `json:"change_name"`              // Name of what's changing
 	ChangeVersion string `json:"change_version,omitempty"` // New version (for version bumps)
 }
 
 // ImpactQueryResponse describes what would be affected
 type ImpactQueryResponse struct {
-	ChangeType     string                       `json:"change_type"`
-	ChangeName     string                       `json:"change_name"`
-	AffectedRoutes []string                     `json:"affected_routes"`  // Route names
-	AffectedSinks  []string                     `json:"affected_sinks"`   // Sink names
-	References     []lineage.ImpactReference    `json:"references"`       // Detailed references
-	UncertainRefs  []lineage.ImpactReference    `json:"uncertain_refs"`   // Refs we can't determine statically
-	Summary        string                       `json:"summary"`          // Human-readable summary
-	ImpactLevel    string                       `json:"impact_level"`     // "low" | "medium" | "high" | "critical"
-	Confidence     float32                      `json:"confidence"`       // 0.0-1.0: how complete is this analysis
+	ChangeType     string                    `json:"change_type"`
+	ChangeName     string                    `json:"change_name"`
+	AffectedRoutes []string                  `json:"affected_routes"` // Route names
+	AffectedSinks  []string                  `json:"affected_sinks"`  // Sink names
+	References     []lineage.ImpactReference `json:"references"`      // Detailed references
+	UncertainRefs  []lineage.ImpactReference `json:"uncertain_refs"`  // Refs we can't determine statically
+	Summary        string                    `json:"summary"`         // Human-readable summary
+	ImpactLevel    string                    `json:"impact_level"`    // "low" | "medium" | "high" | "critical"
+	Confidence     float32                   `json:"confidence"`      // 0.0-1.0: how complete is this analysis
 }
 
 // QueryImpact determines what would be affected by a change

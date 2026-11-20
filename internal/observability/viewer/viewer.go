@@ -20,8 +20,8 @@ type Message struct {
 // RingBuffer is a thread-safe circular buffer for storing recent messages
 type RingBuffer struct {
 	messages []Message
-	pos      int   // current write position
-	count    int   // number of messages written (for distinguishing first rotation)
+	pos      int // current write position
+	count    int // number of messages written (for distinguishing first rotation)
 	mu       sync.RWMutex
 }
 
@@ -70,11 +70,11 @@ func (rb *RingBuffer) GetAll() []Message {
 
 // RouteStats tracks statistics for a route
 type RouteStats struct {
-	InFlight     int32
+	InFlight       int32
 	TotalProcessed int64
-	TotalErrors  int64
-	Latencies    []int64 // raw latency samples for percentile calculation
-	mu           sync.RWMutex
+	TotalErrors    int64
+	Latencies      []int64 // raw latency samples for percentile calculation
+	mu             sync.RWMutex
 }
 
 // RouteViewer tracks state for a single route
@@ -193,12 +193,12 @@ type RouteState struct {
 
 // RoutePair represents a message flow from one route to another
 type RoutePair struct {
-	SourceRoute      string `json:"sourceRoute"`      // Route that produces messages
-	SourceSink       string `json:"sourceSink"`       // Sink that receives messages from source route
-	TargetRoute      string `json:"targetRoute"`      // Route that receives messages
-	TargetSource     string `json:"targetSource"`     // Source that receives messages from source sink
-	MessagesFlowed   int64  `json:"messagesFlowed"`   // Number of messages that flowed from source to target
-	LastSeenAt       time.Time `json:"lastSeenAt"`    // Last time a message flowed on this pair
+	SourceRoute    string    `json:"sourceRoute"`    // Route that produces messages
+	SourceSink     string    `json:"sourceSink"`     // Sink that receives messages from source route
+	TargetRoute    string    `json:"targetRoute"`    // Route that receives messages
+	TargetSource   string    `json:"targetSource"`   // Source that receives messages from source sink
+	MessagesFlowed int64     `json:"messagesFlowed"` // Number of messages that flowed from source to target
+	LastSeenAt     time.Time `json:"lastSeenAt"`     // Last time a message flowed on this pair
 }
 
 // ViewerServer manages multiple route viewers and serves the HTTP endpoint

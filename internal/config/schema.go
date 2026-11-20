@@ -2,12 +2,12 @@ package config
 
 // RouteConfig represents the complete route configuration loaded from YAML
 type RouteConfig struct {
-	Version        int                       `yaml:"version" json:"version"`
-	Imports        []string                  `yaml:"imports,omitempty" json:"imports,omitempty"`
-	Sources        map[string]SourceSpec     `yaml:"sources" json:"sources"`
-	Sinks          map[string]SinkSpec       `yaml:"sinks" json:"sinks"`
-	Routes         map[string]RouteSpec      `yaml:"routes" json:"routes"`
-	Observability  *ObservabilityConfig      `yaml:"observability,omitempty" json:"observability,omitempty"`
+	Version       int                   `yaml:"version" json:"version"`
+	Imports       []string              `yaml:"imports,omitempty" json:"imports,omitempty"`
+	Sources       map[string]SourceSpec `yaml:"sources" json:"sources"`
+	Sinks         map[string]SinkSpec   `yaml:"sinks" json:"sinks"`
+	Routes        map[string]RouteSpec  `yaml:"routes" json:"routes"`
+	Observability *ObservabilityConfig  `yaml:"observability,omitempty" json:"observability,omitempty"`
 }
 
 // SourceSpec defines a named message input
@@ -28,14 +28,14 @@ type SinkSpec struct {
 
 // RouteSpec defines a pipeline (from source to sinks via steps)
 type RouteSpec struct {
-	From      string            `yaml:"from" json:"from"`
-	Domain    string            `yaml:"domain,omitempty" json:"domain,omitempty"` // Multi-tenant domain label (M3.4)
-	Auth      interface{}       `yaml:"auth" json:"auth"` // can be string "none" or object with steps
-	ErrorPath *ErrorPathSpec    `yaml:"error_path" json:"error_path"`
-	Steps     []StepSpec        `yaml:"steps" json:"steps"`
-	Retry     *RetryPolicy      `yaml:"retry,omitempty" json:"retry,omitempty"`
-	Ordering  string            `yaml:"ordering,omitempty" json:"ordering,omitempty"` // "required" or "none" (default: "none")
-	Contracts []ContractSpec    `yaml:"contracts,omitempty" json:"contracts,omitempty"` // Data contracts (M0.3.5)
+	From      string         `yaml:"from" json:"from"`
+	Domain    string         `yaml:"domain,omitempty" json:"domain,omitempty"` // Multi-tenant domain label (M3.4)
+	Auth      interface{}    `yaml:"auth" json:"auth"`                         // can be string "none" or object with steps
+	ErrorPath *ErrorPathSpec `yaml:"error_path" json:"error_path"`
+	Steps     []StepSpec     `yaml:"steps" json:"steps"`
+	Retry     *RetryPolicy   `yaml:"retry,omitempty" json:"retry,omitempty"`
+	Ordering  string         `yaml:"ordering,omitempty" json:"ordering,omitempty"`   // "required" or "none" (default: "none")
+	Contracts []ContractSpec `yaml:"contracts,omitempty" json:"contracts,omitempty"` // Data contracts (M0.3.5)
 
 	// Lineage tracking fields (M0.4)
 	RetentionPolicy     string `yaml:"retention_policy,omitempty" json:"retention_policy,omitempty"`
@@ -65,14 +65,14 @@ type RetryPolicy struct {
 // StepSpec represents a single pipeline step
 type StepSpec struct {
 	// One of these fields is populated based on step type
-	Filter    *FilterSpec    `yaml:"filter,omitempty" json:"filter,omitempty"`
-	Translate *TranslateSpec `yaml:"translate,omitempty" json:"translate,omitempty"`
-	Route     *RouteStepSpec `yaml:"route,omitempty" json:"route,omitempty"`
-	Wiretap   *WiretapSpec   `yaml:"wiretap,omitempty" json:"wiretap,omitempty"`
-	Idempotent *IdempotentSpec `yaml:"idempotent,omitempty" json:"idempotent,omitempty"`
-	Authorize *AuthorizeSpec `yaml:"authorize,omitempty" json:"authorize,omitempty"`
-	Contract  *ContractStepSpec `yaml:"contract,omitempty" json:"contract,omitempty"` // Contract validation step (M0.3.5)
-	ClaimCheck *ClaimCheckSpec `yaml:"claim_check,omitempty" json:"claim_check,omitempty"` // Claim check step (M3.2)
+	Filter       *FilterSpec       `yaml:"filter,omitempty" json:"filter,omitempty"`
+	Translate    *TranslateSpec    `yaml:"translate,omitempty" json:"translate,omitempty"`
+	Route        *RouteStepSpec    `yaml:"route,omitempty" json:"route,omitempty"`
+	Wiretap      *WiretapSpec      `yaml:"wiretap,omitempty" json:"wiretap,omitempty"`
+	Idempotent   *IdempotentSpec   `yaml:"idempotent,omitempty" json:"idempotent,omitempty"`
+	Authorize    *AuthorizeSpec    `yaml:"authorize,omitempty" json:"authorize,omitempty"`
+	Contract     *ContractStepSpec `yaml:"contract,omitempty" json:"contract,omitempty"`           // Contract validation step (M0.3.5)
+	ClaimCheck   *ClaimCheckSpec   `yaml:"claim_check,omitempty" json:"claim_check,omitempty"`     // Claim check step (M3.2)
 	ClaimResolve *ClaimResolveSpec `yaml:"claim_resolve,omitempty" json:"claim_resolve,omitempty"` // Claim resolve step (M3.2)
 
 	// Extra fields for extensibility
@@ -81,21 +81,21 @@ type StepSpec struct {
 
 // ContractStepSpec defines a contract validation step
 type ContractStepSpec struct {
-	ID     string `yaml:"id" json:"id"`                           // contract ID to validate against
+	ID     string `yaml:"id" json:"id"`                             // contract ID to validate against
 	Strict bool   `yaml:"strict,omitempty" json:"strict,omitempty"` // fail pipeline on violation? (default: false)
 }
 
 // ClaimCheckSpec defines a claim-check step (M3.2)
 type ClaimCheckSpec struct {
-	PayloadField    string `yaml:"payload_field,omitempty" json:"payload_field,omitempty"`       // Field to extract (default: "body")
-	RemovePayload   bool   `yaml:"remove_payload,omitempty" json:"remove_payload,omitempty"`     // Remove original (default: true)
+	PayloadField    string `yaml:"payload_field,omitempty" json:"payload_field,omitempty"`         // Field to extract (default: "body")
+	RemovePayload   bool   `yaml:"remove_payload,omitempty" json:"remove_payload,omitempty"`       // Remove original (default: true)
 	TicketFieldPath string `yaml:"ticket_field_path,omitempty" json:"ticket_field_path,omitempty"` // Where to store ticket (default: "_claim_check")
-	ContentType     string `yaml:"content_type,omitempty" json:"content_type,omitempty"`         // MIME type hint
+	ContentType     string `yaml:"content_type,omitempty" json:"content_type,omitempty"`           // MIME type hint
 }
 
 // ClaimResolveSpec defines a claim-resolve step (M3.2)
 type ClaimResolveSpec struct {
-	TicketFieldPath string `yaml:"ticket_field_path,omitempty" json:"ticket_field_path,omitempty"` // Where ticket is (default: "_claim_check")
+	TicketFieldPath  string `yaml:"ticket_field_path,omitempty" json:"ticket_field_path,omitempty"`   // Where ticket is (default: "_claim_check")
 	PayloadFieldPath string `yaml:"payload_field_path,omitempty" json:"payload_field_path,omitempty"` // Where to restore payload (default: "body")
 }
 
@@ -111,9 +111,9 @@ type TranslateSpec struct {
 
 // RouteStepSpec defines a content-based router step
 type RouteStepSpec struct {
-	Expr     string                   `yaml:"expr" json:"expr"` // evaluates to route name
-	Cases    map[string]RouteCase     `yaml:"cases,omitempty" json:"cases,omitempty"`
-	Default  string                   `yaml:"default,omitempty" json:"default,omitempty"` // default route
+	Expr    string               `yaml:"expr" json:"expr"` // evaluates to route name
+	Cases   map[string]RouteCase `yaml:"cases,omitempty" json:"cases,omitempty"`
+	Default string               `yaml:"default,omitempty" json:"default,omitempty"` // default route
 }
 
 // RouteCase represents a single case in a router
@@ -133,7 +133,7 @@ type IdempotentSpec struct {
 
 // AuthorizeSpec defines an authorization step
 type AuthorizeSpec struct {
-	Mode         string      `yaml:"mode" json:"mode"`                   // "rbac", "abac", or "pbac"
+	Mode         string      `yaml:"mode" json:"mode"`                                       // "rbac", "abac", or "pbac"
 	RequireRoles []string    `yaml:"require_roles,omitempty" json:"require_roles,omitempty"` // for RBAC mode
 	Expr         string      `yaml:"expr,omitempty" json:"expr,omitempty"`                   // for ABAC mode
 	PDP          *PDPConfig  `yaml:"pdp,omitempty" json:"pdp,omitempty"`                     // for PBAC mode (M1.2)
@@ -142,9 +142,9 @@ type AuthorizeSpec struct {
 
 // PDPConfig defines the Policy Decision Point configuration for PBAC mode (M1.2)
 type PDPConfig struct {
-	Endpoint string                 `yaml:"endpoint" json:"endpoint"`                     // PDP service endpoint (e.g., http://localhost:8181)
-	Timeout  int                    `yaml:"timeout,omitempty" json:"timeout,omitempty"`   // timeout in milliseconds (default: 5000)
-	Extra    map[string]interface{} `yaml:",inline" json:"-"`                             // extensibility for custom PDP implementations
+	Endpoint string                 `yaml:"endpoint" json:"endpoint"`                   // PDP service endpoint (e.g., http://localhost:8181)
+	Timeout  int                    `yaml:"timeout,omitempty" json:"timeout,omitempty"` // timeout in milliseconds (default: 5000)
+	Extra    map[string]interface{} `yaml:",inline" json:"-"`                           // extensibility for custom PDP implementations
 }
 
 // OnDenySpec defines routing for authorization denials (M1.2)
@@ -154,23 +154,23 @@ type OnDenySpec struct {
 
 // RegistryRefSpec defines a reference to a schema in a registry (R18.3)
 type RegistryRefSpec struct {
-	Type    string `yaml:"type" json:"type"`             // "apicurio", "confluent", "aws-glue", "azure", etc.
-	URL     string `yaml:"url" json:"url"`               // registry base URL
-	Group   string `yaml:"group" json:"group"`           // registry group (e.g., "order-schemas")
-	Subject string `yaml:"subject" json:"subject"`       // registry subject: a named schema group, NOT a data subject
-	Version string `yaml:"version" json:"version"`       // "latest" or specific version ID
+	Type    string `yaml:"type" json:"type"`       // "apicurio", "confluent", "aws-glue", "azure", etc.
+	URL     string `yaml:"url" json:"url"`         // registry base URL
+	Group   string `yaml:"group" json:"group"`     // registry group (e.g., "order-schemas")
+	Subject string `yaml:"subject" json:"subject"` // registry subject: a named schema group, NOT a data subject
+	Version string `yaml:"version" json:"version"` // "latest" or specific version ID
 }
 
 // ContractSpec defines a data contract with JSON Schema validation (M0.3.5-7, R18.3)
 type ContractSpec struct {
-	ID              string                 `yaml:"id" json:"id"`                               // contract identifier
-	Version         string                 `yaml:"version" json:"version"`                     // semver: 1.0.0
-	Schema          interface{}            `yaml:"schema" json:"schema"`                       // JSON Schema (can be YAML object or JSON string) — inline contract
-	Registry        *RegistryRefSpec       `yaml:"registry" json:"registry,omitempty"`        // registry-backed contract reference (R18.3)
+	ID              string                 `yaml:"id" json:"id"`                             // contract identifier
+	Version         string                 `yaml:"version" json:"version"`                   // semver: 1.0.0
+	Schema          interface{}            `yaml:"schema" json:"schema"`                     // JSON Schema (can be YAML object or JSON string) — inline contract
+	Registry        *RegistryRefSpec       `yaml:"registry" json:"registry,omitempty"`       // registry-backed contract reference (R18.3)
 	ContractVersion string                 `yaml:"contract_version" json:"contract_version"` // resolved version tag (R18.3): "sha256:..." for inline, "apicurio:group:subject:version" for registry
-	OnViolation     string                 `yaml:"on_violation" json:"on_violation"`          // sink name or route for violations
+	OnViolation     string                 `yaml:"on_violation" json:"on_violation"`         // sink name or route for violations
 	Strict          bool                   `yaml:"strict,omitempty" json:"strict,omitempty"` // fail pipeline on violation? (default: false)
-	Extra           map[string]interface{} `yaml:",inline" json:"-"`                          // extensibility
+	Extra           map[string]interface{} `yaml:",inline" json:"-"`                         // extensibility
 }
 
 // ObservabilityConfig defines observability settings for metrics and tracing
@@ -181,14 +181,14 @@ type ObservabilityConfig struct {
 
 // MetricsConfig defines Prometheus metrics settings
 type MetricsConfig struct {
-	Enabled         bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
-	PrometheusAddr  string `yaml:"prometheus_addr,omitempty" json:"prometheus_addr,omitempty"` // default: ":2112"
+	Enabled        bool   `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	PrometheusAddr string `yaml:"prometheus_addr,omitempty" json:"prometheus_addr,omitempty"` // default: ":2112"
 }
 
 // TracingConfig defines OpenTelemetry tracing settings
 type TracingConfig struct {
-	Enabled       bool    `yaml:"enabled,omitempty" json:"enabled,omitempty"`
-	OtelExporter  string  `yaml:"otel_exporter,omitempty" json:"otel_exporter,omitempty"` // stdout, jaeger, datadog
-	JaegerEndpoint string `yaml:"jaeger_endpoint,omitempty" json:"jaeger_endpoint,omitempty"` // for Jaeger exporter
-	SampleRate    float64 `yaml:"sample_rate,omitempty" json:"sample_rate,omitempty"`   // default: 0.1 (10%)
+	Enabled        bool    `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	OtelExporter   string  `yaml:"otel_exporter,omitempty" json:"otel_exporter,omitempty"`     // stdout, jaeger, datadog
+	JaegerEndpoint string  `yaml:"jaeger_endpoint,omitempty" json:"jaeger_endpoint,omitempty"` // for Jaeger exporter
+	SampleRate     float64 `yaml:"sample_rate,omitempty" json:"sample_rate,omitempty"`         // default: 0.1 (10%)
 }

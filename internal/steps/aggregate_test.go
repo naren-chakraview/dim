@@ -84,7 +84,7 @@ func TestAggregateCountCompletion(t *testing.T) {
 
 // TestAggregateTimeWindowCompletion verifies time-window-based aggregation (M2.1.2)
 func TestAggregateTimeWindowCompletion(t *testing.T) {
-spec := &AggregateSpec{
+	spec := &AggregateSpec{
 		CorrelationKey:     "order_id",
 		CompletionStrategy: "time_window",
 		WindowMs:           100,
@@ -153,7 +153,7 @@ func TestAggregateNullCorrelationKey(t *testing.T) {
 
 // TestAggregateMultipleCorrelationKeys verifies independent groups (M2.1.2)
 func TestAggregateMultipleCorrelationKeys(t *testing.T) {
-spec := &AggregateSpec{
+	spec := &AggregateSpec{
 		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              2,
@@ -209,7 +209,7 @@ spec := &AggregateSpec{
 
 // TestAggregateDrain verifies hot-reload drain behavior (M2.1.2)
 func TestAggregateDrain(t *testing.T) {
-spec := &AggregateSpec{
+	spec := &AggregateSpec{
 		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              10, // High count so groups don't auto-flush
@@ -331,7 +331,7 @@ func TestAggregateSpecValidation(t *testing.T) {
 
 // TestAggregateOutputStructure verifies output message structure (M2.1.2)
 func TestAggregateOutputStructure(t *testing.T) {
-spec := &AggregateSpec{
+	spec := &AggregateSpec{
 		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              2,

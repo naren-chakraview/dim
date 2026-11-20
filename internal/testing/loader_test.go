@@ -342,8 +342,8 @@ func TestValidateFixturesWithInvalid(t *testing.T) {
 			ExpectedOutput: map[string]interface{}{"value": 1},
 		},
 		{
-			Name:   "invalid",
-			Input:  map[string]interface{}{"value": 2},
+			Name:  "invalid",
+			Input: map[string]interface{}{"value": 2},
 			// No expected output or other expectation
 		},
 	}

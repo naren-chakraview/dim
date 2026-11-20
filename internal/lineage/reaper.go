@@ -10,23 +10,23 @@ import (
 
 // Reaper automatically removes expired lineage records based on retention policies
 type Reaper struct {
-	store      *Store
-	resolver   *RetentionResolver
-	cadences   map[string]time.Duration // policy -> check cadence
-	tickers    map[string]*time.Ticker
-	stopCh     chan struct{}
-	wg         sync.WaitGroup
+	store    *Store
+	resolver *RetentionResolver
+	cadences map[string]time.Duration // policy -> check cadence
+	tickers  map[string]*time.Ticker
+	stopCh   chan struct{}
+	wg       sync.WaitGroup
 }
 
 // NewReaper creates a new reaper for automatic record expiry
 // cadences: maps policy names to check intervals (e.g., "30-days" -> 1 hour)
 func NewReaper(store *Store, resolver *RetentionResolver, cadences map[string]time.Duration) *Reaper {
 	return &Reaper{
-		store:      store,
-		resolver:   resolver,
-		cadences:   cadences,
-		tickers:    make(map[string]*time.Ticker),
-		stopCh:     make(chan struct{}),
+		store:    store,
+		resolver: resolver,
+		cadences: cadences,
+		tickers:  make(map[string]*time.Ticker),
+		stopCh:   make(chan struct{}),
 	}
 }
 

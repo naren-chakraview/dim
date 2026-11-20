@@ -172,7 +172,7 @@ func TestScaffoldReasoningProvided(t *testing.T) {
 func TestScaffoldPlaceholdersForIntentMissingInfo(t *testing.T) {
 	ctx := context.Background()
 	req := ScaffoldFromIntentRequest{
-		Intent: "do something",  // Very vague, missing source/sink info
+		Intent: "do something", // Very vague, missing source/sink info
 		Domain: "test",
 	}
 

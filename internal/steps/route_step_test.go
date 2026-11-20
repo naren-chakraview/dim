@@ -111,9 +111,9 @@ func TestRouteStepComplexExpression(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		amount    float64
-		expected  string
+		name     string
+		amount   float64
+		expected string
 	}{
 		{"high amount", 2000.0, "sink-high"},
 		{"medium amount", 500.0, "sink-medium"},

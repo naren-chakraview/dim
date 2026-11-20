@@ -164,8 +164,8 @@ func TestSearchGracefulFallback(t *testing.T) {
 func TestSearchOutputFormats(t *testing.T) {
 	t.Run("JSON output", func(t *testing.T) {
 		results := &SearchResults{
-			Query: "test",
-			Count: 0,
+			Query:   "test",
+			Count:   0,
 			Results: []CatalogResult{},
 		}
 

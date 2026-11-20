@@ -1088,10 +1088,10 @@ func TestExecutorHighWorkerCountPerformance(t *testing.T) {
 
 // retryableStep is a mock step that can fail N times and then succeed
 type retryableStep struct {
-	name            string
+	name              string
 	failuresRemaining int
-	callCount       int
-	mutex           sync.Mutex
+	callCount         int
+	mutex             sync.Mutex
 }
 
 func (rs *retryableStep) Execute(ctx context.Context, msg *Message) (*Message, error) {
@@ -1110,9 +1110,9 @@ func (rs *retryableStep) Execute(ctx context.Context, msg *Message) (*Message, e
 
 // permanentErrorStep always fails with a permanent error (not retryable)
 type permanentErrorStep struct {
-	name string
+	name      string
 	callCount int
-	mutex sync.Mutex
+	mutex     sync.Mutex
 }
 
 func (pes *permanentErrorStep) Execute(ctx context.Context, msg *Message) (*Message, error) {
@@ -1186,7 +1186,7 @@ func TestRetryTransientErrorSuccessfulRetry(t *testing.T) {
 
 	retryPolicy := &RetryPolicy{
 		MaxAttempts: 3,
-		BackoffMs:   50,   // Short backoff for testing
+		BackoffMs:   50, // Short backoff for testing
 		JitterMs:    10,
 	}
 
@@ -1343,12 +1343,12 @@ func TestRetryPermanentErrorNoRetry(t *testing.T) {
 // TestBackoffCalculation verifies exponential backoff formula is correct.
 func TestBackoffCalculation(t *testing.T) {
 	tests := []struct {
-		name      string
-		attempt   int
-		baseMs    int
-		jitterMs  int
-		minDur    time.Duration
-		maxDur    time.Duration
+		name     string
+		attempt  int
+		baseMs   int
+		jitterMs int
+		minDur   time.Duration
+		maxDur   time.Duration
 	}{
 		{
 			name:     "attempt 1",
@@ -1429,7 +1429,7 @@ func TestRetryContextCancellation(t *testing.T) {
 
 	retryPolicy := &RetryPolicy{
 		MaxAttempts: 10,
-		BackoffMs:   500,  // Long backoff - context will cancel during this
+		BackoffMs:   500, // Long backoff - context will cancel during this
 		JitterMs:    50,
 	}
 
@@ -1453,9 +1453,9 @@ func TestRetryContextCancellation(t *testing.T) {
 // TestErrorClassification verifies error types are classified correctly.
 func TestErrorClassification(t *testing.T) {
 	tests := []struct {
-		name      string
-		err       error
-		expected  ErrorType
+		name     string
+		err      error
+		expected ErrorType
 	}{
 		{
 			name:     "nil error",

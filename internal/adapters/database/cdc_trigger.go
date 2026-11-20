@@ -14,14 +14,14 @@ import (
 // TriggerBasedCDCSource polls changelog table for database changes (M2.3.4a)
 // Captures before/after states from trigger-written changelog
 type TriggerBasedCDCSource struct {
-	db                *sql.DB
-	config            *TriggerCDCConfig
-	outChan           *engine.Channel
-	closed            chan struct{}
-	wg                sync.WaitGroup
-	currentWatermark  interface{}
-	mu                sync.RWMutex
-	lastPollTime      time.Time
+	db               *sql.DB
+	config           *TriggerCDCConfig
+	outChan          *engine.Channel
+	closed           chan struct{}
+	wg               sync.WaitGroup
+	currentWatermark interface{}
+	mu               sync.RWMutex
+	lastPollTime     time.Time
 }
 
 // TriggerCDCConfig defines configuration for trigger-based CDC

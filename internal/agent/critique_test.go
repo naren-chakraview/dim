@@ -165,10 +165,10 @@ func TestCritiqueSummaryGeneration(t *testing.T) {
 
 func TestOverallRatingCalculation(t *testing.T) {
 	testCases := []struct {
-		name            string
-		findings        []CritiqueFinding
-		valid           bool
-		expectedRating  string
+		name           string
+		findings       []CritiqueFinding
+		valid          bool
+		expectedRating string
 	}{
 		{
 			"no findings, valid",
@@ -231,11 +231,11 @@ func TestOverallRatingCalculation(t *testing.T) {
 func TestCritiqueFindings(t *testing.T) {
 	// Test that findings are properly categorized
 	validCategories := map[string]bool{
-		"redundancy":     true,
-		"convention":     true,
-		"best-practice":  true,
-		"security":       true,
-		"clarity":        true,
+		"redundancy":    true,
+		"convention":    true,
+		"best-practice": true,
+		"security":      true,
+		"clarity":       true,
 	}
 
 	validSeverities := map[string]bool{

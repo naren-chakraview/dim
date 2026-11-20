@@ -13,9 +13,9 @@ import (
 
 // YAMLNodeWrapper preserves the original node tree along with parsed data
 type YAMLNodeWrapper struct {
-	RootNode *yaml.Node                 // Original parsed node tree (preserves order/comments)
-	Data     map[string]interface{}     // Parsed map for editing
-	FilePath string                     // Source file path for reference
+	RootNode *yaml.Node             // Original parsed node tree (preserves order/comments)
+	Data     map[string]interface{} // Parsed map for editing
+	FilePath string                 // Source file path for reference
 }
 
 // ParseYAMLWithPreservation parses YAML while preserving the node tree

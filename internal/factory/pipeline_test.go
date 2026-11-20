@@ -364,7 +364,7 @@ func TestMultiRouteExecutorsCreated(t *testing.T) {
 	if err != nil {
 		t.Skip("skipping test: port 8080 already in use")
 	}
-	listener.Close()  // Close immediately after checking availability
+	listener.Close() // Close immediately after checking availability
 
 	cfg := &config.RouteConfig{
 		Version: 1,
@@ -619,7 +619,7 @@ func TestMultiRouteShutdown(t *testing.T) {
 	if err != nil {
 		t.Skip("skipping test: port 8080 already in use")
 	}
-	listener.Close()  // Close immediately after checking availability
+	listener.Close() // Close immediately after checking availability
 
 	cfg := &config.RouteConfig{
 		Version: 1,
@@ -703,11 +703,11 @@ func TestMultiRouteShutdown(t *testing.T) {
 // TestHTTPRouteDetection verifies HTTP route detection from different sources
 func TestHTTPRouteDetection(t *testing.T) {
 	testCases := []struct {
-		name           string
-		header         string
-		queryParam     string
-		path           string
-		expectedRoute  string
+		name          string
+		header        string
+		queryParam    string
+		path          string
+		expectedRoute string
 	}{
 		{
 			name:          "X-Route header priority",

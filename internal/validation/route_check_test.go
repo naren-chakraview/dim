@@ -8,11 +8,11 @@ import (
 
 func TestPerformStaticContractChecks(t *testing.T) {
 	tests := []struct {
-		name       string
-		route      *config.RouteSpec
-		contracts  []config.ContractSpec
+		name         string
+		route        *config.RouteSpec
+		contracts    []config.ContractSpec
 		wantWarnings int
-		description string
+		description  string
 	}{
 		{
 			name: "translate before contract with type mismatch",
@@ -47,7 +47,7 @@ func TestPerformStaticContractChecks(t *testing.T) {
 				},
 			},
 			wantWarnings: 1,
-			description: "Should warn when translate emits wrong type",
+			description:  "Should warn when translate emits wrong type",
 		},
 		{
 			name: "translate before contract with correct type",
@@ -85,7 +85,7 @@ func TestPerformStaticContractChecks(t *testing.T) {
 				},
 			},
 			wantWarnings: 0,
-			description: "Should not warn when types match",
+			description:  "Should not warn when types match",
 		},
 		{
 			name: "complex JSONata expression",
@@ -119,7 +119,7 @@ func TestPerformStaticContractChecks(t *testing.T) {
 				},
 			},
 			wantWarnings: 0,
-			description: "Should skip complex expressions (best-effort, partial validation)",
+			description:  "Should skip complex expressions (best-effort, partial validation)",
 		},
 		{
 			name: "contract step without prior translate",
@@ -153,7 +153,7 @@ func TestPerformStaticContractChecks(t *testing.T) {
 				},
 			},
 			wantWarnings: 0,
-			description: "Should skip contract validation when no prior translate",
+			description:  "Should skip contract validation when no prior translate",
 		},
 		{
 			name: "no contract step",
@@ -182,7 +182,7 @@ func TestPerformStaticContractChecks(t *testing.T) {
 				},
 			},
 			wantWarnings: 0,
-			description: "Should not warn when there's no contract step",
+			description:  "Should not warn when there's no contract step",
 		},
 	}
 
@@ -213,9 +213,9 @@ func TestPerformStaticContractChecks(t *testing.T) {
 
 func TestContractSpecToFlatFieldTypes(t *testing.T) {
 	tests := []struct {
-		name      string
-		contract  *config.ContractSpec
-		wantError bool
+		name       string
+		contract   *config.ContractSpec
+		wantError  bool
 		wantFields map[string]bool // field names that should exist
 	}{
 		{

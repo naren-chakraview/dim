@@ -13,10 +13,10 @@ import (
 // FragmentResolver handles loading and resolution of YAML fragments with $import directives
 // and parameter substitution via ${PARAM:name} syntax
 type FragmentResolver struct {
-	BasePath   string                     // Base directory for resolving relative imports
-	Cache      map[string]interface{}     // Cached parsed fragments (key: absolute path)
-	Visiting   map[string]bool            // Currently visiting nodes (for cycle detection)
-	Parameters map[string]interface{}     // Current parameter scope (for substitution)
+	BasePath   string                 // Base directory for resolving relative imports
+	Cache      map[string]interface{} // Cached parsed fragments (key: absolute path)
+	Visiting   map[string]bool        // Currently visiting nodes (for cycle detection)
+	Parameters map[string]interface{} // Current parameter scope (for substitution)
 }
 
 // paramRegex matches ${PARAM:name} patterns

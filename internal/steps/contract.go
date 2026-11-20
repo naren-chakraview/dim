@@ -67,10 +67,10 @@ func NewContractStep(contractStore *config.ContractStore, routeName, contractID 
 
 // Execute validates the message body against the contract schema.
 // Returns:
-// - (msg with contract_version stamped, nil) if validation passes
-// - (nil, error) if validation fails in strict mode
-// - (msg with violation marker, nil) if validation fails in non-strict mode
-//   (caller is responsible for routing to on_violation sink)
+//   - (msg with contract_version stamped, nil) if validation passes
+//   - (nil, error) if validation fails in strict mode
+//   - (msg with violation marker, nil) if validation fails in non-strict mode
+//     (caller is responsible for routing to on_violation sink)
 func (cs *ContractStep) Execute(ctx context.Context, msg *engine.Message) (*engine.Message, error) {
 	if msg == nil {
 		return nil, nil

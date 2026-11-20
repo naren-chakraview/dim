@@ -14,20 +14,20 @@ import (
 )
 
 type S3Source struct {
-	client    *s3.Client
-	bucket    string
-	prefix    string
-	outChan   *engine.Channel
-	closed    chan struct{}
-	config    SourceConfig
-	lastSync  map[string]time.Time
-	mu        sync.Mutex
+	client   *s3.Client
+	bucket   string
+	prefix   string
+	outChan  *engine.Channel
+	closed   chan struct{}
+	config   SourceConfig
+	lastSync map[string]time.Time
+	mu       sync.Mutex
 }
 
 type SourceConfig struct {
-	Bucket      string
-	Prefix      string
-	Region      string
+	Bucket       string
+	Prefix       string
+	Region       string
 	PollInterval time.Duration
 }
 
@@ -36,11 +36,11 @@ func NewS3Source(cfg SourceConfig, outChan *engine.Channel) (*S3Source, error) {
 		return nil, fmt.Errorf("output channel cannot be nil")
 	}
 	return &S3Source{
-		bucket:  cfg.Bucket,
-		prefix:  cfg.Prefix,
-		outChan: outChan,
-		closed:  make(chan struct{}),
-		config:  cfg,
+		bucket:   cfg.Bucket,
+		prefix:   cfg.Prefix,
+		outChan:  outChan,
+		closed:   make(chan struct{}),
+		config:   cfg,
 		lastSync: make(map[string]time.Time),
 	}, nil
 }

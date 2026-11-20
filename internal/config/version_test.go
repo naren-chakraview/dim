@@ -104,9 +104,9 @@ func TestComputeRouteVersionChangeDetection(t *testing.T) {
 	}
 
 	tests := []struct {
-		name            string
-		modifyRoute     func(*RouteSpec)
-		shouldChange    bool
+		name         string
+		modifyRoute  func(*RouteSpec)
+		shouldChange bool
 	}{
 		{
 			name:         "change from source",

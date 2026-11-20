@@ -27,11 +27,11 @@ func TestTracingProvider_NormalizeSampleRate(t *testing.T) {
 		input    float64
 		expected float64
 	}{
-		{-0.5, 0},    // Negative becomes 0
-		{0, 0},       // 0 is valid
-		{0.5, 0.5},   // Middle value
-		{1.0, 1.0},   // 1.0 is valid
-		{1.5, 1.0},   // > 1.0 becomes 1.0
+		{-0.5, 0},  // Negative becomes 0
+		{0, 0},     // 0 is valid
+		{0.5, 0.5}, // Middle value
+		{1.0, 1.0}, // 1.0 is valid
+		{1.5, 1.0}, // > 1.0 becomes 1.0
 	}
 
 	for _, tc := range tests {

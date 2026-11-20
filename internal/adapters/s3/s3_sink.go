@@ -14,11 +14,11 @@ import (
 )
 
 type S3Sink struct {
-	client *s3.Client
-	bucket string
-	prefix string
-	mu     sync.Mutex
-	closed bool
+	client  *s3.Client
+	bucket  string
+	prefix  string
+	mu      sync.Mutex
+	closed  bool
 	metrics struct {
 		written int64
 		failed  int64

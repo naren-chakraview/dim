@@ -19,10 +19,10 @@ func TestPurgeLogReaperCreation(t *testing.T) {
 
 	reaper := NewPurgeLogReaper(
 		store,
-		365*24*time.Hour,  // 1 year TTL
-		30*24*time.Hour,   // 30 day warning lead
-		1*time.Hour,       // 1 hour check cadence
-		nil,               // no S3 export
+		365*24*time.Hour, // 1 year TTL
+		30*24*time.Hour,  // 30 day warning lead
+		1*time.Hour,      // 1 hour check cadence
+		nil,              // no S3 export
 	)
 
 	if reaper == nil {
@@ -48,8 +48,8 @@ func TestPurgeLogReaperStart(t *testing.T) {
 		store,
 		365*24*time.Hour,
 		30*24*time.Hour,
-		10*time.Millisecond,  // Short cadence for testing
-		nil,                  // no S3 export
+		10*time.Millisecond, // Short cadence for testing
+		nil,                 // no S3 export
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

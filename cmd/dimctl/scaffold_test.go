@@ -186,24 +186,24 @@ func TestScaffoldTemplateShapes(t *testing.T) {
 	os.Chdir(tmpDir)
 
 	tests := []struct {
-		name        string
-		template    string
-		shouldHave  []string
+		name          string
+		template      string
+		shouldHave    []string
 		shouldNotHave []string
 	}{
 		{
-			name:     "passthrough",
-			template: "passthrough",
+			name:       "passthrough",
+			template:   "passthrough",
 			shouldHave: []string{"governance/fragments", "sources:", "routes:", "sinks:", "fragment: governance-baseline"},
 		},
 		{
-			name:     "transform",
-			template: "transform",
+			name:       "transform",
+			template:   "transform",
 			shouldHave: []string{"governance/fragments", "translate:", "expr:", "fragment: governance-baseline"},
 		},
 		{
-			name:     "contract",
-			template: "contract",
+			name:       "contract",
+			template:   "contract",
 			shouldHave: []string{"governance/fragments", "sources:", "routes:", "sinks:", "contracts:", "fragment: governance-baseline"},
 		},
 	}

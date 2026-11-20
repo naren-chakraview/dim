@@ -10,21 +10,21 @@ import (
 
 // Instance represents a single dimd instance in the cluster.
 type Instance struct {
-	ID        string    // Unique instance identifier
-	Host      string    // Hostname or IP address
-	Port      int       // Port number
-	LastSeen  time.Time // Last heartbeat/health check
-	Healthy   bool      // Current health status
-	GenerationVersion int64 // Current generation version (for coordinated reload)
+	ID                string    // Unique instance identifier
+	Host              string    // Hostname or IP address
+	Port              int       // Port number
+	LastSeen          time.Time // Last heartbeat/health check
+	Healthy           bool      // Current health status
+	GenerationVersion int64     // Current generation version (for coordinated reload)
 }
 
 // ClusterConfig defines the cluster topology and discovery mechanism.
 type ClusterConfig struct {
-	Mode          string      // "static" (config-based), "env" (environment variables), or "coordinator" (etcd/Consul)
-	Instances     []Instance  // List of cluster instances (for static mode)
-	CurrentID     string      // This instance's unique ID
+	Mode          string     // "static" (config-based), "env" (environment variables), or "coordinator" (etcd/Consul)
+	Instances     []Instance // List of cluster instances (for static mode)
+	CurrentID     string     // This instance's unique ID
 	HeartbeatTTL  time.Duration
-	DiscoveryAddr string      // Coordinator address (for coordinator mode, optional)
+	DiscoveryAddr string // Coordinator address (for coordinator mode, optional)
 }
 
 // NewClusterConfigFromStatic creates a cluster config with static instance list.

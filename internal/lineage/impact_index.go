@@ -9,15 +9,15 @@ import (
 
 // ImpactReference represents a reference from a route to an external component
 type ImpactReference struct {
-	SourceType   string // "route" | "sink" | "source" | "step"
-	SourcePath   string // JSONPath in config (e.g., "$.routes.webhook.steps[0].translate")
-	SourceName   string // Route/step/sink name in config
+	SourceType string // "route" | "sink" | "source" | "step"
+	SourcePath string // JSONPath in config (e.g., "$.routes.webhook.steps[0].translate")
+	SourceName string // Route/step/sink name in config
 
-	TargetType  string // "contract" | "sink" | "source" | "step-type" | "connection"
-	TargetName  string // What's being referenced
+	TargetType string // "contract" | "sink" | "source" | "step-type" | "connection"
+	TargetName string // What's being referenced
 
-	IsStatic     bool   // True if reference is deterministic, false if dynamic (JSONata computed)
-	Uncertainty  string // Reason if not static (e.g., "computed from JSONata expression")
+	IsStatic    bool   // True if reference is deterministic, false if dynamic (JSONata computed)
+	Uncertainty string // Reason if not static (e.g., "computed from JSONata expression")
 
 	LineNumber int    // For error reporting
 	ConfigPath string // Path to route YAML file
@@ -32,8 +32,8 @@ type RouteImpactIndex struct {
 	StepTypeReferences   map[string][]ImpactReference // step type -> [references]
 
 	AllReferences []ImpactReference // Flat list for iteration
-	GeneratedAt   string             // RFC3339 timestamp
-	Version       string             // Compatible with M4.6 InterfaceVersion
+	GeneratedAt   string            // RFC3339 timestamp
+	Version       string            // Compatible with M4.6 InterfaceVersion
 }
 
 // addReference adds a reference to the index

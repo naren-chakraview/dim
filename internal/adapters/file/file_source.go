@@ -19,27 +19,27 @@ import (
 // and converts them into messages sent to an output channel.
 // Supports both local filesystem and SFTP sources via the SourceConfig.
 type FileSource struct {
-	config           SourceConfig
-	outChan          *engine.Channel
-	closed           chan struct{}
-	pollTicker       *time.Ticker
-	lastModTime      map[string]time.Time
-	domain           string               // domain context for this source (used for secret resolution)
-	secretResolver   *secrets.Resolver    // optional domain-scoped secret resolver
+	config         SourceConfig
+	outChan        *engine.Channel
+	closed         chan struct{}
+	pollTicker     *time.Ticker
+	lastModTime    map[string]time.Time
+	domain         string            // domain context for this source (used for secret resolution)
+	secretResolver *secrets.Resolver // optional domain-scoped secret resolver
 }
 
 // SourceConfig defines configuration for file polling
 type SourceConfig struct {
-	Path          string        // Local directory path or SFTP path
-	Type          string        // "local" or "sftp"
-	Schedule      string        // Poll interval (e.g., "30s", "1m")
-	SFTPHost      string        // SFTP host (for type: sftp)
-	SFTPPort      int           // SFTP port (default 22)
-	SFTPUser      string        // SFTP username
-	SFTPPassword  string        // SFTP password (or use key auth)
-	SFTPKeyFile   string        // Path to SSH private key
-	ProcessedDir  string        // Move processed files here (optional)
-	FilePattern   string        // Match files by pattern (e.g., "*.json")
+	Path         string // Local directory path or SFTP path
+	Type         string // "local" or "sftp"
+	Schedule     string // Poll interval (e.g., "30s", "1m")
+	SFTPHost     string // SFTP host (for type: sftp)
+	SFTPPort     int    // SFTP port (default 22)
+	SFTPUser     string // SFTP username
+	SFTPPassword string // SFTP password (or use key auth)
+	SFTPKeyFile  string // Path to SSH private key
+	ProcessedDir string // Move processed files here (optional)
+	FilePattern  string // Match files by pattern (e.g., "*.json")
 }
 
 // NewFileSource creates a local file polling source (backward compatible, no domain scoping)
@@ -75,11 +75,14 @@ func NewFileSourceWithDomain(path string, schedule string, outChan *engine.Chann
 
 // NewSFTPSource creates an SFTP file polling source (backward compatible, no domain scoping)
 func NewSFTPSource(host string, port int, user string, path string, schedule string, outChan *engine.Channel) (*FileSource, error) {
-	return NewSFTPSourceWithDomain(host, port, user, path, schedule, outChan, "", nil)
+	return NewSFTPSourceWithDomain(host, port, user, "", path, schedule, outChan, "", nil)
 }
 
-// NewSFTPSourceWithDomain creates an SFTP file polling source with domain-scoped secret resolution
-func NewSFTPSourceWithDomain(host string, port int, user string, path string, schedule string, outChan *engine.Channel, domain string, resolver *secrets.Resolver) (*FileSource, error) {
+// NewSFTPSourceWithDomain creates an SFTP file polling source with domain-scoped secret resolution.
+// password is a secret reference name (not the secret itself). When a resolver and domain are
+// configured, the reference is checked with ValidateSecretReferences at construction, so a
+// denied or missing reference fails here instead of at first poll.
+func NewSFTPSourceWithDomain(host string, port int, user string, password string, path string, schedule string, outChan *engine.Channel, domain string, resolver *secrets.Resolver) (*FileSource, error) {
 	if outChan == nil {
 		return nil, fmt.Errorf("output channel cannot be nil")
 	}
@@ -89,14 +92,21 @@ func NewSFTPSourceWithDomain(host string, port int, user string, path string, sc
 		return nil, fmt.Errorf("invalid schedule duration: %w", err)
 	}
 
+	if password != "" && resolver != nil && domain != "" {
+		if err := resolver.ValidateSecretReferences(domain, fmt.Sprintf("${SECRET:%s}", password)); err != nil {
+			return nil, fmt.Errorf("invalid SFTP password reference: %w", err)
+		}
+	}
+
 	return &FileSource{
 		config: SourceConfig{
-			Path:     path,
-			Type:     "sftp",
-			Schedule: schedule,
-			SFTPHost: host,
-			SFTPPort: port,
-			SFTPUser: user,
+			Path:         path,
+			Type:         "sftp",
+			Schedule:     schedule,
+			SFTPHost:     host,
+			SFTPPort:     port,
+			SFTPUser:     user,
+			SFTPPassword: password,
 		},
 		outChan:        outChan,
 		closed:         make(chan struct{}),
@@ -130,35 +140,21 @@ func (fs *FileSource) Start(ctx context.Context) error {
 	}
 }
 
-// resolveSecret resolves secret references with domain awareness when resolver is available,
-// otherwise falls back to unscoped environment variables for backward compatibility.
-// This implements T1.13 domain-scoped secret resolution.
-func (fs *FileSource) resolveSecret(ref string) string {
-	if fs.secretResolver != nil && fs.domain != "" {
-		// Use domain-scoped resolver
-		resolved, err := fs.secretResolver.ResolveInRoute(fs.domain, fmt.Sprintf("${SECRET:%s}", ref))
-		if err == nil {
-			// Extract the resolved value from the pattern
-			// ResolveInRoute returns "prefix ${SECRET:ref} suffix" -> we need just the value
-			// For a simple reference, it returns the value directly if resolved
-			if !contains(resolved, "${SECRET:") {
-				return resolved
-			}
-		}
-		// If resolution failed or pattern is unresolved, fall back
+// resolveSecret resolves a secret reference (T1.13 domain-scoped secret resolution).
+//
+// The environment-variable fallback is used ONLY when no domain context is configured
+// (no resolver, or no domain). Once domain scoping is in effect, any resolution failure,
+// including a cross-domain denial, is returned as an error and never falls back to env.
+func (fs *FileSource) resolveSecret(ref string) (string, error) {
+	if fs.secretResolver == nil || fs.domain == "" {
+		return os.Getenv(ref), nil
 	}
-	// Fallback to unscoped environment variable (for backward compatibility)
-	return os.Getenv(ref)
-}
 
-// contains checks if a string contains a substring
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
+	value, err := fs.secretResolver.ResolveInRoute(fs.domain, fmt.Sprintf("${SECRET:%s}", ref))
+	if err != nil {
+		return "", fmt.Errorf("resolve secret %q for domain %q: %w", ref, fs.domain, err)
 	}
-	return false
+	return value, nil
 }
 
 // poll checks for new or modified files and sends them as messages
@@ -246,7 +242,11 @@ func (fs *FileSource) pollSFTP(ctx context.Context) error {
 
 	// Try password auth first if password is set
 	if fs.config.SFTPPassword != "" {
-		password := fs.resolveSecret(fs.config.SFTPPassword)
+		password, err := fs.resolveSecret(fs.config.SFTPPassword)
+		if err != nil {
+			// Fail the poll before any network connection is attempted
+			return fmt.Errorf("SFTP password: %w", err)
+		}
 		if password != "" {
 			config.Auth = []ssh.AuthMethod{ssh.Password(password)}
 		}

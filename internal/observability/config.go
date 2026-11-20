@@ -9,25 +9,25 @@ import (
 // Config holds parsed observability configuration
 type Config struct {
 	// Metrics settings
-	MetricsEnabled   bool
-	PrometheusAddr   string
+	MetricsEnabled bool
+	PrometheusAddr string
 
 	// Tracing settings
-	TracingEnabled   bool
-	OtelExporter     string
-	JaegerEndpoint   string
-	SampleRate       float64
+	TracingEnabled bool
+	OtelExporter   string
+	JaegerEndpoint string
+	SampleRate     float64
 }
 
 // DefaultConfig returns the default observability configuration (disabled)
 func DefaultConfig() *Config {
 	return &Config{
-		MetricsEnabled:   false,
-		PrometheusAddr:   ":2112",
-		TracingEnabled:   false,
-		OtelExporter:     "stdout",
-		JaegerEndpoint:   "http://localhost:14268/api/traces",
-		SampleRate:       0.1, // 10% sampling by default
+		MetricsEnabled: false,
+		PrometheusAddr: ":2112",
+		TracingEnabled: false,
+		OtelExporter:   "stdout",
+		JaegerEndpoint: "http://localhost:14268/api/traces",
+		SampleRate:     0.1, // 10% sampling by default
 	}
 }
 
@@ -74,8 +74,8 @@ func (c *Config) Validate() error {
 	// Validate exporter if tracing enabled
 	if c.TracingEnabled {
 		validExporters := map[string]bool{
-			"stdout": true,
-			"jaeger": true,
+			"stdout":  true,
+			"jaeger":  true,
 			"datadog": true,
 		}
 		if !validExporters[c.OtelExporter] {

@@ -38,16 +38,16 @@ func (s GenerationState) String() string {
 // Messages sent to the old generation complete via its Executor's drain logic,
 // while new messages are routed to the active generation.
 type Generation struct {
-	ID               int64              // Generation sequence number (incrementing)
-	State            GenerationState    // Active/Draining/Expired
-	Executor         *Executor          // Wrapped executor
-	RouteVersion     string             // SHA256 hash of route config (for lineage tracking)
-	CreatedAt        time.Time          // When this generation was created
-	DrainingStarted  time.Time          // When state changed to Draining (zero if still Active)
-	DrainingDeadline time.Time          // Timeout deadline for draining (zero if still Active)
-	DoneCh           chan struct{}      // Closed when draining complete (for waiting)
-	errorCh          chan error         // Errors encountered during draining
-	drainOnce        sync.Once          // Ensure drain logic runs once
+	ID               int64           // Generation sequence number (incrementing)
+	State            GenerationState // Active/Draining/Expired
+	Executor         *Executor       // Wrapped executor
+	RouteVersion     string          // SHA256 hash of route config (for lineage tracking)
+	CreatedAt        time.Time       // When this generation was created
+	DrainingStarted  time.Time       // When state changed to Draining (zero if still Active)
+	DrainingDeadline time.Time       // Timeout deadline for draining (zero if still Active)
+	DoneCh           chan struct{}   // Closed when draining complete (for waiting)
+	errorCh          chan error      // Errors encountered during draining
+	drainOnce        sync.Once       // Ensure drain logic runs once
 
 	mu sync.RWMutex // Protect State field and time fields
 }
@@ -168,12 +168,12 @@ func (g *Generation) WaitForDrained(ctx context.Context) error {
 // It manages the lifecycle of generations, handles takeovers (when route config changes),
 // and enforces a concurrent draining cap to avoid resource exhaustion.
 type GenerationManager struct {
-	routeName              string
-	generations            []*Generation      // Ordered list: most recent first (index 0 is active)
-	activeGeneration       *Generation        // Quick pointer to active generation (generations[0])
-	nextGenerationID       int64              // Incrementing ID for next generation
-	concurrentDrainingCap  int                // Max simultaneous draining generations (default 3)
-	currentlyDraining      int32              // Atomic counter of currently draining generations
+	routeName             string
+	generations           []*Generation // Ordered list: most recent first (index 0 is active)
+	activeGeneration      *Generation   // Quick pointer to active generation (generations[0])
+	nextGenerationID      int64         // Incrementing ID for next generation
+	concurrentDrainingCap int           // Max simultaneous draining generations (default 3)
+	currentlyDraining     int32         // Atomic counter of currently draining generations
 
 	mu sync.RWMutex // Protect generations list and active pointer
 }

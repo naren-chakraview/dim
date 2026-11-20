@@ -224,11 +224,11 @@ func TestPhase0FullPipelineWithAllFeatures(t *testing.T) {
 // TestPhase0AuthorizationFlow tests RBAC and ABAC authorization (M0.3)
 func TestPhase0AuthorizationFlow(t *testing.T) {
 	tests := []struct {
-		name            string
-		principal       *engine.Principal
-		requireRoles    []string
-		expectAuth      bool
-		description     string
+		name         string
+		principal    *engine.Principal
+		requireRoles []string
+		expectAuth   bool
+		description  string
 	}{
 		{
 			name: "ValidRBACWithCorrectRole",
@@ -335,10 +335,10 @@ func TestPhase0AuthorizationFlow(t *testing.T) {
 func TestPhase0ContractValidation(t *testing.T) {
 	t.Skip("TODO: Fix contract validation in non-strict mode - pre-existing issue")
 	tests := []struct {
-		name          string
-		message       map[string]interface{}
-		expectValid   bool
-		description   string
+		name        string
+		message     map[string]interface{}
+		expectValid bool
+		description string
 	}{
 		{
 			name: "ConformingMessage",

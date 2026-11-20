@@ -9,9 +9,9 @@ import (
 
 // PurgeOpts specifies options for manual purge operations
 type PurgeOpts struct {
-	SubjectID  string        // If set, purge all records for this subject only
-	RouteNames []string      // Optional: limit to specific routes
-	BeforeTime time.Time     // Optional: only purge before this time
+	SubjectID  string    // If set, purge all records for this subject only
+	RouteNames []string  // Optional: limit to specific routes
+	BeforeTime time.Time // Optional: only purge before this time
 }
 
 // Purge manually deletes lineage records based on options

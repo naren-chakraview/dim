@@ -12,20 +12,20 @@ import (
 
 // AggregateStep collects related messages and emits combined output (M2.1.2, Phase 2)
 type AggregateStep struct {
-	correlationEvaluator *expr.Evaluator    // Compiled correlation key expression
-	completionStrategy   string             // "count" or "time_window"
-	count                int                // for count strategy
-	timeoutMs            int                // for count strategy: fallback timeout
-	windowMs             int                // for time_window strategy
-	maxMessages          int                // for time_window strategy: safety valve
-	outputEvaluator      *expr.Evaluator    // Compiled output transformation (optional)
-	onNullCorrelation    string             // "error_path" or "skip"
+	correlationEvaluator *expr.Evaluator // Compiled correlation key expression
+	completionStrategy   string          // "count" or "time_window"
+	count                int             // for count strategy
+	timeoutMs            int             // for count strategy: fallback timeout
+	windowMs             int             // for time_window strategy
+	maxMessages          int             // for time_window strategy: safety valve
+	outputEvaluator      *expr.Evaluator // Compiled output transformation (optional)
+	onNullCorrelation    string          // "error_path" or "skip"
 
 	// State
-	groups     map[string]*AggregationGroup
-	mu         sync.RWMutex
-	timers     map[string]*time.Timer
-	drainCaps  chan struct{} // Concurrent drain cap (M2.1.2)
+	groups    map[string]*AggregationGroup
+	mu        sync.RWMutex
+	timers    map[string]*time.Timer
+	drainCaps chan struct{} // Concurrent drain cap (M2.1.2)
 }
 
 // AggregationGroup tracks messages being aggregated for a correlation key
@@ -229,11 +229,11 @@ func (as *AggregateStep) buildAggregateOutput(ctx context.Context, group *Aggreg
 	}
 
 	output := map[string]interface{}{
-		"messages":         msgBodies,
-		"correlation_key":  group.CorrelationKey,
-		"count":            len(group.Messages),
-		"first_ingested":   group.FirstIngested.Format(time.RFC3339),
-		"last_ingested":    group.LastIngested.Format(time.RFC3339),
+		"messages":           msgBodies,
+		"correlation_key":    group.CorrelationKey,
+		"count":              len(group.Messages),
+		"first_ingested":     group.FirstIngested.Format(time.RFC3339),
+		"last_ingested":      group.LastIngested.Format(time.RFC3339),
 		"completion_trigger": trigger,
 	}
 

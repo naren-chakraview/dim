@@ -39,12 +39,12 @@ type SpanEvent struct {
 
 // TracingProvider manages OpenTelemetry tracing
 type TracingProvider struct {
-	enabled       bool
-	exporter      string // stdout, jaeger, datadog
+	enabled        bool
+	exporter       string // stdout, jaeger, datadog
 	jaegerEndpoint string
-	sampleRate    float64
-	spans         map[string]*Span
-	mu            *sync.RWMutex
+	sampleRate     float64
+	spans          map[string]*Span
+	mu             *sync.RWMutex
 	traceIDCounter uint64
 	spanIDCounter  uint64
 }

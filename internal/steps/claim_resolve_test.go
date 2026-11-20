@@ -31,10 +31,10 @@ func TestClaimResolveStepBasic(t *testing.T) {
 		map[string]interface{}{
 			"order_id": "ORD-123",
 			"_claim_check": map[string]interface{}{
-				"ticket":        ticket,
-				"size":          metadata.Size,
-				"content_type":  "application/json",
-				"hash":          metadata.Hash,
+				"ticket":       ticket,
+				"size":         metadata.Size,
+				"content_type": "application/json",
+				"hash":         metadata.Hash,
 			},
 		},
 		"test-route",

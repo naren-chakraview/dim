@@ -151,18 +151,18 @@ func NewExecutorWithTenantLimiting(name string, inputCh, outputCh, errorCh *Chan
 	normalizedPolicy := normalizeRetryPolicy(retryPolicy)
 
 	return &Executor{
-		name:             name,
-		inputCh:          inputCh,
-		outputCh:         outputCh,
-		steps:            steps,
-		errorCh:          errorCh,
-		stepNames:        names,
-		numWorkers:       numWorkers,
-		retryPolicy:      normalizedPolicy,
-		tracingProvider:  tracingProvider,
-		rateLimiter:      rateLimiter,
-		slotManager:      slotManager,
-		domain:           domain,
+		name:            name,
+		inputCh:         inputCh,
+		outputCh:        outputCh,
+		steps:           steps,
+		errorCh:         errorCh,
+		stepNames:       names,
+		numWorkers:      numWorkers,
+		retryPolicy:     normalizedPolicy,
+		tracingProvider: tracingProvider,
+		rateLimiter:     rateLimiter,
+		slotManager:     slotManager,
+		domain:          domain,
 	}
 }
 

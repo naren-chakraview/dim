@@ -58,17 +58,17 @@ func (cc *ContractChecker) isAnalyzable(expr string) (bool, map[string]string) {
 
 	// Check for disallowed patterns (function calls, loops, variables, conditionals)
 	disallowedPatterns := []string{
-		`\$\w+`,              // Variables: $var
-		`\(\s*\$`,            // Function calls: ... ($ ...
-		`\bfor\b`,            // for loops
-		`\bforeach\b`,        // foreach loops
-		`\.\s*\(`,            // Map/foreach syntax: .(...) or .(...)
-		`\(\s*\w+\s*\)`,      // Function calls: name(...)
-		`#\w+\s*\(`,          // Functions: #name(...)
-		`\$map\b`,            // $map function
-		`\$filter\b`,         // $filter function
-		`\$reduce\b`,         // $reduce function
-		`regex\s*\(`,         // regex function
+		`\$\w+`,         // Variables: $var
+		`\(\s*\$`,       // Function calls: ... ($ ...
+		`\bfor\b`,       // for loops
+		`\bforeach\b`,   // foreach loops
+		`\.\s*\(`,       // Map/foreach syntax: .(...) or .(...)
+		`\(\s*\w+\s*\)`, // Function calls: name(...)
+		`#\w+\s*\(`,     // Functions: #name(...)
+		`\$map\b`,       // $map function
+		`\$filter\b`,    // $filter function
+		`\$reduce\b`,    // $reduce function
+		`regex\s*\(`,    // regex function
 	}
 
 	for _, pattern := range disallowedPatterns {

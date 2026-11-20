@@ -26,15 +26,15 @@ type DatabaseSink struct {
 
 // SinkConfig defines configuration for database sink
 type SinkConfig struct {
-	Driver        string   // postgres, mysql, sqlite
-	DSN           string   // Data Source Name
-	Table         string   // Target table name
-	InsertColumns []string // Columns to insert
-	UpsertEnabled bool     // Use UPSERT instead of INSERT
-	UpsertKeys    []string // Key columns for upsert
-	BatchSize     int      // Batch writes after N messages
-	TimeoutSec    int      // Write timeout
-	FlushIntervalMs int    // Flush batch every N ms
+	Driver          string   // postgres, mysql, sqlite
+	DSN             string   // Data Source Name
+	Table           string   // Target table name
+	InsertColumns   []string // Columns to insert
+	UpsertEnabled   bool     // Use UPSERT instead of INSERT
+	UpsertKeys      []string // Key columns for upsert
+	BatchSize       int      // Batch writes after N messages
+	TimeoutSec      int      // Write timeout
+	FlushIntervalMs int      // Flush batch every N ms
 }
 
 // NewDatabaseSink creates a new database sink

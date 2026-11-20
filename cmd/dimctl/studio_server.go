@@ -269,9 +269,9 @@ func (s *StudioServer) handleSave(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Route      map[string]interface{} `json:"route"`
-		FilePath   string                 `json:"filePath"`
-		RouteName  string                 `json:"routeName"`
+		Route     map[string]interface{} `json:"route"`
+		FilePath  string                 `json:"filePath"`
+		RouteName string                 `json:"routeName"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -321,9 +321,9 @@ func (s *StudioServer) handleSave(w http.ResponseWriter, r *http.Request) {
 	if !valid {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"valid":   false,
-			"errors":  errs,
+			"success":  false,
+			"valid":    false,
+			"errors":   errs,
 			"warnings": warns,
 		})
 		return
@@ -399,10 +399,10 @@ func (s *StudioServer) handleValidate(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"valid":          valid,
-		"errors":         errs,
-		"warnings":       warns,
-		"route_version":  routeVersion,
-		"timestamp":      "", // Frontend will set timestamp
+		"valid":         valid,
+		"errors":        errs,
+		"warnings":      warns,
+		"route_version": routeVersion,
+		"timestamp":     "", // Frontend will set timestamp
 	})
 }

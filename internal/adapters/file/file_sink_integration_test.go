@@ -240,14 +240,14 @@ func TestFileSinkWithComplexMessageStructure(t *testing.T) {
 	// Create a complex message with nested structures
 	complexBody := map[string]interface{}{
 		"order": map[string]interface{}{
-			"id":    "ORD-12345",
+			"id": "ORD-12345",
 			"items": []interface{}{
 				map[string]interface{}{"sku": "ITEM-1", "qty": 2, "price": 29.99},
 				map[string]interface{}{"sku": "ITEM-2", "qty": 1, "price": 49.99},
 			},
 			"customer": map[string]interface{}{
-				"id":       "CUST-001",
-				"name":     "John Doe",
+				"id":   "CUST-001",
+				"name": "John Doe",
 				"addresses": []interface{}{
 					map[string]interface{}{"type": "billing", "zip": "10001"},
 					map[string]interface{}{"type": "shipping", "zip": "10002"},

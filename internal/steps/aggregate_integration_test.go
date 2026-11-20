@@ -11,7 +11,7 @@ import (
 // TestAggregatorIntegration verifies end-to-end aggregation with lineage (M2.1.3)
 func TestAggregatorIntegration(t *testing.T) {
 	t.Skip("TODO: JSONata library issue - lambda expressions ($ -> ...) not supported by blues/jsonata-go")
-spec := &AggregateSpec{
+	spec := &AggregateSpec{
 		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              3,
@@ -129,7 +129,7 @@ spec := &AggregateSpec{
 
 // TestAggregatorMultipleOrdersIntegration verifies concurrent aggregation of multiple orders
 func TestAggregatorMultipleOrdersIntegration(t *testing.T) {
-spec := &AggregateSpec{
+	spec := &AggregateSpec{
 		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              2,
@@ -199,7 +199,7 @@ spec := &AggregateSpec{
 
 // TestAggregatorTimeoutCompletion verifies timeout-based flush (M2.1.3)
 func TestAggregatorTimeoutCompletion(t *testing.T) {
-spec := &AggregateSpec{
+	spec := &AggregateSpec{
 		CorrelationKey:     "order_id",
 		CompletionStrategy: "count",
 		Count:              10, // High count to ensure timeout triggers
@@ -237,7 +237,7 @@ spec := &AggregateSpec{
 
 // TestAggregatorWithComplexMessages verifies aggregation of complex message structures
 func TestAggregatorWithComplexMessages(t *testing.T) {
-spec := &AggregateSpec{
+	spec := &AggregateSpec{
 		CorrelationKey:     "metadata.order_id",
 		CompletionStrategy: "count",
 		Count:              2,
@@ -256,7 +256,7 @@ spec := &AggregateSpec{
 		engine.NewMessage(
 			map[string]interface{}{
 				"metadata": map[string]interface{}{
-					"order_id": "ORD-999",
+					"order_id":  "ORD-999",
 					"timestamp": "2026-09-04T12:00:00Z",
 				},
 				"line_item": map[string]interface{}{
@@ -269,7 +269,7 @@ spec := &AggregateSpec{
 		engine.NewMessage(
 			map[string]interface{}{
 				"metadata": map[string]interface{}{
-					"order_id": "ORD-999",
+					"order_id":  "ORD-999",
 					"timestamp": "2026-09-04T12:00:01Z",
 				},
 				"line_item": map[string]interface{}{

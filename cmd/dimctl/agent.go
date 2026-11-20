@@ -43,7 +43,7 @@ func serveAgent(addr string) error {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		
+
 		response := mcpServer.TestConnection(ctx)
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)

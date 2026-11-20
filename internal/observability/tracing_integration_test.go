@@ -176,11 +176,11 @@ func TestTracingIntegrationAttributeCarrying(t *testing.T) {
 
 	// Verify message span has all attributes
 	expectedAttrs := map[string]interface{}{
-		"correlation_id":    "api-req-123",
-		"route_name":        "api-route",
-		"route_version":     "sha256:api-v1",
-		"contract_version":  "api-contract-v1",
-		"principal":         "api-gateway@internal",
+		"correlation_id":   "api-req-123",
+		"route_name":       "api-route",
+		"route_version":    "sha256:api-v1",
+		"contract_version": "api-contract-v1",
+		"principal":        "api-gateway@internal",
 	}
 
 	for key, expected := range expectedAttrs {

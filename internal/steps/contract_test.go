@@ -13,7 +13,7 @@ func setupContractStoreWithPaymentSchema(t *testing.T) *config.ContractStore {
 	store := config.NewContractStore()
 
 	schema := map[string]interface{}{
-		"type": "object",
+		"type":     "object",
 		"required": []string{"amount", "currency", "account_id"},
 		"properties": map[string]interface{}{
 			"amount": map[string]interface{}{
@@ -51,7 +51,7 @@ func setupContractStoreWithStrictContract(t *testing.T) *config.ContractStore {
 	store := config.NewContractStore()
 
 	schema := map[string]interface{}{
-		"type": "object",
+		"type":     "object",
 		"required": []string{"amount"},
 		"properties": map[string]interface{}{
 			"amount": map[string]interface{}{
@@ -86,9 +86,9 @@ func TestContractStepConformingMessage(t *testing.T) {
 
 	ctx := context.Background()
 	msg := engine.NewMessage(map[string]interface{}{
-		"amount":      100.50,
-		"currency":    "USD",
-		"account_id":  "acc-123",
+		"amount":     100.50,
+		"currency":   "USD",
+		"account_id": "acc-123",
 	}, "payment-processor", "v1")
 
 	result, err := step.Execute(ctx, msg)
@@ -201,9 +201,9 @@ func TestContractStepVersionStamping(t *testing.T) {
 
 	ctx := context.Background()
 	msg := engine.NewMessage(map[string]interface{}{
-		"amount":      50.00,
-		"currency":    "EUR",
-		"account_id":  "acc-456",
+		"amount":     50.00,
+		"currency":   "EUR",
+		"account_id": "acc-456",
 	}, "payment-processor", "v1")
 
 	result, err := step.Execute(ctx, msg)
@@ -304,8 +304,8 @@ func TestContractStepNonStrictContinues(t *testing.T) {
 
 	ctx := context.Background()
 	msg := engine.NewMessage(map[string]interface{}{
-		"amount": -50.00, // Violates minimum constraint
-		"currency": "USD",
+		"amount":     -50.00, // Violates minimum constraint
+		"currency":   "USD",
 		"account_id": "acc-789",
 	}, "payment-processor", "v1")
 

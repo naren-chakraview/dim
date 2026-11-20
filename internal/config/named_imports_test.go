@@ -35,8 +35,8 @@ fragments:
 		},
 		"routes": map[string]interface{}{
 			"test": map[string]interface{}{
-				"from":  "input",
-				"auth":  "none",
+				"from": "input",
+				"auth": "none",
 				"steps": []interface{}{
 					map[string]interface{}{
 						"fragment": "governance-baseline",
@@ -97,8 +97,8 @@ func TestResolveNamedImports_UnknownFragment(t *testing.T) {
 		},
 		"routes": map[string]interface{}{
 			"test": map[string]interface{}{
-				"from":  "input",
-				"auth":  "none",
+				"from": "input",
+				"auth": "none",
 				"steps": []interface{}{
 					map[string]interface{}{
 						"fragment": "nonexistent", // References a fragment that doesn't exist

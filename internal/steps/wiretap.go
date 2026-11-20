@@ -13,8 +13,8 @@ import (
 // It copies messages to a tap sink without blocking the main flow.
 // If the tap fails, the error is logged but doesn't fail the main message processing.
 type WiretapStep struct {
-	sinkName    string           // name of sink to tap messages to
-	sinkChannel *engine.Channel  // reference to actual sink channel, set during pipeline build
+	sinkName    string          // name of sink to tap messages to
+	sinkChannel *engine.Channel // reference to actual sink channel, set during pipeline build
 }
 
 // NewWiretapStep creates a new wiretap step that will duplicate messages to the named sink.
@@ -91,4 +91,3 @@ func (ws *WiretapStep) Execute(ctx context.Context, msg *engine.Message) (*engin
 	// Return the original message unchanged
 	return msg, nil
 }
-

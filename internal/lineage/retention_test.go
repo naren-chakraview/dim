@@ -10,9 +10,9 @@ import (
 
 func TestResolveStaticRetention(t *testing.T) {
 	policies := map[string]time.Duration{
-		"default":      30 * 24 * time.Hour,
-		"30-days":      30 * 24 * time.Hour,
-		"premium-90":   90 * 24 * time.Hour,
+		"default":    30 * 24 * time.Hour,
+		"30-days":    30 * 24 * time.Hour,
+		"premium-90": 90 * 24 * time.Hour,
 	}
 
 	resolver := NewRetentionResolver(policies)
@@ -39,8 +39,8 @@ func TestResolveStaticRetention(t *testing.T) {
 
 func TestResolveDynamicRetention(t *testing.T) {
 	policies := map[string]time.Duration{
-		"default":      30 * 24 * time.Hour,
-		"premium-90":   90 * 24 * time.Hour,
+		"default":    30 * 24 * time.Hour,
+		"premium-90": 90 * 24 * time.Hour,
 	}
 
 	resolver := NewRetentionResolver(policies)
