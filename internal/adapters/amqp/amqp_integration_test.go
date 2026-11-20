@@ -18,9 +18,30 @@ func TestAMQPSourceBasic(t *testing.T) {
 
 	url := "amqp://guest:guest@localhost:5672/"
 	queueName := "test-queue-" + time.Now().Format("20060102150405")
+	const exchange = "test-exchange"
+
+	// The sink declares the exchange, so it must exist before the source binds its queue
+	// to it. The source and sink must share the exchange, or the broker returns the
+	// published message as unroutable.
+	sink, err := NewAMQPSink(url, exchange)
+	if err != nil {
+		t.Skipf("AMQP broker not available: %v", err)
+	}
+	defer sink.Close()
 
 	outChan := engine.NewChannel("amqp-test", 10)
-	source, err := NewAMQPSource(url, queueName, outChan)
+	source, err := NewAMQPSourceWithConfig(SourceConfig{
+		URL:            url,
+		QueueName:      queueName,
+		ExchangeName:   exchange,
+		RoutingKey:     "",
+		Durable:        true,
+		AutoDelete:     false,
+		AutoAck:        false,
+		PrefetchCount:  10,
+		ReconnectDelay: 5 * time.Second,
+		ConnectionName: "dim-amqp-source",
+	}, outChan)
 	if err != nil {
 		t.Skipf("AMQP broker not available: %v", err)
 	}
@@ -35,17 +56,13 @@ func TestAMQPSourceBasic(t *testing.T) {
 		errChan <- source.Start(ctx)
 	}()
 
-	// Create sink and publish a test message
-	sink, err := NewAMQPSink(url, "test-exchange")
-	if err != nil {
-		t.Skipf("AMQP broker not available: %v", err)
-	}
-	defer sink.Close()
-
+	// Publish a test message
 	// Publish test message
 	testMsg := engine.NewMessage(`{"test": "data"}`, "test", "v1")
-	if err := sink.Write(ctx, testMsg); err != nil {
-		t.Fatalf("failed to publish message: %v", err)
+	// Write returns one result per message, not an error.
+	results := sink.Write(ctx, testMsg)
+	if len(results) != 1 || !results[0].Success {
+		t.Fatalf("failed to publish message: %+v", results)
 	}
 
 	// Consume message from source
@@ -59,8 +76,10 @@ func TestAMQPSourceBasic(t *testing.T) {
 	}
 
 	// Verify message content
-	if receivedMsg.Body != `{"test": "data"}` {
-		t.Errorf("message body mismatch: got %v, want %v", receivedMsg.Body, `{"test": "data"}`)
+	// The source decodes a JSON body, so the received body is the parsed object.
+	body, ok := receivedMsg.Body.(map[string]interface{})
+	if !ok || body["test"] != "data" {
+		t.Errorf("message body mismatch: got %#v, want {test: data}", receivedMsg.Body)
 	}
 
 	cancel()
