@@ -47,3 +47,17 @@ T3.2 is resolved by clarifying that:
 - MCP defines the protocol layer, not the transport layer
 - The discrepancy in the plan was about terminology, not actual requirements
 - The implementation already satisfies both the plan and the decision doc
+
+## Revision (Phase 5, M5.2)
+
+The rationale above is wrong on one point. A2A (Agent2Agent) is an open protocol with a public specification, not an internal Anthropic protocol. The M5.2 plan requires real A2A framing, so this decision is superseded for A2A.
+
+The server now serves all three transports, all calling `MCPServer.CallOperation`:
+
+- **MCP** at `POST /mcp`: JSON-RPC 2.0 with `initialize`, `ping`, `tools/list` and `tools/call`, at protocol revision 2025-06-18. Each tool's input schema is generated from its request struct.
+- **A2A** at `POST /a2a` (`SendMessage`) with the agent card at `/.well-known/agent-card.json`. A2A protocol version 1.0. Each skill is one operation.
+- **REST** at `POST /call`, unchanged.
+
+Requests are checked against their schema before an operation runs: an unknown field or a missing required field returns `INVALID_REQUEST`.
+
+Evidence: `examples/agent-clients/` contains the official MCP and A2A Python SDK clients, run against `dimctl agent serve`. `TestTransportsServeIdenticalResults` checks that the three transports return the same result.
