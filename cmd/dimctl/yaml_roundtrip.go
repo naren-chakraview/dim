@@ -1,11 +1,17 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
+	"strconv"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -38,251 +44,189 @@ func ParseYAMLWithPreservation(yamlStr string) (*YAMLNodeWrapper, error) {
 	}, nil
 }
 
-// ReconstructYAMLFromNode rebuilds YAML from a node wrapper, preserving structure and comments
+// errNoSourceNode is returned whenever a route would be re-serialized without
+// its original node tree. Re-marshalling from a plain map drops comments and
+// reorders keys, so the studio refuses instead of silently doing it.
+var errNoSourceNode = errors.New("refusing to re-serialize route without its original node tree (would drop comments and reorder keys)")
+
+// ReconstructYAMLFromNode writes an edited route back into its original node tree,
+// so key order, comments and indentation survive. This is the single serializer
+// used for every file the studio writes to disk.
+//
+// Structural edits are rejected with an error, never silently dropped: adding or
+// removing a field at any depth, adding or removing list items, and changing a
+// scalar/list/map into a different kind all return an error and nothing is written.
 func ReconstructYAMLFromNode(wrapper *YAMLNodeWrapper) (string, error) {
 	if wrapper == nil || wrapper.RootNode == nil {
-		// Fallback to marshaling if no node available
-		return marshallYAML(wrapper.Data)
+		return "", errNoSourceNode
 	}
-
-	// Check for add/remove operations (structural changes)
-	// If detected, return error instead of silently dropping them
-	if err := validateNoStructuralChanges(wrapper.RootNode, wrapper.Data); err != nil {
+	if err := applyDataToNode(wrapper.RootNode, wrapper.Data, "$"); err != nil {
 		return "", err
 	}
 
-	// Update node values to match edited data (preserves structure, order, comments)
-	updateNodeFromData(wrapper.RootNode, wrapper.Data)
-
-	// Encode the modified node tree back to YAML
-	out, err := yaml.Marshal(wrapper.RootNode)
-	if err != nil {
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	// 2-space indentation matches the route files; yaml.v3's default is 4.
+	enc.SetIndent(2)
+	if err := enc.Encode(wrapper.RootNode); err != nil {
 		return "", err
 	}
-
-	return string(out), nil
+	if err := enc.Close(); err != nil {
+		return "", err
+	}
+	return buf.String(), nil
 }
 
-// validateNoStructuralChanges checks if the data has been structurally modified
-// (add/remove operations on sequences, new/deleted keys in maps)
-// Returns error if structural changes are detected, since they can't be preserved
-func validateNoStructuralChanges(node *yaml.Node, data interface{}) error {
+// applyDataToNode walks the edited data alongside the original node tree and
+// writes changed scalar values in place. It returns an error for any change it
+// cannot represent in the node tree.
+func applyDataToNode(node *yaml.Node, value interface{}, path string) error {
 	if node == nil {
-		return nil
+		return fmt.Errorf("%s: missing source node", path)
 	}
-
-	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
-		return validateNoStructuralChanges(node.Content[0], data)
-	}
-
-	dataMap, isMap := data.(map[string]interface{})
-	if !isMap {
-		return nil
-	}
-
-	if node.Kind != yaml.MappingNode {
-		return nil
-	}
-
-	// Collect keys from both node and data to detect additions/deletions
-	nodeKeys := make(map[string]bool)
-
-	// Walk through all key-value pairs in the node
-	for i := 0; i < len(node.Content); i += 2 {
-		if i+1 >= len(node.Content) {
-			break
+	if node.Kind == yaml.DocumentNode {
+		if len(node.Content) == 0 {
+			return fmt.Errorf("%s: empty document", path)
 		}
-
-		keyNode := node.Content[i]
-		valueNode := node.Content[i+1]
-		key := keyNode.Value
-		nodeKeys[key] = true
-
-		if newValue, exists := dataMap[key]; exists {
-			// Key exists - recursively check nested structures
-			if dataArray, isArray := newValue.([]interface{}); isArray {
-				if valueNode.Kind == yaml.SequenceNode {
-					if len(valueNode.Content) != len(dataArray) {
-						// Sequence length changed - this is an add/remove operation
-						return fmt.Errorf("add/remove operations on sequences cannot be preserved in node-based round-trip (was %d items, now %d)", len(valueNode.Content), len(dataArray))
-					}
-				}
-			} else if dataMapVal, isMapVal := newValue.(map[string]interface{}); isMapVal {
-				// Recursively check nested maps
-				if err := validateNoStructuralChanges(valueNode, dataMapVal); err != nil {
-					return err
-				}
-			}
-		}
+		return applyDataToNode(node.Content[0], value, path)
 	}
-
-	// Check for new keys in data that don't exist in node (additions)
-	for key := range dataMap {
-		if !nodeKeys[key] {
-			return fmt.Errorf("cannot add new top-level key %q via studio editor - add/remove operations cannot be preserved in node-based round-trip", key)
-		}
-	}
-
-	// Check for keys in node that don't exist in data (deletions)
-	for key := range nodeKeys {
-		if _, exists := dataMap[key]; !exists {
-			return fmt.Errorf("cannot delete top-level key %q via studio editor - add/remove operations cannot be preserved in node-based round-trip", key)
-		}
-	}
-
-	return nil
-}
-
-// updateNodeFromData recursively updates node values to match edited data
-// This preserves the original node structure, order, and comments
-func updateNodeFromData(node *yaml.Node, data map[string]interface{}) {
-	if node == nil {
-		return
-	}
-
-	if node.Kind == yaml.MappingNode && len(node.Content)%2 == 0 {
-		// Process key-value pairs
-		for i := 0; i < len(node.Content); i += 2 {
-			keyNode := node.Content[i]
-			valueNode := node.Content[i+1]
-			key := keyNode.Value
-
-			if newValue, exists := data[key]; exists {
-				// Key still exists in edited data - update its value
-				updateNodeValue(valueNode, newValue)
-			}
-		}
-	} else if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
-		// Handle document root
-		updateNodeFromData(node.Content[0], data)
-	}
-}
-
-// updateNodeValue recursively updates a node to match a new value
-func updateNodeValue(node *yaml.Node, value interface{}) {
-	if node == nil {
-		return
+	if node.Kind == yaml.AliasNode {
+		return fmt.Errorf("%s: cannot edit a YAML alias in the studio; edit the file directly", path)
 	}
 
 	switch v := value.(type) {
 	case map[string]interface{}:
-		if node.Kind == yaml.MappingNode {
-			// Recursively update nested mapping
-			updateNodeFromData(node, v)
+		if node.Kind != yaml.MappingNode {
+			return kindChangeError(path, node, "map")
+		}
+		return applyMappingToNode(node, v, path)
+
+	case []interface{}:
+		if node.Kind != yaml.SequenceNode {
+			return kindChangeError(path, node, "list")
+		}
+		if len(node.Content) != len(v) {
+			return fmt.Errorf("%s: cannot add/remove list items in the studio (was %d, now %d); add/remove operations cannot be preserved in node-based round-trip, edit the file directly", path, len(node.Content), len(v))
+		}
+		for i := range v {
+			if err := applyDataToNode(node.Content[i], v[i], fmt.Sprintf("%s[%d]", path, i)); err != nil {
+				return err
+			}
+		}
+		return nil
+
+	default:
+		if node.Kind != yaml.ScalarNode {
+			return kindChangeError(path, node, "scalar")
+		}
+		return setScalarNode(node, value, path)
+	}
+}
+
+// applyMappingToNode checks that the field set matches exactly, then recurses.
+func applyMappingToNode(node *yaml.Node, data map[string]interface{}, path string) error {
+	if len(node.Content)%2 != 0 {
+		return fmt.Errorf("%s: malformed mapping node", path)
+	}
+	inNode := make(map[string]bool, len(node.Content)/2)
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i].Value
+		inNode[key] = true
+		if _, ok := data[key]; !ok {
+			return fmt.Errorf("cannot remove field %q at %s via studio editor - add/remove operations cannot be preserved in node-based round-trip", key, path)
+		}
+	}
+	keys := make([]string, 0, len(data))
+	for key := range data {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	for _, key := range keys {
+		if !inNode[key] {
+			return fmt.Errorf("cannot add field %q at %s via studio editor - add/remove operations cannot be preserved in node-based round-trip", key, path)
+		}
+	}
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i].Value
+		if err := applyDataToNode(node.Content[i+1], data[key], path+"."+key); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func kindChangeError(path string, node *yaml.Node, want string) error {
+	return fmt.Errorf("%s: cannot change this value to a %s in the studio (it is a different YAML kind); edit the file directly", path, want)
+}
+
+// setScalarNode writes value into a scalar node. Unchanged values are left
+// alone so their original formatting (quoting, float precision) is kept.
+func setScalarNode(node *yaml.Node, value interface{}, path string) error {
+	var old interface{}
+	if err := node.Decode(&old); err == nil && scalarEqual(old, value) {
+		return nil
+	}
+
+	quoting := node.Style & (yaml.DoubleQuotedStyle | yaml.SingleQuotedStyle)
+	switch v := value.(type) {
+	case nil:
+		node.Tag, node.Value, node.Style = "!!null", "null", 0
+	case bool:
+		node.Tag, node.Value, node.Style = "!!bool", strconv.FormatBool(v), 0
+	case string:
+		node.Tag, node.Value, node.Style = "!!str", v, quoting
+	case float64:
+		if v == math.Trunc(v) && math.Abs(v) < 1e15 {
+			node.Tag, node.Value = "!!int", strconv.FormatInt(int64(v), 10)
 		} else {
-			// Node type mismatch - would need to replace node
-			// For now, this shouldn't happen in well-formed edits
+			node.Tag, node.Value = "!!float", strconv.FormatFloat(v, 'g', -1, 64)
 		}
-
-	case []interface{}:
-		if node.Kind == yaml.SequenceNode {
-			// Update sequence items
-			updateNodeSequence(node, v)
-		}
-
+		node.Style = 0
 	default:
-		// Scalar value - update the node's Value
-		node.Value = fmt.Sprintf("%v", v)
-		node.Kind = yaml.ScalarNode
+		return fmt.Errorf("%s: unsupported value type %T", path, value)
 	}
+	return nil
 }
 
-// updateNodeSequence updates sequence nodes to match array data
-// Handles add/remove operations, not just in-place updates
-func updateNodeSequence(node *yaml.Node, items []interface{}) {
-	if node.Kind != yaml.SequenceNode {
-		return
-	}
-
-	oldLen := len(node.Content)
-	newLen := len(items)
-	log.Printf("[updateNodeSequence] oldLen=%d, newLen=%d", oldLen, newLen)
-
-	// Handle size changes: add or remove nodes as needed
-	if newLen != oldLen {
-		// Resize the content slice to match items
-		newContent := make([]*yaml.Node, 0, newLen)
-
-		for i, item := range items {
-			if i < oldLen {
-				// Reuse existing node, update its value
-				updateNodeValue(node.Content[i], item)
-				newContent = append(newContent, node.Content[i])
-			} else {
-				// Add new node for new item
-				newNode := dataToYAMLNode(item)
-				newContent = append(newContent, newNode)
-			}
-		}
-
-		log.Printf("[updateNodeSequence] Rebuilding: oldLen=%d, newLen=%d, newContent len=%d", oldLen, newLen, len(newContent))
-
-		// Important: completely replace the content slice
-		// This ensures nodes beyond newLen are removed
-		node.Content = newContent
-		log.Printf("[updateNodeSequence] After replacement: node.Content len=%d", len(node.Content))
-	} else {
-		// Same length: just update values in place
-		for i, item := range items {
-			if i < len(node.Content) {
-				updateNodeValue(node.Content[i], item)
-			}
-		}
-	}
+// scalarEqual compares a decoded YAML scalar with an edited JSON scalar,
+// treating all numeric kinds as float64.
+func scalarEqual(a, b interface{}) bool {
+	return reflect.DeepEqual(normalizeScalar(a), normalizeScalar(b))
 }
 
-// dataToYAMLNode converts a data value to a proper yaml.Node
-func dataToYAMLNode(data interface{}) *yaml.Node {
-	switch v := data.(type) {
-	case map[string]interface{}:
-		// Create a mapping node with key-value pairs
-		node := &yaml.Node{Kind: yaml.MappingNode}
-		for key, value := range v {
-			keyNode := &yaml.Node{
-				Kind:  yaml.ScalarNode,
-				Value: key,
-			}
-			valueNode := dataToYAMLNode(value)
-			node.Content = append(node.Content, keyNode, valueNode)
-		}
-		return node
-
-	case []interface{}:
-		// Create a sequence node
-		node := &yaml.Node{Kind: yaml.SequenceNode}
-		for _, item := range v {
-			node.Content = append(node.Content, dataToYAMLNode(item))
-		}
-		return node
-
-	default:
-		// Scalar value
-		return &yaml.Node{
-			Kind:  yaml.ScalarNode,
-			Value: fmt.Sprintf("%v", v),
-		}
+func normalizeScalar(v interface{}) interface{} {
+	switch n := v.(type) {
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case uint64:
+		return float64(n)
 	}
+	return v
 }
 
-// ReconstructYAML rebuilds YAML from data (fallback, no node preservation)
+// ReconstructYAML re-serializes data using the route's original node tree.
+// A nil wrapper is an error: there is no fallback that drops comments and order.
 func ReconstructYAML(data map[string]interface{}, wrapper *YAMLNodeWrapper) (string, error) {
-	// If we have a wrapper with a node, use node-based reconstruction
-	if wrapper != nil && wrapper.RootNode != nil {
-		wrapper.Data = data
-		return ReconstructYAMLFromNode(wrapper)
+	if wrapper == nil || wrapper.RootNode == nil {
+		return "", errNoSourceNode
 	}
-
-	// Fallback: marshal the data (loses order and comments)
-	return marshallYAML(data)
+	wrapper.Data = data
+	return ReconstructYAMLFromNode(wrapper)
 }
 
-// marshallYAML is a helper that marshals map to YAML with consistent formatting
-func marshallYAML(data map[string]interface{}) (string, error) {
+// marshalForValidation serializes a route with no source node. It is used ONLY
+// to write a temp file for validation (in-editor /api/validate). Its output is
+// never written to a route file on disk.
+func marshalForValidation(data map[string]interface{}) (string, error) {
 	var buf strings.Builder
 	encoder := yaml.NewEncoder(&buf)
-	// Use 2-space indentation to prevent reformatting on saves
 	encoder.SetIndent(2)
 	if err := encoder.Encode(data); err != nil {
+		return "", err
+	}
+	if err := encoder.Close(); err != nil {
 		return "", err
 	}
 	return buf.String(), nil
