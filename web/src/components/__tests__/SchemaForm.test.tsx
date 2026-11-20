@@ -1,3 +1,5 @@
+import { vi } from 'vitest';
+import routeSchema from '../../../../schemas/route.schema.json';
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
@@ -32,7 +34,7 @@ describe('SchemaForm Component', () => {
       notes: {
         type: 'string',
         title: 'Notes',
-        maxLength: 500,
+        maxLength: 600, // long string: textarea threshold is > 500
       },
     },
     required: ['name', 'status'],
@@ -106,14 +108,16 @@ describe('SchemaForm Component', () => {
     expect(select.options[3].value).toBe('pending');
   });
 
-  it('renders step type forms', () => {
+  it('renders step type forms', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => routeSchema })));
+    // The step schema loads asynchronously from /api/schema, so wait for the field.
     render(<SchemaForm stepType="translate" />);
-    expect(screen.getByText(/Expression/i)).toBeTruthy();
+    expect(await screen.findByText('Transform Expression')).toBeTruthy();
   });
 
   it('shows empty state for no schema', () => {
     render(<SchemaForm />);
-    expect(screen.getByText('No configuration available')).toBeTruthy();
+    expect(screen.getByText(/No configuration available/)).toBeTruthy();
   });
 
   it('populates initial values', () => {

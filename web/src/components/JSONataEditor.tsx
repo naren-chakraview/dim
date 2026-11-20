@@ -223,11 +223,46 @@ export function extractVariablesFromExpression(expr: string): string[] {
  * Generate autocomplete suggestions for JSONata.
  * (Simple implementation; could be enhanced with LSP)
  */
+// Standard JSONata built-in functions offered after "$".
+const JSONATA_FUNCTIONS: Array<{ name: string; detail: string }> = [
+  { name: 'sum', detail: 'sum(array) → number' },
+  { name: 'count', detail: 'count(array) → number' },
+  { name: 'map', detail: 'map(array, function) → array' },
+  { name: 'filter', detail: 'filter(array, predicate) → array' },
+  { name: 'length', detail: 'length(string) → number' },
+  { name: 'string', detail: 'string(value) → string' },
+  { name: 'number', detail: 'number(value) → number' },
+  { name: 'boolean', detail: 'boolean(value) → boolean' },
+  { name: 'uppercase', detail: 'uppercase(string) → string' },
+  { name: 'lowercase', detail: 'lowercase(string) → string' },
+  { name: 'join', detail: 'join(array, separator) → string' },
+  { name: 'keys', detail: 'keys(object) → array' },
+  { name: 'lookup', detail: 'lookup(object, key) → value' },
+  { name: 'exists', detail: 'exists(value) → boolean' },
+  { name: 'now', detail: 'now() → string' },
+];
+
+/**
+ * Completions for the text before the cursor. Offers function names when the
+ * cursor is at a "$" or "$partial" that starts a reference. Field completions
+ * (e.g. after "$payload.") are not offered: there is no source of payload fields
+ * in the editor.
+ */
 export function getJSONataCompletions(
   expr: string,
   position: number
 ): Array<{ label: string; detail: string }> {
-  // Don't provide completions for basic expressions
-  // Only provide completions when cursor is at a specific completion point
-  return [];
+  const before = expr.slice(0, position);
+  const match = before.match(/\$([A-Za-z_]*)$/);
+  if (!match) return [];
+
+  // "$name" right after "." is a field path, not a function reference.
+  const start = before.length - match[0].length;
+  if (start > 0 && before[start - 1] === '.') return [];
+
+  const prefix = match[1];
+  return JSONATA_FUNCTIONS.filter((f) => f.name.startsWith(prefix)).map((f) => ({
+    label: f.name,
+    detail: f.detail,
+  }));
 }

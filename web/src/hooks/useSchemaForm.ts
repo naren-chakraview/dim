@@ -314,7 +314,15 @@ function extractStepSchemaFromFull(fullSchema: JSONSchema | null, stepType: stri
     schema = definitions['authorize_step'];
   }
 
-  return schema || getDefaultStepSchema(stepType);
+  // A step definition wraps its config under the step key, e.g.
+  // translate_step.properties.translate.properties.expr. The form needs the config
+  // object itself, so its fields are the form fields.
+  const config = schema?.properties?.[stepType];
+  if (config && typeof config === 'object') {
+    return config as JSONSchema;
+  }
+
+  return getDefaultStepSchema(stepType);
 }
 
 /**

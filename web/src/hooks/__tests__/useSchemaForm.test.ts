@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useSchemaForm, JSONSchema, getStepSchema } from '../useSchemaForm';
+import { beforeAll, afterAll, vi } from 'vitest';
+import routeSchema from '../../../../schemas/route.schema.json';
 
 describe('useSchemaForm Hook', () => {
   const mockSchema: JSONSchema = {
@@ -31,7 +33,7 @@ describe('useSchemaForm Hook', () => {
       description: {
         type: 'string',
         title: 'Description',
-        maxLength: 500,
+        maxLength: 600, // long string: textarea threshold is > 500
       },
     },
     required: ['name', 'status'],
@@ -151,31 +153,46 @@ describe('useSchemaForm Hook', () => {
 });
 
 describe('getStepSchema', () => {
-  it('returns translate step schema', () => {
-    const schema = getStepSchema('translate');
+  // Serve the real route schema so getStepSchema runs its normal extraction path.
+  // getStepSchema returns the step's own config schema (its fields are the form fields).
+  beforeAll(() => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        json: async () => routeSchema,
+      }))
+    );
+  });
+
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('returns the translate step fields', async () => {
+    const schema = await getStepSchema('translate');
     expect(schema.properties?.expr).toBeTruthy();
     expect(schema.required).toContain('expr');
   });
 
-  it('returns log step schema', () => {
-    const schema = getStepSchema('log');
-    expect(schema.properties?.level).toBeTruthy();
-    expect(schema.properties?.level.enum).toContain('debug');
+  it('returns the filter step fields', async () => {
+    const schema = await getStepSchema('filter');
+    expect(schema.properties?.expr).toBeTruthy();
   });
 
-  it('returns filter step schema', () => {
-    const schema = getStepSchema('filter');
-    expect(schema.properties?.condition).toBeTruthy();
+  it('returns the wiretap step fields', async () => {
+    const schema = await getStepSchema('wiretap');
+    expect(schema.properties?.sink).toBeTruthy();
   });
 
-  it('returns delay step schema', () => {
-    const schema = getStepSchema('delay');
-    expect(schema.properties?.duration).toBeTruthy();
+  it('returns the idempotent step fields', async () => {
+    const schema = await getStepSchema('idempotent');
+    expect(schema.properties?.key_expr).toBeTruthy();
   });
 
-  it('returns default schema for unknown step type', () => {
-    const schema = getStepSchema('unknown');
+  it('returns default schema for a step type the schema does not define', async () => {
+    const schema = await getStepSchema('log');
     expect(schema.type).toBe('object');
-    expect(schema.properties?.config).toBeTruthy();
+    expect(schema.properties?.log).toBeTruthy(); // default: one object field named for the step
   });
 });
