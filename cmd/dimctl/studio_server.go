@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/naren-chakraview/dim/internal/config"
@@ -73,6 +74,7 @@ func (s *StudioServer) newMux() *http.ServeMux {
 	mux.HandleFunc("/api/save", s.handleSave)
 	mux.HandleFunc("/api/schema", s.handleGetSchema)
 	mux.HandleFunc("/api/validate", s.handleValidate)
+	mux.HandleFunc("/api/live", s.handleLive)
 
 	// Serve embedded web assets (React app)
 	distFS, err := fs.Sub(webAssets, "web_dist")
@@ -412,4 +414,67 @@ func singleRouteName(route map[string]interface{}) (string, bool) {
 		return name, true
 	}
 	return "", false
+}
+
+// defaultViewerURL is where `dimctl run` and `dimd` serve the Tier 1 viewer.
+const defaultViewerURL = "http://localhost:8081"
+
+// handleLive returns a route's live state from the running viewer, next to its
+// definition in the studio. It is read-only: GET only, and it never writes to the
+// viewer or the route. If the viewer cannot be read, it says so; it does not show
+// zero counts.
+func (s *StudioServer) handleLive(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	routeName := r.URL.Query().Get("route")
+	if routeName == "" {
+		http.Error(w, "route parameter required", http.StatusBadRequest)
+		return
+	}
+
+	base := os.Getenv("DIM_VIEWER_URL")
+	if base == "" {
+		base = defaultViewerURL
+	}
+	unavailable := func(reason string) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"available": false,
+			"reason":    reason,
+			"state":     nil,
+		})
+	}
+
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(strings.TrimSuffix(base, "/") + "/debug/routes")
+	if err != nil {
+		unavailable(fmt.Sprintf("viewer unreachable at %s: %v", base, err))
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		unavailable(fmt.Sprintf("viewer at %s returned HTTP %d", base, resp.StatusCode))
+		return
+	}
+
+	var doc struct {
+		Routes []map[string]interface{} `json:"routes"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		unavailable(fmt.Sprintf("viewer at %s returned an unreadable document: %v", base, err))
+		return
+	}
+	for _, rt := range doc.Routes {
+		if rt["name"] == routeName {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"available": true,
+				"state":     rt,
+			})
+			return
+		}
+	}
+	unavailable(fmt.Sprintf("route %q is not running in the viewer at %s", routeName, base))
 }
