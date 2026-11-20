@@ -143,21 +143,25 @@ func extractIntentSignals(intent string) IntentSignals {
 	intentLower := strings.ToLower(intent)
 	signals := IntentSignals{}
 
-	// Extract source type (only valid schema types: http, file, sftp, exec)
-	// Check for keywords that map to sources
+	// Extract source type. Only adapter types the route schema accepts are
+	// produced; the keyword check is the same for sources and sinks.
+	adapterTypes, err := SchemaAdapterTypes()
+	if err != nil {
+		adapterTypes = nil // schema problems are reported by GetCapabilities/validate, not here
+	}
 	if strings.Contains(intentLower, "webhook") || strings.Contains(intentLower, "request") || strings.Contains(intentLower, "http") {
 		signals.SourceType = "http"
-	} else if strings.Contains(intentLower, "file") {
-		signals.SourceType = "file"
-	} else if strings.Contains(intentLower, "sftp") {
-		signals.SourceType = "sftp"
-	} else if strings.Contains(intentLower, "exec") || strings.Contains(intentLower, "command") {
-		signals.SourceType = "exec"
+	} else {
+		for _, t := range adapterTypes {
+			if strings.Contains(intentLower, t) {
+				signals.SourceType = t
+				break
+			}
+		}
 	}
 
-	// Extract sink type (only valid schema types)
-	sinkTypes := []string{"http", "file", "sftp", "exec"} // Valid types in schema
-	for _, sinkType := range sinkTypes {
+	// Extract sink type (only schema-valid adapter types)
+	for _, sinkType := range adapterTypes {
 		if strings.Contains(intentLower, sinkType) {
 			signals.SinkType = sinkType
 			break
@@ -230,7 +234,7 @@ func identifyPlaceholders(signals IntentSignals, shape string) []Placeholder {
 		placeholders = append(placeholders, Placeholder{
 			Path:       "$.sinks[*].type",
 			Reason:     "Sink type could not be determined from intent",
-			Suggestion: "Specify the destination: http, file, kafka, sftp, etc.",
+			Suggestion: "Specify the destination: http, file, s3, kafka, amqp, or database.",
 		})
 	}
 
@@ -238,7 +242,7 @@ func identifyPlaceholders(signals IntentSignals, shape string) []Placeholder {
 		placeholders = append(placeholders, Placeholder{
 			Path:       "$.sources[*].type",
 			Reason:     "Source type could not be determined from intent",
-			Suggestion: "Specify the source: http (webhook), file, kafka, sftp, exec, etc.",
+			Suggestion: "Specify the source: http (webhook), file, s3, kafka, amqp, or database.",
 		})
 	}
 

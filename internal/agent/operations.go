@@ -265,114 +265,21 @@ func GetProvenance(ctx context.Context, req ProvenanceRequest) (*ProvenanceRespo
 }
 
 // GetCapabilities returns available adapters, steps, and EIPs
+// GetCapabilities serves the capability catalog. The catalog is derived from the
+// embedded route schema (see ServedCapabilities); nothing here is hardcoded.
 func GetCapabilities(ctx context.Context, req CapabilitiesRequest) (*CapabilitiesResponse, *OperationErr) {
-	capabilities := []Capability{}
-
-	// Add adapters (sources and sinks)
-	if req.FilterType == "" || req.FilterType == "adapter" {
-		adapters := []struct {
-			name      string
-			direction string
-			desc      string
-		}{
-			{"http", "source", "HTTP webhook/request source"},
-			{"http", "sink", "HTTP POST sink"},
-			{"file", "source", "File-based event source"},
-			{"file", "sink", "File-based event sink"},
-			{"s3", "source", "AWS S3 source"},
-			{"s3", "sink", "AWS S3 sink"},
-			{"kafka", "source", "Apache Kafka source"},
-			{"kafka", "sink", "Apache Kafka sink"},
-			{"amqp", "source", "AMQP source"},
-			{"amqp", "sink", "AMQP sink"},
-			{"database", "source", "SQL database source"},
-			{"database", "sink", "SQL database sink"},
-		}
-
-		for _, a := range adapters {
-			cap := Capability{
-				Name:        a.name + "-" + a.direction,
-				Type:        "adapter",
-				Description: a.desc,
-				ConfigSchema: map[string]interface{}{
-					"type": "object",
-					"properties": map[string]interface{}{
-						"type": map[string]interface{}{
-							"type": "string",
-							"enum": []string{a.name},
-						},
-					},
-					"required": []string{"type"},
-				},
-			}
-			capabilities = append(capabilities, cap)
+	capabilities, err := ServedCapabilities(req.FilterType)
+	if err != nil {
+		return nil, &OperationErr{
+			Code:    "CAPABILITY_SOURCE_INVALID",
+			Message: err.Error(),
 		}
 	}
 
-	// Add steps
-	if req.FilterType == "" || req.FilterType == "step" {
-		steps := []struct {
-			name string
-			desc string
-		}{
-			{"filter", "Boolean predicate to include/exclude messages using JSONata"},
-			{"translate", "Transform message body using JSONata expression"},
-			{"route", "Route messages to different sinks based on conditions"},
-			{"wiretap", "Clone messages to secondary sink for monitoring/logging"},
-			{"idempotent", "Prevent duplicate message processing"},
-			{"authorize", "Authorization/authentication step (RBAC or ABAC)"},
-			{"contract", "Enforce schema contracts on message payloads"},
-			{"claim_check", "Externalize large payloads to reduce memory usage"},
-			{"claim_resolve", "Retrieve externalized payloads from claim check store"},
-			{"aggregate", "Combine multiple messages into a single message"},
-			{"split", "Decompose a message into multiple messages"},
-		}
-
-		for _, s := range steps {
-			cap := Capability{
-				Name:        s.name + "-step",
-				Type:        "step",
-				Description: s.desc,
-				ConfigSchema: map[string]interface{}{
-					"type":  "object",
-					"title": s.name,
-				},
-			}
-			capabilities = append(capabilities, cap)
-		}
-	}
-
-	// Add EIPs
-	if req.FilterType == "" || req.FilterType == "eip" {
-		eips := []struct {
-			name string
-			desc string
-		}{
-			{"claim-check", "Externalize large message payloads to reduce memory usage"},
-			{"content-based-router", "Route messages based on content evaluation"},
-			{"dead-letter-queue", "Capture and route failed messages"},
-			{"wiretap", "Clone messages for observation without affecting flow"},
-		}
-
-		for _, e := range eips {
-			cap := Capability{
-				Name:        e.name,
-				Type:        "eip",
-				Description: e.desc,
-				ConfigSchema: map[string]interface{}{
-					"type": "object",
-				},
-			}
-			capabilities = append(capabilities, cap)
-		}
-	}
-
-	resp := &CapabilitiesResponse{
+	return &CapabilitiesResponse{
 		Capabilities:  capabilities,
-		SchemaVersion: "1.0.0",
-	}
-
-	return resp, nil
+		SchemaVersion: CapabilitySchemaVersion,
+	}, nil
 }
 
 // QueryImpactRequest asks what routes/adapters would be affected by a change
