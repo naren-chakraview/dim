@@ -19,6 +19,9 @@
 - A cross-domain secret reference in any of the six source types fails closed, proven the same way T1.13's fix was finally proven: an actual attempt to leak a same-named env var or cross-domain secret, that fails.
 - `dimctl catalog` (or the discovery surface) reports source reachability truthfully, not just a count.
 
+### M5.1.1 File poller atomicity fix
+The “atomic file publish” fix only touches the integration test’s own fixture-writer, not the actual file-source poller — pollLocal can still read a real external file mid-write.
+
 ## M5.2 — Agent-facing query surface (confirmed: MCP/A2A, not a new transport)
 
 **Clarification, not new scope:** "agent-facing query surface" means the same transport Track C's M4.6 was already scoped for — MCP and A2A, plus REST/JSON-RPC as a fallback. Nothing here proposes a different interface. The point of calling this out as its own milestone is sequencing, not design: Track C's current implementation (`GetCapabilities`, the capability manifest, the impact-analysis query path) is not yet trustworthy enough to build on — the manifest is a hardcoded literal disconnected from the real schema, and the CI drift-check has failed three live-simulation tests in a row. M5.2 is: once Track C's own remediation is done (in the separate Phase 4 pass), confirm the MCP/A2A/REST-JSON-RPC surface is actually serving correct, current data, and treat that surface as the one both the harness's own tooling and any future term/meaning registry will ride — rather than either of them growing a second, parallel API.
