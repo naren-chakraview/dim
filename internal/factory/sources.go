@@ -166,6 +166,7 @@ func buildSourceAdapter(ctx context.Context, name string, spec config.SourceSpec
 
 	case "s3":
 		cfg := s3.SourceConfig{
+			Endpoint:     stringOpt(x, "endpoint", ""),
 			Bucket:       stringOpt(x, "bucket", ""),
 			Prefix:       stringOpt(x, "prefix", ""),
 			Region:       stringOpt(x, "region", ""),

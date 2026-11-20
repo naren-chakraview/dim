@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/naren-chakraview/dim/internal/engine"
 )
@@ -26,6 +27,7 @@ type S3Source struct {
 }
 
 type SourceConfig struct {
+	Endpoint     string // optional S3-compatible endpoint (e.g. LocalStack); empty for AWS
 	Bucket       string
 	Prefix       string
 	Region       string
@@ -36,7 +38,18 @@ func NewS3Source(cfg SourceConfig, outChan *engine.Channel) (*S3Source, error) {
 	if outChan == nil {
 		return nil, fmt.Errorf("output channel cannot be nil")
 	}
+	if cfg.Bucket == "" {
+		return nil, fmt.Errorf("s3 source requires a bucket")
+	}
+	if cfg.PollInterval <= 0 {
+		return nil, fmt.Errorf("s3 source requires a positive poll interval")
+	}
+	client, err := newS3Client(context.Background(), cfg)
+	if err != nil {
+		return nil, err
+	}
 	return &S3Source{
+		client:   client,
 		bucket:   cfg.Bucket,
 		prefix:   cfg.Prefix,
 		outChan:  outChan,
@@ -44,6 +57,27 @@ func NewS3Source(cfg SourceConfig, outChan *engine.Channel) (*S3Source, error) {
 		config:   cfg,
 		lastSync: make(map[string]time.Time),
 	}, nil
+}
+
+// newS3Client builds the S3 client from the standard AWS configuration chain
+// (environment, shared config, instance role). cfg.Endpoint, when set, points the
+// client at an S3-compatible service such as LocalStack or MinIO, with path-style
+// addressing. Without a region, us-east-1 is used.
+func newS3Client(ctx context.Context, cfg SourceConfig) (*s3.Client, error) {
+	region := cfg.Region
+	if region == "" {
+		region = "us-east-1"
+	}
+	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	if err != nil {
+		return nil, fmt.Errorf("load AWS configuration: %w", err)
+	}
+	return s3.NewFromConfig(awsCfg, func(o *s3.Options) {
+		if cfg.Endpoint != "" {
+			o.BaseEndpoint = aws.String(cfg.Endpoint)
+			o.UsePathStyle = true
+		}
+	}), nil
 }
 
 func (s *S3Source) Start(ctx context.Context) error {

@@ -3,6 +3,7 @@ package s3
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/naren-chakraview/dim/internal/engine"
 	"github.com/naren-chakraview/dim/internal/secrets"
@@ -15,9 +16,9 @@ func TestS3SourceSecretsAreDomainScoped(t *testing.T) {
 	}
 	r := secrets.NewResolver(store)
 	out := engine.NewChannel("test", 1)
-	cfg := SourceConfig{Bucket: "${SECRET:bucket}", Region: "eu-west-1"}
+	cfg := SourceConfig{Bucket: "${SECRET:bucket}", Region: "eu-west-1", PollInterval: time.Second}
 
-	explicit := SourceConfig{Bucket: "${SECRET:payments.bucket}", Region: "eu-west-1"}
+	explicit := SourceConfig{Bucket: "${SECRET:payments.bucket}", Region: "eu-west-1", PollInterval: time.Second}
 	if _, err := NewS3SourceWithDomain(explicit, out, "fraud", r); !errors.Is(err, secrets.ErrCrossDomainDenied) {
 		t.Fatalf("explicit cross-domain: got %v, want ErrCrossDomainDenied", err)
 	}
