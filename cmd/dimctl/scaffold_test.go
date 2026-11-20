@@ -116,9 +116,47 @@ func TestScaffoldGeneratesValidRoute(t *testing.T) {
 	}
 
 	// Verify auth declaration exists
-	for _, route := range cfg.Routes {
-		if route.Auth == "" {
-			t.Error("route is missing auth declaration")
+	for name, route := range cfg.Routes {
+		if !authDeclared(route.Auth) {
+			t.Errorf("route %q is missing auth declaration (auth=%v)", name, route.Auth)
+		}
+	}
+}
+
+// authDeclared reports whether a route's auth field holds a real declaration.
+// Auth is interface{}: "none" (a string) or an object. A missing field is nil,
+// and comparing an interface{} with "" is never true for nil, so the check must
+// inspect the dynamic type.
+func authDeclared(auth interface{}) bool {
+	switch a := auth.(type) {
+	case nil:
+		return false
+	case string:
+		return strings.TrimSpace(a) != ""
+	case map[string]interface{}:
+		return len(a) > 0
+	default:
+		return false
+	}
+}
+
+func TestAuthDeclaredCanFail(t *testing.T) {
+	cases := []struct {
+		name string
+		auth interface{}
+		want bool
+	}{
+		{"missing (nil)", nil, false},
+		{"empty string", "", false},
+		{"whitespace string", "   ", false},
+		{"none is a declaration", "none", true},
+		{"object declaration", map[string]interface{}{"steps": []interface{}{}}, true},
+		{"empty object", map[string]interface{}{}, false},
+		{"wrong kind", []interface{}{"x"}, false},
+	}
+	for _, c := range cases {
+		if got := authDeclared(c.auth); got != c.want {
+			t.Errorf("%s: authDeclared(%v) = %v, want %v", c.name, c.auth, got, c.want)
 		}
 	}
 }
