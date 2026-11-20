@@ -29,11 +29,11 @@ type boundSource struct {
 	out     *engine.Channel
 }
 
-// secretResolver returns the resolver every source uses for ${SECRET:...} references.
-// No secret store is populated in production yet, so any reference is refused: a
-// reference that cannot be resolved in its domain is an error, never an env lookup.
-func secretResolver() *secrets.Resolver {
-	return secrets.NewResolver(secrets.NewInMemoryStore())
+// secretResolver returns the resolver every source uses for ${SECRET:...} references,
+// backed by the secret provider the environment selects (see secrets.ResolverFromEnv).
+// A misconfigured provider is an error, so a pipeline does not start without its secrets.
+func secretResolver(ctx context.Context) (*secrets.Resolver, error) {
+	return secrets.ResolverFromEnv(ctx)
 }
 
 // buildSourceBindings creates one adapter per configured source, each with its own

@@ -291,7 +291,11 @@ func BuildSingleRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteC
 	errorCh := engine.NewChannel("executor-to-error-sink", 100)
 
 	// The route's source adapters (from its `sources:` entries) write into inputCh.
-	bindings, err := buildSourceBindings(ctx, cfg, secretResolver())
+	resolver, err := secretResolver(ctx)
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, fmt.Errorf("secret provider: %w", err)
+	}
+	bindings, err := buildSourceBindings(ctx, cfg, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
@@ -447,7 +451,11 @@ func BuildMultiRoutePipelineWithTracing(ctx context.Context, cfg *config.RouteCo
 	// Create a shared channel for the HTTP source
 	// The router will read from this and distribute to individual generation managers
 	// One adapter per configured source; each source feeds the routes that read from it.
-	bindings, err := buildSourceBindings(ctx, cfg, secretResolver())
+	resolver, err := secretResolver(ctx)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("secret provider: %w", err)
+	}
+	bindings, err := buildSourceBindings(ctx, cfg, resolver)
 	if err != nil {
 		return nil, nil, nil, nil, err
 	}

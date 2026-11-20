@@ -10,6 +10,7 @@ import (
 
 	"github.com/naren-chakraview/dim/internal/config"
 	"github.com/naren-chakraview/dim/internal/engine"
+	"github.com/naren-chakraview/dim/internal/secrets"
 	"github.com/naren-chakraview/dim/internal/tenant"
 )
 
@@ -141,7 +142,7 @@ routes:
       - filter:
           expr: "true"
 `)
-	_, err := buildSourceBindings(context.Background(), cfg, secretResolver())
+	_, err := buildSourceBindings(context.Background(), cfg, secrets.NewResolver(secrets.NewInMemoryStore()))
 	if err == nil || !strings.Contains(err.Error(), "one domain") {
 		t.Fatalf("shared source across domains: got %v, want a one-domain error", err)
 	}
@@ -172,7 +173,7 @@ routes:
       - filter:
           expr: "true"
 `)
-	_, err := buildSourceBindings(context.Background(), cfg, secretResolver())
+	_, err := buildSourceBindings(context.Background(), cfg, secrets.NewResolver(secrets.NewInMemoryStore()))
 	if err == nil || !strings.Contains(err.Error(), `"missing"`) {
 		t.Fatalf("undefined source: got %v, want an error naming the source", err)
 	}
