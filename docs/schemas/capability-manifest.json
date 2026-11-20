@@ -1,306 +1,944 @@
 {
   "capabilities": [
     {
-      "config_schema": {
-        "type": "object"
-      },
-      "description": "Boolean predicate to include/exclude messages",
-      "name": "filter",
-      "type": "step"
-    },
-    {
-      "config_schema": {
-        "type": "object"
-      },
-      "description": "Transform the message body using a JSONata expression",
-      "name": "translate",
-      "type": "step"
-    },
-    {
-      "config_schema": {
-        "type": "object"
-      },
-      "description": "Route messages to different branches based on content evaluation",
-      "name": "route",
-      "type": "step"
-    },
-    {
-      "config_schema": {
-        "type": "object"
-      },
-      "description": "Duplicate the message to a secondary sink without altering main flow",
-      "name": "wiretap",
-      "type": "step"
-    },
-    {
-      "config_schema": {
-        "type": "object"
-      },
-      "description": "Suppress duplicate messages using a deduplication key",
-      "name": "idempotent",
-      "type": "step"
-    },
-    {
-      "config_schema": {
-        "type": "object"
-      },
-      "description": "Enforce authorization policies (RBAC or ABAC)",
-      "name": "authorize",
-      "type": "step"
-    },
-    {
-      "config_schema": {
-        "type": "object"
-      },
-      "description": "Enforce schema contracts on message payloads",
-      "name": "contract",
-      "type": "step"
-    },
-    {
-      "config_schema": {
-        "type": "object"
-      },
-      "description": "Externalize large payloads to reduce memory usage",
-      "name": "claim_check",
-      "type": "step"
-    },
-    {
-      "config_schema": {
-        "type": "object"
-      },
-      "description": "Retrieve externalized payloads from claim check store",
-      "name": "claim_resolve",
-      "type": "step"
-    },
-    {
-      "config_schema": {
-        "properties": {
-          "type": {
-            "enum": [
-              "http"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "description": "http-source adapter",
       "name": "http-source",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message input (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sources (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sources",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
               "http"
             ],
             "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sources",
+            "title": "URL",
+            "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Source Adapter",
         "type": "object"
       },
-      "description": "http-sink adapter",
+      "description": "http source adapter"
+    },
+    {
       "name": "http-sink",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message output (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sinks (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sinks",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
-              "file"
+              "http"
             ],
+            "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sinks",
+            "title": "URL",
             "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Sink Adapter",
         "type": "object"
       },
-      "description": "file-source adapter",
+      "description": "http sink adapter"
+    },
+    {
       "name": "file-source",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message input (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sources (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sources",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
               "file"
             ],
             "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sources",
+            "title": "URL",
+            "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Source Adapter",
         "type": "object"
       },
-      "description": "file-sink adapter",
+      "description": "file source adapter"
+    },
+    {
       "name": "file-sink",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message output (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sinks (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sinks",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
-              "s3"
+              "file"
             ],
+            "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sinks",
+            "title": "URL",
             "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Sink Adapter",
         "type": "object"
       },
-      "description": "s3-source adapter",
+      "description": "file sink adapter"
+    },
+    {
       "name": "s3-source",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message input (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sources (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sources",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
               "s3"
             ],
             "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sources",
+            "title": "URL",
+            "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Source Adapter",
         "type": "object"
       },
-      "description": "s3-sink adapter",
+      "description": "s3 source adapter"
+    },
+    {
       "name": "s3-sink",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message output (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sinks (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sinks",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
-              "kafka"
+              "s3"
             ],
+            "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sinks",
+            "title": "URL",
             "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Sink Adapter",
         "type": "object"
       },
-      "description": "kafka-source adapter",
+      "description": "s3 sink adapter"
+    },
+    {
       "name": "kafka-source",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message input (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sources (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sources",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
               "kafka"
             ],
             "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sources",
+            "title": "URL",
+            "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Source Adapter",
         "type": "object"
       },
-      "description": "kafka-sink adapter",
+      "description": "kafka source adapter"
+    },
+    {
       "name": "kafka-sink",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message output (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sinks (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sinks",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
-              "amqp"
+              "kafka"
             ],
+            "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sinks",
+            "title": "URL",
             "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Sink Adapter",
         "type": "object"
       },
-      "description": "amqp-source adapter",
+      "description": "kafka sink adapter"
+    },
+    {
       "name": "amqp-source",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message input (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sources (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sources",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
               "amqp"
             ],
             "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sources",
+            "title": "URL",
+            "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Source Adapter",
         "type": "object"
       },
-      "description": "amqp-sink adapter",
+      "description": "amqp source adapter"
+    },
+    {
       "name": "amqp-sink",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message output (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sinks (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sinks",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
-              "database"
+              "amqp"
             ],
+            "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sinks",
+            "title": "URL",
             "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Sink Adapter",
         "type": "object"
       },
-      "description": "database-source adapter",
+      "description": "amqp sink adapter"
+    },
+    {
       "name": "database-source",
-      "type": "adapter"
-    },
-    {
+      "type": "adapter",
       "config_schema": {
+        "description": "A named message input (HTTP, file, etc.)",
         "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sources (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sources",
+            "title": "File Path",
+            "type": "string"
+          },
           "type": {
             "enum": [
               "database"
             ],
+            "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sources",
+            "title": "URL",
             "type": "string"
           }
         },
         "required": [
           "type"
         ],
+        "title": "Source Adapter",
         "type": "object"
       },
-      "description": "database-sink adapter",
+      "description": "database source adapter"
+    },
+    {
       "name": "database-sink",
-      "type": "adapter"
+      "type": "adapter",
+      "config_schema": {
+        "description": "A named message output (HTTP, file, etc.)",
+        "properties": {
+          "method": {
+            "description": "HTTP method for HTTP sinks (default: POST)",
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE",
+              "HEAD"
+            ],
+            "title": "HTTP Method",
+            "type": "string"
+          },
+          "path": {
+            "description": "Path for file/SFTP sinks",
+            "title": "File Path",
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "database"
+            ],
+            "type": "string"
+          },
+          "url": {
+            "description": "URL for HTTP sinks",
+            "title": "URL",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "title": "Sink Adapter",
+        "type": "object"
+      },
+      "description": "database sink adapter"
+    },
+    {
+      "name": "filter-step",
+      "type": "step",
+      "config_schema": {
+        "description": "Boolean predicate to include/exclude messages",
+        "properties": {
+          "filter": {
+            "properties": {
+              "expr": {
+                "description": "JSONata expression that evaluates to boolean",
+                "title": "Filter Expression",
+                "type": "string"
+              }
+            },
+            "required": [
+              "expr"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "filter"
+        ],
+        "title": "Filter Step",
+        "type": "object"
+      },
+      "description": "Boolean predicate to include/exclude messages"
+    },
+    {
+      "name": "translate-step",
+      "type": "step",
+      "config_schema": {
+        "description": "Transform the message body using a JSONata expression",
+        "properties": {
+          "translate": {
+            "properties": {
+              "expr": {
+                "description": "JSONata expression to transform the message",
+                "title": "Transform Expression",
+                "type": "string"
+              }
+            },
+            "required": [
+              "expr"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "translate"
+        ],
+        "title": "Translate Step",
+        "type": "object"
+      },
+      "description": "Transform the message body using a JSONata expression"
+    },
+    {
+      "name": "route-step",
+      "type": "step",
+      "config_schema": {
+        "description": "Route messages to different branches based on content evaluation",
+        "properties": {
+          "route": {
+            "properties": {
+              "cases": {
+                "additionalProperties": {
+                  "properties": {
+                    "target": {
+                      "description": "Route or sink name for this case",
+                      "title": "Target",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "description": "Map of case names to target route names",
+                "title": "Route Cases",
+                "type": "object"
+              },
+              "default": {
+                "description": "Default route/sink if expression doesn't match any case",
+                "title": "Default Target",
+                "type": "string"
+              },
+              "expr": {
+                "description": "JSONata expression that evaluates to a route/case name",
+                "title": "Route Expression",
+                "type": "string"
+              }
+            },
+            "required": [
+              "expr"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "route"
+        ],
+        "title": "Content-Based Router Step",
+        "type": "object"
+      },
+      "description": "Route messages to different branches based on content evaluation"
+    },
+    {
+      "name": "wiretap-step",
+      "type": "step",
+      "config_schema": {
+        "description": "Duplicate the message to a secondary sink without altering main flow",
+        "properties": {
+          "wiretap": {
+            "properties": {
+              "sink": {
+                "description": "Sink name to duplicate the message to",
+                "title": "Tap Sink",
+                "type": "string"
+              }
+            },
+            "required": [
+              "sink"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "wiretap"
+        ],
+        "title": "Wiretap Step",
+        "type": "object"
+      },
+      "description": "Duplicate the message to a secondary sink without altering main flow"
+    },
+    {
+      "name": "idempotent-step",
+      "type": "step",
+      "config_schema": {
+        "description": "Suppress duplicate messages using a deduplication key",
+        "properties": {
+          "idempotent": {
+            "properties": {
+              "key_expr": {
+                "description": "JSONata expression to extract the dedup key from the message",
+                "title": "Deduplication Key Expression",
+                "type": "string"
+              }
+            },
+            "required": [
+              "key_expr"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "idempotent"
+        ],
+        "title": "Idempotent Deduplication Step",
+        "type": "object"
+      },
+      "description": "Suppress duplicate messages using a deduplication key"
+    },
+    {
+      "name": "authorize-step",
+      "type": "step",
+      "config_schema": {
+        "description": "Enforce authorization policies (RBAC or ABAC)",
+        "properties": {
+          "authorize": {
+            "properties": {
+              "mode": {
+                "description": "Authorization mode: 'rbac' (role-based) or 'abac' (attribute-based)",
+                "enum": [
+                  "rbac",
+                  "abac"
+                ],
+                "title": "Authorization Mode",
+                "type": "string"
+              },
+              "rules": {
+                "description": "Authorization rules for this mode",
+                "title": "Authorization Rules"
+              }
+            },
+            "required": [
+              "mode"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "authorize"
+        ],
+        "title": "Authorization Step",
+        "type": "object"
+      },
+      "description": "Enforce authorization policies (RBAC or ABAC)"
+    },
+    {
+      "name": "contract-step",
+      "type": "step",
+      "config_schema": {
+        "description": "Enforce schema contracts on message payloads",
+        "properties": {
+          "contract": {
+            "properties": {
+              "id": {
+                "description": "Contract identifier",
+                "type": "string"
+              },
+              "strict": {
+                "description": "Enforce strictly",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "contract"
+        ],
+        "title": "Contract Step",
+        "type": "object"
+      },
+      "description": "Enforce schema contracts on message payloads"
+    },
+    {
+      "name": "claim_check-step",
+      "type": "step",
+      "config_schema": {
+        "description": "Externalize large payloads to reduce memory usage",
+        "properties": {
+          "claim_check": {
+            "properties": {
+              "id_header": {
+                "description": "Header for claim ID",
+                "type": "string"
+              },
+              "store": {
+                "description": "Storage backend",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "claim_check"
+        ],
+        "title": "Claim Check Step",
+        "type": "object"
+      },
+      "description": "Externalize large payloads to reduce memory usage"
+    },
+    {
+      "name": "claim_resolve-step",
+      "type": "step",
+      "config_schema": {
+        "description": "Retrieve externalized payloads from claim check store",
+        "properties": {
+          "claim_resolve": {
+            "properties": {
+              "id_header": {
+                "description": "Header for claim ID",
+                "type": "string"
+              },
+              "store": {
+                "description": "Storage backend",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "claim_resolve"
+        ],
+        "title": "Claim Resolve Step",
+        "type": "object"
+      },
+      "description": "Retrieve externalized payloads from claim check store"
+    },
+    {
+      "name": "claim-check",
+      "type": "eip",
+      "config_schema": {
+        "description": "Externalize large payloads to reduce memory usage",
+        "properties": {
+          "claim_check": {
+            "properties": {
+              "id_header": {
+                "description": "Header for claim ID",
+                "type": "string"
+              },
+              "store": {
+                "description": "Storage backend",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "claim_check"
+        ],
+        "title": "Claim Check Step",
+        "type": "object"
+      },
+      "description": "Externalize large message payloads to reduce memory usage"
+    },
+    {
+      "name": "content-based-router",
+      "type": "eip",
+      "config_schema": {
+        "description": "Route messages to different branches based on content evaluation",
+        "properties": {
+          "route": {
+            "properties": {
+              "cases": {
+                "additionalProperties": {
+                  "properties": {
+                    "target": {
+                      "description": "Route or sink name for this case",
+                      "title": "Target",
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "description": "Map of case names to target route names",
+                "title": "Route Cases",
+                "type": "object"
+              },
+              "default": {
+                "description": "Default route/sink if expression doesn't match any case",
+                "title": "Default Target",
+                "type": "string"
+              },
+              "expr": {
+                "description": "JSONata expression that evaluates to a route/case name",
+                "title": "Route Expression",
+                "type": "string"
+              }
+            },
+            "required": [
+              "expr"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "route"
+        ],
+        "title": "Content-Based Router Step",
+        "type": "object"
+      },
+      "description": "Route messages based on content evaluation"
+    },
+    {
+      "name": "dead-letter-queue",
+      "type": "eip",
+      "config_schema": {
+        "description": "Where and how to route messages that fail processing",
+        "properties": {
+          "retry": {
+            "$ref": "#/definitions/retry_policy"
+          },
+          "target": {
+            "description": "Sink name where failed messages are sent (typically dead-letter queue)",
+            "minLength": 1,
+            "title": "Error Sink",
+            "type": "string"
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "title": "Error Handling",
+        "type": "object"
+      },
+      "description": "Capture and route failed messages"
+    },
+    {
+      "name": "wiretap",
+      "type": "eip",
+      "config_schema": {
+        "description": "Duplicate the message to a secondary sink without altering main flow",
+        "properties": {
+          "wiretap": {
+            "properties": {
+              "sink": {
+                "description": "Sink name to duplicate the message to",
+                "title": "Tap Sink",
+                "type": "string"
+              }
+            },
+            "required": [
+              "sink"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "wiretap"
+        ],
+        "title": "Wiretap Step",
+        "type": "object"
+      },
+      "description": "Clone messages for observation without affecting flow"
     }
   ],
-  "generated": true,
-  "version": "1.0.0"
+  "schema_version": "1.0.0"
 }

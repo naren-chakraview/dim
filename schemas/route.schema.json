@@ -67,11 +67,13 @@
           "enum": [
             "http",
             "file",
-            "sftp",
-            "exec"
+            "s3",
+            "kafka",
+            "amqp",
+            "database"
           ],
           "title": "Source Type",
-          "description": "The adapter type for this source"
+          "description": "The adapter type for this source (one of the implemented adapters: http, file, s3, kafka, amqp, database)"
         },
         "path": {
           "type": "string",
@@ -111,11 +113,13 @@
           "enum": [
             "http",
             "file",
-            "sftp",
-            "exec"
+            "s3",
+            "kafka",
+            "amqp",
+            "database"
           ],
           "title": "Sink Type",
-          "description": "The adapter type for this sink"
+          "description": "The adapter type for this sink (one of the implemented adapters: http, file, s3, kafka, amqp, database)"
         },
         "path": {
           "type": "string",

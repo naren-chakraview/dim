@@ -1,39 +1,31 @@
 #!/bin/bash
-# Verify that the capability manifest doesn't drift from the current implementation
-# This script is run in CI to ensure the published manifest is always in sync
-
-set -e
+# Verify the committed capability manifest matches the route schema.
+#
+# Regenerates the manifest from schemas/route.schema.json with a freshly built
+# dimctl (a stale binary would hide schema changes) and compares the full
+# capability entries: name, type, description and config_schema.
+set -euo pipefail
 
 SCHEMA_PATH="schemas/route.schema.json"
 COMMITTED_MANIFEST="docs/schemas/capability-manifest.json"
-TMP_MANIFEST="/tmp/manifest-generated.json"
 
-# Build dimctl if not already built
-if [ ! -f "./dimctl" ]; then
-    go build -o ./dimctl ./cmd/dimctl
-fi
+WORK_DIR="$(mktemp -d)"
+trap 'rm -rf "$WORK_DIR"' EXIT
+DIMCTL="$WORK_DIR/dimctl"
+GENERATED="$WORK_DIR/generated-manifest.json"
 
-# Generate fresh manifest from the current schema
-./dimctl manifest generate "$SCHEMA_PATH" "$TMP_MANIFEST" 2>&1 | grep -v "^✅"
+go build -o "$DIMCTL" ./cmd/dimctl
+"$DIMCTL" manifest generate "$SCHEMA_PATH" "$GENERATED" >/dev/null
 
-# Compare capabilities structure (ignore generated_at timestamp and interface_version which may vary)
-# The key check is that the same adapters and steps are present
-COMMITTED_CAPS=$(jq '.capabilities | map({name: .name, type: .type}) | sort_by(.name)' "$COMMITTED_MANIFEST")
-GENERATED_CAPS=$(jq '.capabilities | map({name: .name, type: .type}) | sort_by(.name)' "$TMP_MANIFEST")
-
-if [ "$COMMITTED_CAPS" != "$GENERATED_CAPS" ]; then
+if ! diff <(jq -S '.capabilities' "$COMMITTED_MANIFEST") \
+          <(jq -S '.capabilities' "$GENERATED") > "$WORK_DIR/diff.txt"; then
+    echo "❌ ERROR: Capability manifest has drifted from $SCHEMA_PATH"
     echo ""
-    echo "❌ ERROR: Capability manifest has drifted from implementation"
+    echo "Differences (committed < > generated), first 200 lines:"
+    head -n 200 "$WORK_DIR/diff.txt"
     echo ""
-    echo "Committed capabilities:"
-    jq '.capabilities | map(.name) | sort' "$COMMITTED_MANIFEST"
-    echo ""
-    echo "Generated capabilities:"
-    jq '.capabilities | map(.name) | sort' "$TMP_MANIFEST"
-    echo ""
-    echo "To fix, run: ./dimctl manifest generate $SCHEMA_PATH $COMMITTED_MANIFEST"
+    echo "To fix, run: go run ./cmd/dimctl manifest generate $SCHEMA_PATH $COMMITTED_MANIFEST"
     exit 1
 fi
 
-echo "✅ Capability manifest is in sync with implementation"
-rm -f "$TMP_MANIFEST"
+echo "✅ Capability manifest is in sync with $SCHEMA_PATH"
