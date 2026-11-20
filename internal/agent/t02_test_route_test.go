@@ -105,12 +105,11 @@ func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
 	// Before T0.2 fix: would return passed: true (placeholder behavior: len(fixtures) > 0)
 	// After T0.2 fix: should return passed: false (fixture actually ran and failed)
 
+	// The route and fixture are valid, so TestRoute must run the fixture. An error
+	// here means the proof never ran, so it fails rather than returning early.
 	if operErr != nil {
-		t.Logf("TestRoute error: %v", operErr)
-		// Note: may fail on fixture execution due to missing adapters in test isolation.
-		// As long as we got an error (not a fabricated passed response), that's still valid.
-		// The key is we didn't get passed: true silently.
-		return
+		t.Fatalf("TestRoute errored before running the fixture, so the failing-fixture proof did not run: %s: %s",
+			operErr.Code, operErr.Message)
 	}
 
 	if resp == nil {
