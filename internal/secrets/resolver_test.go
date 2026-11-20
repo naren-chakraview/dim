@@ -1,6 +1,7 @@
 package secrets
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -51,14 +52,11 @@ func TestResolveInRouteExplicitCrossDomain(t *testing.T) {
 
 	text := "shared: ${SECRET:platform.shared-secret}"
 	resolved, err := resolver.ResolveInRoute("payments", text)
-	if err != nil {
-		t.Fatalf("failed to call resolve: %v", err)
+	if !errors.Is(err, ErrCrossDomainDenied) {
+		t.Fatalf("cross-domain denial must return ErrCrossDomainDenied, got %v", err)
 	}
-
-	// Cross-domain secrets remain unresolved (pattern is kept as-is)
-	// This prevents silent failures and makes it obvious the secret couldn't be accessed
-	if !strings.Contains(resolved, "${SECRET:platform.shared-secret}") {
-		t.Fatalf("cross-domain secret should remain unresolved in output: %q", resolved)
+	if resolved != "" {
+		t.Fatalf("denied resolution must not return partial output: %q", resolved)
 	}
 }
 
@@ -185,16 +183,11 @@ func TestResolveBypassWithEnvironmentVariable(t *testing.T) {
 	// Try to access cross-domain secret from orders domain
 	text := "key: ${SECRET:payments.api-key}"
 	resolved, err := resolver.ResolveInRoute("orders", text)
-	if err != nil {
-		t.Fatalf("resolve shouldn't error (unresolvedable patterns stay as-is): %v", err)
+	if !errors.Is(err, ErrCrossDomainDenied) {
+		t.Fatalf("denial must surface as ErrCrossDomainDenied, got %v", err)
 	}
-
-	// SECURITY CHECK: The pattern must remain unresolved, NOT leak the env var
-	if !strings.Contains(resolved, "${SECRET:payments.api-key}") {
-		t.Fatalf("SECURITY BUG: cross-domain secret was resolved (leaked via env var): %q", resolved)
-	}
-	if strings.Contains(resolved, "leaked-api-key") {
-		t.Fatalf("SECURITY BUG: environment variable leaked through: %q", resolved)
+	if strings.Contains(resolved, "leaked-api-key") || strings.Contains(resolved, "real-secret") {
+		t.Fatalf("SECURITY BUG: secret leaked through denied resolution: %q", resolved)
 	}
 }
 

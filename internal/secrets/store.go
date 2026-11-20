@@ -1,8 +1,19 @@
 package secrets
 
 import (
+	"errors"
 	"fmt"
+	"strings"
 	"sync"
+)
+
+var (
+	// ErrCrossDomainDenied is returned when a reference explicitly names another domain.
+	ErrCrossDomainDenied = errors.New("cross-domain secret access denied")
+	// ErrSecretNotFound is returned when no same-domain or global secret matches.
+	ErrSecretNotFound = errors.New("secret not found")
+	// ErrInvalidSecretRef is returned for malformed references such as ".name" or "domain.".
+	ErrInvalidSecretRef = errors.New("invalid secret reference")
 )
 
 // SecretEntry represents a secret with its domain scope
@@ -65,15 +76,18 @@ func (s *InMemoryStore) Resolve(requestingDomain, secretRef string) (string, err
 	defer s.mu.RUnlock()
 
 	// Parse secretRef: could be "name" (global) or "domain.name" (explicit cross-domain)
-	refDomain, refName := parseSecretRef(secretRef)
+	refDomain, refName, err := parseSecretRef(secretRef)
+	if err != nil {
+		return "", err
+	}
 
 	// CRITICAL: Cross-domain access is explicitly blocked, even with explicit syntax
 	// The explicit syntax (domain.name) documents intent but does NOT grant access
 	// This enforces the domain-scoping isolation required by the governance model
 	if refDomain != "" {
 		// Attempted cross-domain access
-		return "", fmt.Errorf("cross-domain secret access denied: route in domain %q cannot access %q from domain %q",
-			requestingDomain, refName, refDomain)
+		return "", fmt.Errorf("%w: route in domain %q cannot access %q from domain %q",
+			ErrCrossDomainDenied, requestingDomain, refName, refDomain)
 	}
 
 	// Only same-domain and global secrets are accessible
@@ -91,7 +105,7 @@ func (s *InMemoryStore) Resolve(requestingDomain, secretRef string) (string, err
 		return entry.Value, nil
 	}
 
-	return "", fmt.Errorf("secret not found: %s (requesting domain: %s)", refName, requestingDomain)
+	return "", fmt.Errorf("%w: %s (requesting domain: %s)", ErrSecretNotFound, refName, requestingDomain)
 }
 
 // ListByDomain returns all secrets in a domain
@@ -124,15 +138,21 @@ func makeKey(domain, name string) string {
 }
 
 // Helper: parse secret reference into domain and name
-// "name" -> ("", "name")
-// "domain.name" -> ("domain", "name")
-func parseSecretRef(ref string) (string, string) {
-	// Simple split on first dot
-	for i, ch := range ref {
-		if ch == '.' {
-			return ref[:i], ref[i+1:]
-		}
+// "name" -> ("", "name", nil)
+// "domain.name" -> ("domain", "name", nil)
+// Empty domain or name segments (".name", "domain.", "") are rejected so they
+// cannot silently bypass the cross-domain check.
+func parseSecretRef(ref string) (string, string, error) {
+	if ref == "" {
+		return "", "", fmt.Errorf("%w: empty reference", ErrInvalidSecretRef)
 	}
-	// No dot found - return as name with no domain
-	return "", ref
+	idx := strings.IndexByte(ref, '.')
+	if idx < 0 {
+		return "", ref, nil
+	}
+	domain, name := ref[:idx], ref[idx+1:]
+	if domain == "" || name == "" {
+		return "", "", fmt.Errorf("%w: %q has an empty domain or name segment", ErrInvalidSecretRef, ref)
+	}
+	return domain, name, nil
 }

@@ -213,9 +213,9 @@ func TestSecretNameValidation(t *testing.T) {
 
 func TestParseSecretRef(t *testing.T) {
 	tests := []struct {
-		ref          string
-		wantDomain   string
-		wantName     string
+		ref        string
+		wantDomain string
+		wantName   string
 	}{
 		{"api-key", "", "api-key"},
 		{"payments.api-key", "payments", "api-key"},
@@ -224,7 +224,11 @@ func TestParseSecretRef(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		gotDomain, gotName := parseSecretRef(tt.ref)
+		gotDomain, gotName, err := parseSecretRef(tt.ref)
+		if err != nil {
+			t.Errorf("parseSecretRef(%q) unexpected error: %v", tt.ref, err)
+			continue
+		}
 		if gotDomain != tt.wantDomain || gotName != tt.wantName {
 			t.Errorf("parseSecretRef(%q) = (%q, %q), want (%q, %q)",
 				tt.ref, gotDomain, gotName, tt.wantDomain, tt.wantName)

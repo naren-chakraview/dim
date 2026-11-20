@@ -15,37 +15,36 @@ func NewResolver(store SecretStore) *Resolver {
 	return &Resolver{store: store}
 }
 
-// ResolveInRoute resolves secrets in the context of a route's domain
-// Parses ${SECRET:ref} syntax and looks up via domain-scoped store
-// Returns unresolved patterns for any secrets that cannot be resolved
+// ResolveInRoute resolves ${SECRET:ref} patterns in the context of a route's domain.
+// It fails closed: if any reference cannot be resolved, it returns ("", err) where err
+// wraps ErrCrossDomainDenied (explicit cross-domain reference) or ErrSecretNotFound.
+// Callers can distinguish a denial from a missing secret with errors.Is.
+// It never returns partially resolved text, and never falls back to environment variables.
 func (r *Resolver) ResolveInRoute(routeDomain string, text string) (string, error) {
 	if text == "" {
 		return "", nil
 	}
 
-	// Regex to find ${SECRET:ref} patterns
 	pattern := regexp.MustCompile(`\$\{SECRET:([^}]+)\}`)
 
+	var firstErr error
 	result := pattern.ReplaceAllStringFunc(text, func(match string) string {
-		// Extract ref from ${SECRET:ref}
-		submatches := pattern.FindStringSubmatch(match)
-		if len(submatches) < 2 {
+		if firstErr != nil {
 			return match
 		}
-		ref := submatches[1]
+		ref := pattern.FindStringSubmatch(match)[1]
 
-		// Try domain-scoped store
 		value, err := r.store.Resolve(routeDomain, ref)
-		if err == nil {
-			return value
+		if err != nil {
+			firstErr = fmt.Errorf("resolve ${SECRET:%s}: %w", ref, err)
+			return match
 		}
-
-		// Return original pattern if not found (will be caught by validation)
-		// Must NOT fall back to environment variables - a denied cross-domain reference
-		// must fail, not silently succeed through a naming coincidence
-		return match
+		return value
 	})
 
+	if firstErr != nil {
+		return "", firstErr
+	}
 	return result, nil
 }
 
@@ -64,18 +63,21 @@ func (r *Resolver) ValidateSecretReferences(routeDomain string, text string) err
 		ref := match[1]
 
 		// Check for cross-domain syntax early
-		refDomain, refName := parseSecretRef(ref)
+		refDomain, refName, err := parseSecretRef(ref)
+		if err != nil {
+			return err
+		}
 		if refDomain != "" {
 			// Cross-domain access is explicitly forbidden by domain-scoping policy
-			return fmt.Errorf("cross-domain secret access denied: route in domain %q cannot access %q from domain %q",
+			return fmt.Errorf("%w: route in domain %q cannot access %q from domain %q", ErrCrossDomainDenied,
 				routeDomain, refName, refDomain)
 		}
 
 		// Try to resolve same-domain or global secret
-		_, err := r.store.Resolve(routeDomain, ref)
+		_, err = r.store.Resolve(routeDomain, ref)
 		if err != nil {
 			// Secret not found in same domain or global
-			return fmt.Errorf("secret not found: %s (route domain: %s)", ref, routeDomain)
+			return fmt.Errorf("%w: %s (route domain: %s)", ErrSecretNotFound, ref, routeDomain)
 		}
 	}
 
