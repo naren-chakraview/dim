@@ -696,18 +696,63 @@
         "properties": {
           "authorize": {
             "properties": {
+              "expr": {
+                "description": "JSONata expression evaluated in ABAC mode",
+                "title": "Expression",
+                "type": "string"
+              },
               "mode": {
-                "description": "Authorization mode: 'rbac' (role-based) or 'abac' (attribute-based)",
+                "description": "Authorization mode: 'rbac' (role-based), 'abac' (attribute-based) or 'pbac' (policy decision point)",
                 "enum": [
                   "rbac",
-                  "abac"
+                  "abac",
+                  "pbac"
                 ],
                 "title": "Authorization Mode",
                 "type": "string"
               },
-              "rules": {
-                "description": "Authorization rules for this mode",
-                "title": "Authorization Rules"
+              "on_deny": {
+                "description": "Routing on authorization denial",
+                "properties": {
+                  "target": {
+                    "description": "Sink name to route denied messages to",
+                    "title": "Target Sink",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "target"
+                ],
+                "title": "On Deny",
+                "type": "object"
+              },
+              "pdp": {
+                "description": "Policy decision point settings for PBAC mode",
+                "properties": {
+                  "endpoint": {
+                    "description": "PDP service endpoint (e.g., http://localhost:8181)",
+                    "title": "Endpoint",
+                    "type": "string"
+                  },
+                  "timeout": {
+                    "description": "Timeout in milliseconds (default: 5000)",
+                    "title": "Timeout (ms)",
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "endpoint"
+                ],
+                "title": "PDP",
+                "type": "object"
+              },
+              "require_roles": {
+                "description": "Roles required in RBAC mode",
+                "items": {
+                  "type": "string"
+                },
+                "title": "Required Roles",
+                "type": "array"
               }
             },
             "required": [
@@ -763,15 +808,28 @@
         "properties": {
           "claim_check": {
             "properties": {
-              "id_header": {
-                "description": "Header for claim ID",
+              "content_type": {
+                "description": "MIME type hint for the stored payload",
+                "title": "Content Type",
                 "type": "string"
               },
-              "store": {
-                "description": "Storage backend",
+              "payload_field": {
+                "description": "Field to extract (default: \"body\")",
+                "title": "Payload Field",
+                "type": "string"
+              },
+              "remove_payload": {
+                "description": "Remove the original payload after storing it (default: true)",
+                "title": "Remove Payload",
+                "type": "boolean"
+              },
+              "ticket_field_path": {
+                "description": "Where to store the claim ticket (default: \"_claim_check\")",
+                "title": "Ticket Field Path",
                 "type": "string"
               }
             },
+            "title": "Claim Check Options",
             "type": "object"
           }
         },
@@ -791,15 +849,18 @@
         "properties": {
           "claim_resolve": {
             "properties": {
-              "id_header": {
-                "description": "Header for claim ID",
+              "payload_field_path": {
+                "description": "Where to restore the payload (default: \"body\")",
+                "title": "Payload Field Path",
                 "type": "string"
               },
-              "store": {
-                "description": "Storage backend",
+              "ticket_field_path": {
+                "description": "Where the claim ticket is (default: \"_claim_check\")",
+                "title": "Ticket Field Path",
                 "type": "string"
               }
             },
+            "title": "Claim Resolve Options",
             "type": "object"
           }
         },
@@ -819,15 +880,28 @@
         "properties": {
           "claim_check": {
             "properties": {
-              "id_header": {
-                "description": "Header for claim ID",
+              "content_type": {
+                "description": "MIME type hint for the stored payload",
+                "title": "Content Type",
                 "type": "string"
               },
-              "store": {
-                "description": "Storage backend",
+              "payload_field": {
+                "description": "Field to extract (default: \"body\")",
+                "title": "Payload Field",
+                "type": "string"
+              },
+              "remove_payload": {
+                "description": "Remove the original payload after storing it (default: true)",
+                "title": "Remove Payload",
+                "type": "boolean"
+              },
+              "ticket_field_path": {
+                "description": "Where to store the claim ticket (default: \"_claim_check\")",
+                "title": "Ticket Field Path",
                 "type": "string"
               }
             },
+            "title": "Claim Check Options",
             "type": "object"
           }
         },

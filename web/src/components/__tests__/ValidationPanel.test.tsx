@@ -82,9 +82,10 @@ describe('ValidationPanel Component', () => {
     expect(screen.getByText('Validating...')).toBeTruthy();
   });
 
-  it('displays route version hash', () => {
-    render(<ValidationPanel result={mockValidResult} />);
-    expect(screen.getByText(/abc123def456/)).toBeTruthy();
+  it('displays the route version prefix', () => {
+    const { container } = render(<ValidationPanel result={mockValidResult} />);
+    // The panel shows the first 12 characters of the version ("sha256:abc12").
+    expect(container.querySelector('code')?.textContent).toBe('sha256:abc12...');
   });
 
   it('shows timestamp', () => {

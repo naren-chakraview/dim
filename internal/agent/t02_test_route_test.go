@@ -2,14 +2,31 @@ package agent
 
 import (
 	"context"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 )
 
+// isolatePipelinePort gives this test its own HTTP port. TestRoute's pipeline
+// always opens an HTTP source, and the default 8080 is shared with other packages
+// that run in parallel under `go test ./...`.
+func isolatePipelinePort(t *testing.T) {
+	t.Helper()
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	port := l.Addr().(*net.TCPAddr).Port
+	l.Close()
+	t.Setenv("DIM_HTTP_PORT", strconv.Itoa(port))
+}
+
 func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
+	isolatePipelinePort(t)
 	// T0.2 Proof: TestRoute now actually runs fixtures via the real fixture runner,
 	// not just checking if fixtures exist. A route with failing fixtures
 	// correctly returns passed: false.
@@ -105,12 +122,11 @@ func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
 	// Before T0.2 fix: would return passed: true (placeholder behavior: len(fixtures) > 0)
 	// After T0.2 fix: should return passed: false (fixture actually ran and failed)
 
+	// The route and fixture are valid, so TestRoute must run the fixture. An error
+	// here means the proof never ran, so it fails rather than returning early.
 	if operErr != nil {
-		t.Logf("TestRoute error: %v", operErr)
-		// Note: may fail on fixture execution due to missing adapters in test isolation.
-		// As long as we got an error (not a fabricated passed response), that's still valid.
-		// The key is we didn't get passed: true silently.
-		return
+		t.Fatalf("TestRoute errored before running the fixture, so the failing-fixture proof did not run: %s: %s",
+			operErr.Code, operErr.Message)
 	}
 
 	if resp == nil {
@@ -136,6 +152,7 @@ func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
 }
 
 func TestT02_TestRouteRejectsEmptyFixtures(t *testing.T) {
+	isolatePipelinePort(t)
 	// T0.2 Critical fix: TestRoute must reject zero fixtures with an explicit error,
 	// not return passed: true (the original fake-pass bug)
 
@@ -197,6 +214,7 @@ routes:
 }
 
 func TestT02_TestRouteReturnsErrors(t *testing.T) {
+	isolatePipelinePort(t)
 	// Verify that pipeline build failures and other real errors are returned,
 	// not silently masked
 

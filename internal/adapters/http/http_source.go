@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -97,15 +98,27 @@ func (s *HTTPSource) Start(ctx context.Context) error {
 }
 
 // Close closes the HTTP source listener and performs a graceful shutdown.
+//
+// The listener is bound in the constructor, but http.Server.Shutdown only closes
+// listeners that Serve() has been given (Start). A source that was built and never
+// started would otherwise keep its port bound for the life of the process, so the
+// listener is closed directly as well.
 func (s *HTTPSource) Close() error {
+	var shutdownErr error
 	if s.server != nil {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := s.server.Shutdown(shutdownCtx); err != nil {
-			return fmt.Errorf("failed to shutdown HTTP server: %w", err)
+			shutdownErr = fmt.Errorf("failed to shutdown HTTP server: %w", err)
 		}
 	}
-	return nil
+	if s.listener != nil {
+		// After Start's Shutdown the listener is already closed; that is not an error.
+		if err := s.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) && shutdownErr == nil {
+			shutdownErr = fmt.Errorf("failed to close HTTP listener: %w", err)
+		}
+	}
+	return shutdownErr
 }
 
 // handleIngest handles incoming HTTP requests at the configured path.
