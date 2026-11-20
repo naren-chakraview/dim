@@ -33,8 +33,8 @@ func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
 		},
 		"routes": map[string]interface{}{
 			"test": map[string]interface{}{
-				"from":  "input",
-				"auth":  "none",
+				"from": "input",
+				"auth": "none",
 				"error_path": map[string]interface{}{
 					"target": "output",
 				},
@@ -126,7 +126,7 @@ func TestT02_TestRouteActuallyRunsFixtures(t *testing.T) {
 
 	// Also verify a fixture was actually loaded and executed
 	if resp.Summary.Total == 0 {
-		t.Fatalf("No fixtures were loaded. Fixture YAML format may be wrong. "+
+		t.Fatalf("No fixtures were loaded. Fixture YAML format may be wrong. " +
 			"Expected 'fixtures:' key with list of fixtures, not 'cases:'")
 	}
 

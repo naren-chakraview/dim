@@ -360,45 +360,45 @@ func TestAuthorizeStepABACWithSubject(t *testing.T) {
 // TestAuthorizeStepABACTruthyFalsy verifies ABAC truthy/falsy handling
 func TestAuthorizeStepABACTruthyFalsy(t *testing.T) {
 	tests := []struct {
-		name      string
-		expr      string
-		principal *engine.Principal
+		name        string
+		expr        string
+		principal   *engine.Principal
 		shouldAllow bool
 	}{
 		{
-			name:      "numeric 1 is truthy",
-			expr:      "1",
-			principal: &engine.Principal{Subject: "user1"},
+			name:        "numeric 1 is truthy",
+			expr:        "1",
+			principal:   &engine.Principal{Subject: "user1"},
 			shouldAllow: true,
 		},
 		{
-			name:      "numeric 0 is falsy",
-			expr:      "0",
-			principal: &engine.Principal{Subject: "user1"},
+			name:        "numeric 0 is falsy",
+			expr:        "0",
+			principal:   &engine.Principal{Subject: "user1"},
 			shouldAllow: false,
 		},
 		{
-			name:      "non-empty string is truthy",
-			expr:      `"allowed"`,
-			principal: &engine.Principal{Subject: "user1"},
+			name:        "non-empty string is truthy",
+			expr:        `"allowed"`,
+			principal:   &engine.Principal{Subject: "user1"},
 			shouldAllow: true,
 		},
 		{
-			name:      "empty string is falsy",
-			expr:      `""`,
-			principal: &engine.Principal{Subject: "user1"},
+			name:        "empty string is falsy",
+			expr:        `""`,
+			principal:   &engine.Principal{Subject: "user1"},
 			shouldAllow: false,
 		},
 		{
-			name:      "boolean true",
-			expr:      "true",
-			principal: &engine.Principal{Subject: "user1"},
+			name:        "boolean true",
+			expr:        "true",
+			principal:   &engine.Principal{Subject: "user1"},
 			shouldAllow: true,
 		},
 		{
-			name:      "boolean false",
-			expr:      "false",
-			principal: &engine.Principal{Subject: "user1"},
+			name:        "boolean false",
+			expr:        "false",
+			principal:   &engine.Principal{Subject: "user1"},
 			shouldAllow: false,
 		},
 	}
@@ -524,29 +524,29 @@ func TestAuthorizeStepRBACExactMatch(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
+		name           string
 		principalRoles []string
-		shouldAllow bool
+		shouldAllow    bool
 	}{
 		{
-			name:       "exact match",
+			name:           "exact match",
 			principalRoles: []string{"admin"},
-			shouldAllow: true,
+			shouldAllow:    true,
 		},
 		{
-			name:       "substring no match",
+			name:           "substring no match",
 			principalRoles: []string{"administrator"},
-			shouldAllow: false,
+			shouldAllow:    false,
 		},
 		{
-			name:       "case sensitive no match",
+			name:           "case sensitive no match",
 			principalRoles: []string{"Admin"},
-			shouldAllow: false,
+			shouldAllow:    false,
 		},
 		{
-			name:       "whitespace no match",
+			name:           "whitespace no match",
 			principalRoles: []string{"admin "},
-			shouldAllow: false,
+			shouldAllow:    false,
 		},
 	}
 
@@ -929,7 +929,7 @@ func TestMultipleObligations(t *testing.T) {
 // TestRedactionMissingField verifies graceful handling of missing fields (M2.5.2)
 func TestRedactionMissingField(t *testing.T) {
 	msg := engine.NewMessage(map[string]interface{}{
-		"id": 1,
+		"id":   1,
 		"name": "Alice",
 	}, "test", "v1")
 

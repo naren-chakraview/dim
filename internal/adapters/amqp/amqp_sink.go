@@ -15,12 +15,12 @@ import (
 
 // AMQPSink is an AMQP producer sink adapter that writes messages to an AMQP broker
 type AMQPSink struct {
-	conn      *amqp.Connection
-	channel   *amqp.Channel
-	config    SinkConfig
-	closed    bool
-	mu        sync.Mutex
-	metrics   struct {
+	conn    *amqp.Connection
+	channel *amqp.Channel
+	config  SinkConfig
+	closed  bool
+	mu      sync.Mutex
+	metrics struct {
 		published int64
 		failed    int64
 		bytes     int64
@@ -30,17 +30,17 @@ type AMQPSink struct {
 
 // SinkConfig defines configuration for an AMQP producer sink
 type SinkConfig struct {
-	URL            string        // AMQP connection URL
-	ExchangeName   string        // Exchange to publish to
-	ExchangeType   string        // Exchange type: "direct", "fanout", "topic", "headers"
-	RoutingKey     string        // Default routing key
-	Durable        bool          // Exchange durability
-	AutoDelete     bool          // Exchange auto-delete
-	Mandatory      bool          // Fail if no queue bound
-	Immediate      bool          // Fail if no consumer
-	DeliveryMode   uint8         // 1=Transient, 2=Persistent (default)
-	ContentType    string        // Content type (default: "application/json")
-	ConnectionName string        // Connection name for logging
+	URL            string // AMQP connection URL
+	ExchangeName   string // Exchange to publish to
+	ExchangeType   string // Exchange type: "direct", "fanout", "topic", "headers"
+	RoutingKey     string // Default routing key
+	Durable        bool   // Exchange durability
+	AutoDelete     bool   // Exchange auto-delete
+	Mandatory      bool   // Fail if no queue bound
+	Immediate      bool   // Fail if no consumer
+	DeliveryMode   uint8  // 1=Transient, 2=Persistent (default)
+	ContentType    string // Content type (default: "application/json")
+	ConnectionName string // Connection name for logging
 }
 
 // NewAMQPSink creates a new AMQP producer sink
@@ -165,7 +165,7 @@ func (as *AMQPSink) Write(ctx context.Context, messages ...*engine.Message) []ad
 		headers := make(amqp.Table)
 		for headerKey, headerVal := range msg.Headers {
 			if headerKey == "amqp_routing_key" || headerKey == "amqp_exchange" ||
-			   headerKey == "amqp_delivery_tag" {
+				headerKey == "amqp_delivery_tag" {
 				continue
 			}
 			headers[headerKey] = headerVal

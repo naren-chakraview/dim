@@ -7,8 +7,8 @@ import (
 	"log"
 	"sync"
 
-	"github.com/segmentio/kafka-go"
 	"github.com/naren-chakraview/dim/internal/engine"
+	"github.com/segmentio/kafka-go"
 )
 
 // LogBasedCDCSource consumes CDC events from Kafka topics (M2.3.4b)
@@ -81,12 +81,12 @@ func NewLogBasedCDCSource(config *LogBasedCDCConfig, outChan *engine.Channel) (*
 
 	// Create Kafka reader
 	reader := kafka.NewReader(kafka.ReaderConfig{
-		Brokers:         config.Brokers,
-		Topic:           config.Topic,
-		GroupID:         config.ConsumerGroup,
-		StartOffset:     startOffset,
-		CommitInterval:  10,
-		MaxBytes:        10e6,
+		Brokers:                config.Brokers,
+		Topic:                  config.Topic,
+		GroupID:                config.ConsumerGroup,
+		StartOffset:            startOffset,
+		CommitInterval:         10,
+		MaxBytes:               10e6,
 		PartitionWatchInterval: 30,
 	})
 
@@ -184,9 +184,9 @@ func (s *LogBasedCDCSource) parseDebezium(data []byte) (map[string]interface{}, 
 	}
 
 	cdcEvent := map[string]interface{}{
-		"table":      event.Source.Table,
-		"operation":  operation,
-		"timestamp":  event.Timestamp,
+		"table":     event.Source.Table,
+		"operation": operation,
+		"timestamp": event.Timestamp,
 	}
 
 	// Include before state for UPDATE/DELETE
@@ -212,8 +212,8 @@ func (s *LogBasedCDCSource) parseMaxwell(data []byte) (map[string]interface{}, e
 	}
 
 	cdcEvent := map[string]interface{}{
-		"table":      rawEvent["table"],
-		"operation":  rawEvent["type"],
+		"table":     rawEvent["table"],
+		"operation": rawEvent["type"],
 	}
 
 	// Maxwell format includes data and old fields

@@ -14,8 +14,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
 	_ "github.com/lib/pq"
+	"github.com/naren-chakraview/dim/internal/adapters/claimcheck"
 	"github.com/segmentio/kafka-go"
 )
 

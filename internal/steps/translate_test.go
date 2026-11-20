@@ -116,9 +116,9 @@ func TestTranslateSelectiveFieldExtraction(t *testing.T) {
 
 	msg := engine.NewMessage(
 		map[string]interface{}{
-			"id":    "o2",
+			"id":     "o2",
 			"amount": float64(500),
-			"extra": "ignored",
+			"extra":  "ignored",
 		},
 		"test-route",
 		"v1",

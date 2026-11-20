@@ -170,7 +170,7 @@ func TestEvaluatorWithRegistry(t *testing.T) {
 	}
 
 	// Verify we can look up the function through the evaluator's registry
-	_,foundImpl,exists:=eval.GetRegistry().Lookup("myFunc")
+	_, foundImpl, exists := eval.GetRegistry().Lookup("myFunc")
 	if !exists {
 		t.Fatal("Function not found through evaluator registry")
 	}

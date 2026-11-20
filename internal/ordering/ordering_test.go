@@ -327,7 +327,7 @@ func TestConcurrentProcessingWithoutOrdering(t *testing.T) {
 func TestBackwardCompatibility(t *testing.T) {
 	// Simulate a Phase 1 route config without the Ordering field
 	route := &config.RouteSpec{
-		From: "source",
+		From:  "source",
 		Steps: []config.StepSpec{},
 	}
 

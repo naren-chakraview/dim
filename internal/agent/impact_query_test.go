@@ -117,7 +117,7 @@ func TestQueryRequiredFields(t *testing.T) {
 	}
 
 	tests := []struct {
-		req ImpactQueryRequest
+		req  ImpactQueryRequest
 		name string
 	}{
 		{ImpactQueryRequest{ChangeType: "contract"}, "missing change_name"},
@@ -173,10 +173,10 @@ func TestQueryConnectionImpact(t *testing.T) {
 				{SourceType: "route", SourceName: "route1", TargetType: "connection", TargetName: "kafka-cluster", IsStatic: false, Uncertainty: "dynamic reference"},
 			},
 		},
-		ContractReferences:   make(map[string][]lineage.ImpactReference),
-		SinkReferences:       make(map[string][]lineage.ImpactReference),
-		SourceReferences:     make(map[string][]lineage.ImpactReference),
-		StepTypeReferences:   make(map[string][]lineage.ImpactReference),
+		ContractReferences: make(map[string][]lineage.ImpactReference),
+		SinkReferences:     make(map[string][]lineage.ImpactReference),
+		SourceReferences:   make(map[string][]lineage.ImpactReference),
+		StepTypeReferences: make(map[string][]lineage.ImpactReference),
 	}
 
 	req := ImpactQueryRequest{

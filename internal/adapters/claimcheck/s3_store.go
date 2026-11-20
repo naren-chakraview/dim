@@ -31,13 +31,13 @@ type S3ClaimCheckStore struct {
 
 // S3StoreConfig configures the S3-backed claim-check store
 type S3StoreConfig struct {
-	Bucket      string        // S3 bucket name (required)
-	Region      string        // AWS region (e.g., "us-east-1")
-	Prefix      string        // Key prefix for claim-check objects (e.g., "claim-check/")
-	DefaultTTL  time.Duration // Default TTL for stored payloads (e.g., 30 days)
-	Endpoint    string        // Optional: custom S3 endpoint (for MinIO testing)
-	AccessKey   string        // Optional: S3 access key (for custom endpoints)
-	SecretKey   string        // Optional: S3 secret key (for custom endpoints)
+	Bucket     string        // S3 bucket name (required)
+	Region     string        // AWS region (e.g., "us-east-1")
+	Prefix     string        // Key prefix for claim-check objects (e.g., "claim-check/")
+	DefaultTTL time.Duration // Default TTL for stored payloads (e.g., 30 days)
+	Endpoint   string        // Optional: custom S3 endpoint (for MinIO testing)
+	AccessKey  string        // Optional: S3 access key (for custom endpoints)
+	SecretKey  string        // Optional: S3 secret key (for custom endpoints)
 }
 
 // NewS3ClaimCheckStore creates a new S3-backed claim-check store (M3.2)
@@ -107,11 +107,11 @@ func NewS3ClaimCheckStore(cfg S3StoreConfig) (*S3ClaimCheckStore, error) {
 	client := s3.NewFromConfig(sdkConfig, clientOpts)
 
 	store := &S3ClaimCheckStore{
-		client:         client,
-		bucket:         cfg.Bucket,
-		prefix:         cfg.Prefix,
-		defaultTTL:     cfg.DefaultTTL,
-		metadataCache:  make(map[string]ClaimCheckMetadata),
+		client:        client,
+		bucket:        cfg.Bucket,
+		prefix:        cfg.Prefix,
+		defaultTTL:    cfg.DefaultTTL,
+		metadataCache: make(map[string]ClaimCheckMetadata),
 	}
 
 	// Verify S3 connectivity with a health check

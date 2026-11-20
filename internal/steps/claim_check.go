@@ -14,10 +14,10 @@ import (
 // ClaimCheckStep implements the Claim Check EIP
 // It stores large payloads externally and replaces them with references
 type ClaimCheckStep struct {
-	store             claimcheck.ClaimCheckStore
-	payloadField      string // JSONata field path to extract payload (e.g., "body.attachment")
-	removePayload     bool   // Whether to remove original payload from body
-	ticketFieldPath   string // Where to store the claim-check ticket in the message
+	store           claimcheck.ClaimCheckStore
+	payloadField    string // JSONata field path to extract payload (e.g., "body.attachment")
+	removePayload   bool   // Whether to remove original payload from body
+	ticketFieldPath string // Where to store the claim-check ticket in the message
 }
 
 // NewClaimCheckStep creates a new claim-check step

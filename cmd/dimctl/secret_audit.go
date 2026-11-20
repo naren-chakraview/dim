@@ -14,37 +14,37 @@ import (
 
 // AuditResult represents the result of a secret audit
 type AuditResult struct {
-	TotalSecrets              int
-	DomainScopedSecrets       int
-	GlobalSecrets             int
-	RoutesNeedingMigration    []RouteMigrationIssue `json:"routes_needing_migration,omitempty"`
-	CrossDomainReferences     []CrossDomainRef     `json:"cross_domain_references,omitempty"`
-	UnresolvedReferences      []UnresolvedRef      `json:"unresolved_references,omitempty"`
-	MigrationReadiness        string               `json:"migration_readiness"`
-	RecommendedNextSteps      []string             `json:"recommended_next_steps"`
+	TotalSecrets           int
+	DomainScopedSecrets    int
+	GlobalSecrets          int
+	RoutesNeedingMigration []RouteMigrationIssue `json:"routes_needing_migration,omitempty"`
+	CrossDomainReferences  []CrossDomainRef      `json:"cross_domain_references,omitempty"`
+	UnresolvedReferences   []UnresolvedRef       `json:"unresolved_references,omitempty"`
+	MigrationReadiness     string                `json:"migration_readiness"`
+	RecommendedNextSteps   []string              `json:"recommended_next_steps"`
 }
 
 // RouteMigrationIssue represents a route that needs secret migration
 type RouteMigrationIssue struct {
-	RouteName             string   `json:"route_name"`
-	Domain                string   `json:"domain"`
-	ImplicitCrossDomain   []string `json:"implicit_cross_domain,omitempty"`
-	UnresolvedSecrets     []string `json:"unresolved_secrets,omitempty"`
+	RouteName           string   `json:"route_name"`
+	Domain              string   `json:"domain"`
+	ImplicitCrossDomain []string `json:"implicit_cross_domain,omitempty"`
+	UnresolvedSecrets   []string `json:"unresolved_secrets,omitempty"`
 }
 
 // CrossDomainRef represents an explicit cross-domain secret reference
 type CrossDomainRef struct {
-	RouteName      string `json:"route_name"`
-	SourceDomain   string `json:"source_domain"`
-	TargetDomain   string `json:"target_domain"`
-	SecretName     string `json:"secret_name"`
+	RouteName    string `json:"route_name"`
+	SourceDomain string `json:"source_domain"`
+	TargetDomain string `json:"target_domain"`
+	SecretName   string `json:"secret_name"`
 }
 
 // UnresolvedRef represents a secret reference that cannot be resolved
 type UnresolvedRef struct {
-	RouteName  string `json:"route_name"`
-	Domain     string `json:"domain"`
-	SecretRef  string `json:"secret_ref"`
+	RouteName string `json:"route_name"`
+	Domain    string `json:"domain"`
+	SecretRef string `json:"secret_ref"`
 }
 
 var secretAuditCmd = &cobra.Command{
@@ -112,7 +112,7 @@ var secretAuditCmd = &cobra.Command{
 
 		// Scan all routes for secret references
 		secretRefs := make(map[string][]string) // route -> list of secret refs
-		routeDomains := make(map[string]string)  // route -> domain
+		routeDomains := make(map[string]string) // route -> domain
 
 		for _, cfg := range configs {
 			for routeName, route := range cfg.Routes {

@@ -16,21 +16,21 @@ import (
 
 // HTTPSink implements the Sink interface for HTTP endpoints with OBO support (M1.3.3)
 type HTTPSink struct {
-	url              string
-	client           *http.Client
-	timeout          time.Duration
-	tokenExchanger   *obo.TokenExchanger // For OBO (M1.3.3)
-	oboScope         string              // OBO scope (e.g., "read:orders")
-	oboAudience      string              // OBO audience (e.g., "api.internal")
-	oboTTL           int                 // OBO token TTL in seconds
-	routeVersion     string              // Current route version for OBO token claims
+	url            string
+	client         *http.Client
+	timeout        time.Duration
+	tokenExchanger *obo.TokenExchanger // For OBO (M1.3.3)
+	oboScope       string              // OBO scope (e.g., "read:orders")
+	oboAudience    string              // OBO audience (e.g., "api.internal")
+	oboTTL         int                 // OBO token TTL in seconds
+	routeVersion   string              // Current route version for OBO token claims
 }
 
 // HTTPSinkConfig defines HTTP sink configuration
 type HTTPSinkConfig struct {
-	URL        string // Target HTTP endpoint
-	Timeout    int    // Request timeout in milliseconds (default: 5000)
-	OBO        *OBOConfig
+	URL     string // Target HTTP endpoint
+	Timeout int    // Request timeout in milliseconds (default: 5000)
+	OBO     *OBOConfig
 }
 
 // OBOConfig defines On-Behalf-Of token exchange configuration (M1.3.3)

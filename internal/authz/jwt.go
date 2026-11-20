@@ -15,9 +15,9 @@ import (
 
 // JWTValidator validates JWT tokens and extracts claims
 type JWTValidator struct {
-	hmacSecret  string
+	hmacSecret   string
 	rsaPublicKey *rsa.PublicKey
-	useHMAC     bool
+	useHMAC      bool
 }
 
 // NewJWTValidator creates a JWT validator from environment configuration

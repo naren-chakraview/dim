@@ -10,11 +10,11 @@ import (
 
 // TailOptions configures span tailing behavior
 type TailOptions struct {
-	Route      string        // Filter to specific route (optional)
-	Service    string        // Service name (default: dim)
-	Limit      int           // Number of recent spans to show before streaming (default: 20)
-	Endpoint   string        // OTLP exporter endpoint (from env or config)
-	Ctx        context.Context
+	Route    string // Filter to specific route (optional)
+	Service  string // Service name (default: dim)
+	Limit    int    // Number of recent spans to show before streaming (default: 20)
+	Endpoint string // OTLP exporter endpoint (from env or config)
+	Ctx      context.Context
 }
 
 // SpanStreamer handles streaming spans from a tracing provider
@@ -197,9 +197,9 @@ func FormatSpanHierarchy(span *Span, children []*Span, indent string) string {
 // getStatusIcon returns status icon and ANSI color code
 func getStatusIcon(status string) (string, string) {
 	// ANSI color codes
-	green := "\033[32m"   // OK
-	red := "\033[31m"     // ERROR
-	yellow := "\033[33m"  // SKIPPED
+	green := "\033[32m"  // OK
+	red := "\033[31m"    // ERROR
+	yellow := "\033[33m" // SKIPPED
 	reset := "\033[0m"
 
 	switch status {

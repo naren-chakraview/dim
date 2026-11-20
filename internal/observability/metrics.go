@@ -10,15 +10,15 @@ import (
 // It records counters, gauges, and histograms for message processing.
 // All operations are thread-safe.
 type MetricsCollector struct {
-	mu                 sync.RWMutex
-	enabled            bool
-	prometheusAddr     string
+	mu             sync.RWMutex
+	enabled        bool
+	prometheusAddr string
 
 	// Counters: route -> count
-	messagesTotal map[string]int64
-	messagesSuccess map[string]int64
-	messagesFailed map[string]int64
-	retriesTotal map[string]int64
+	messagesTotal    map[string]int64
+	messagesSuccess  map[string]int64
+	messagesFailed   map[string]int64
+	retriesTotal     map[string]int64
 	deadLettersTotal map[string]int64
 
 	// Gauges: route -> value
@@ -27,7 +27,7 @@ type MetricsCollector struct {
 	// Histograms: route -> list of latencies (in milliseconds)
 	// We store raw samples and compute percentiles on demand
 	messageLatencies map[string][]int64
-	stepLatencies map[string][]int64
+	stepLatencies    map[string][]int64
 
 	// Error types tracking: route -> error_type -> count
 	errorsByType map[string]map[string]int64
@@ -287,19 +287,19 @@ func (mc *MetricsCollector) GetRoute(route string) RouteMetrics {
 
 // RouteMetrics holds aggregated metrics for a single route
 type RouteMetrics struct {
-	Route              string
-	MessagesTotal      int64
-	MessagesSuccess    int64
-	MessagesFailed     int64
-	RetriesTotal       int64
-	DeadLettersTotal   int64
-	WorkersInFlight    int32
-	MessageLatencyP50  int64
-	MessageLatencyP90  int64
-	MessageLatencyP99  int64
-	MessageLatencySum  int64
+	Route               string
+	MessagesTotal       int64
+	MessagesSuccess     int64
+	MessagesFailed      int64
+	RetriesTotal        int64
+	DeadLettersTotal    int64
+	WorkersInFlight     int32
+	MessageLatencyP50   int64
+	MessageLatencyP90   int64
+	MessageLatencyP99   int64
+	MessageLatencySum   int64
 	MessageLatencyCount int64
-	MessageLatencyAvg  int64
+	MessageLatencyAvg   int64
 }
 
 // getPercentile computes the p-th percentile of a sorted list

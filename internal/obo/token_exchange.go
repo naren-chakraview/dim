@@ -34,14 +34,14 @@ type ExchangeResponse struct {
 
 // TokenClaims represents JWT claims for scoped tokens
 type TokenClaims struct {
-	Sub              string `json:"sub"`                   // Subject (principal)
-	Scope            string `json:"scope"`                 // Granted scope
-	IssuedAt         int64  `json:"iat"`                   // Issued timestamp
-	ExpiresAt        int64  `json:"exp"`                   // Expiration timestamp
-	OriginalTokenID  string `json:"original_token_id"`     // Original token reference
-	IssuedBy         string `json:"issued_by"`             // "dim"
-	Audience         string `json:"aud"`                   // Intended recipient
-	RouteVersion     string `json:"route_version"`         // Route version for invalidation
+	Sub             string `json:"sub"`               // Subject (principal)
+	Scope           string `json:"scope"`             // Granted scope
+	IssuedAt        int64  `json:"iat"`               // Issued timestamp
+	ExpiresAt       int64  `json:"exp"`               // Expiration timestamp
+	OriginalTokenID string `json:"original_token_id"` // Original token reference
+	IssuedBy        string `json:"issued_by"`         // "dim"
+	Audience        string `json:"aud"`               // Intended recipient
+	RouteVersion    string `json:"route_version"`     // Route version for invalidation
 }
 
 // NewTokenExchanger creates a new token exchanger with a shared secret

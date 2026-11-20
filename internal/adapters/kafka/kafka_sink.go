@@ -204,8 +204,8 @@ func (ks *KafkaSink) dimMessageToKafkaMessage(msg *engine.Message) (kafka.Messag
 	kafkaHeaders := make([]kafka.Header, 0)
 	for headerKey, headerVal := range msg.Headers {
 		if headerKey == "kafka_key" || headerKey == "kafka_topic" ||
-		   headerKey == "kafka_partition" || headerKey == "kafka_offset" ||
-		   headerKey == "kafka_timestamp" {
+			headerKey == "kafka_partition" || headerKey == "kafka_offset" ||
+			headerKey == "kafka_timestamp" {
 			continue // Skip Kafka metadata headers
 		}
 

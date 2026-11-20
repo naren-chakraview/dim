@@ -10,7 +10,7 @@ type Channel struct {
 	name  string
 	queue chan *Message
 	// inFlight tracks messages currently in transit for backpressure
-	inFlight int32
+	inFlight  int32
 	maxBuffer int
 }
 

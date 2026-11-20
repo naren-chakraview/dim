@@ -170,12 +170,12 @@ func TestRoute(ctx context.Context, req TestRequest) (*TestResponse, *OperationE
 		}
 
 		testResults = append(testResults, TestResult{
-			Name:      fr.Name,
-			Passed:    fr.Passed,
+			Name:       fr.Name,
+			Passed:     fr.Passed,
 			DurationMs: fr.DurationMs,
-			Error:     errMsg,
-			Expected:  nil, // TODO: extract from fixture if needed
-			Actual:    fr.ActualOutput,
+			Error:      errMsg,
+			Expected:   nil, // TODO: extract from fixture if needed
+			Actual:     fr.ActualOutput,
 		})
 	}
 
@@ -212,8 +212,8 @@ func ScaffoldDomain(ctx context.Context, req ScaffoldRequest) (*ScaffoldResponse
 	domainPath := filepath.Join("domains", req.Domain)
 
 	resp := &ScaffoldResponse{
-		Success:      true,
-		DomainPath:   domainPath,
+		Success:    true,
+		DomainPath: domainPath,
 		FilesCreated: []string{
 			filepath.Join(domainPath, "DOMAIN.yaml"),
 			filepath.Join(domainPath, fmt.Sprintf("%s-route.yaml", req.Domain)),
@@ -378,7 +378,7 @@ func GetCapabilities(ctx context.Context, req CapabilitiesRequest) (*Capabilitie
 // QueryImpactRequest asks what routes/adapters would be affected by a change
 type QueryImpactRequest struct {
 	RouteConfigPath string `json:"route_config_path"`
-	ChangeType      string `json:"change_type"`    // "contract" | "sink" | "source" | "step-type"
+	ChangeType      string `json:"change_type"` // "contract" | "sink" | "source" | "step-type"
 	ChangeName      string `json:"change_name"`
 	ChangeVersion   string `json:"change_version,omitempty"`
 }

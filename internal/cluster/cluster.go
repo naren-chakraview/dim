@@ -10,10 +10,10 @@ import (
 
 // Cluster represents a dimd cluster instance with all necessary coordination components.
 type Cluster struct {
-	Config              *ClusterConfig
-	DedupStore          DedupStore
-	LineageBackend      LineageBackend
-	GenerationTracker   GenerationTracker
+	Config            *ClusterConfig
+	DedupStore        DedupStore
+	LineageBackend    LineageBackend
+	GenerationTracker GenerationTracker
 }
 
 // NewCluster initializes a cluster with the appropriate backends based on configuration.

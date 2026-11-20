@@ -65,7 +65,7 @@ func (oa *OPAAdapter) translateRequest(req *steps.PDPDecisionRequest) map[string
 			"roles":      req.Principal.Roles,
 			"attributes": req.Principal.Attributes,
 		},
-		"action":   req.Action,
+		"action": req.Action,
 		"resource": map[string]interface{}{
 			"type":  req.Resource.Type,
 			"id":    req.Resource.ID,

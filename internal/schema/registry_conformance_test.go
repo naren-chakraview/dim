@@ -156,15 +156,16 @@ func (cts *ConformanceTestSuite) TestNotFound() {
 
 // RunConformanceTests runs all conformance tests against a backend.
 // Usage in BYO implementation tests:
-//   func TestMyRegistry(t *testing.T) {
-//       backend := NewMyRegistry()
-//       suite := &ConformanceTestSuite{Backend: backend, T: t}
-//       suite.TestRegisterAndFetch()
-//       suite.TestGetLatestVersion()
-//       suite.TestDefaultGroup()
-//       suite.TestHealth()
-//       suite.TestNotFound()
-//   }
+//
+//	func TestMyRegistry(t *testing.T) {
+//	    backend := NewMyRegistry()
+//	    suite := &ConformanceTestSuite{Backend: backend, T: t}
+//	    suite.TestRegisterAndFetch()
+//	    suite.TestGetLatestVersion()
+//	    suite.TestDefaultGroup()
+//	    suite.TestHealth()
+//	    suite.TestNotFound()
+//	}
 func RunConformanceTests(t *testing.T, backend RegistryBackend) {
 	suite := &ConformanceTestSuite{Backend: backend, T: t}
 	suite.TestRegisterAndFetch()

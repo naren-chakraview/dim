@@ -203,15 +203,15 @@ type OperationSchema struct {
 // Helper: convert operation name to display name
 func toDisplayName(name string) string {
 	displayNames := map[string]string{
-		"validate_route":        "Validate Route Configuration",
-		"test_route":            "Test Route with Fixtures",
-		"scaffold_domain":       "Scaffold New Domain",
-		"get_lineage":           "Query Message Lineage",
-		"get_provenance":        "Query Subject Provenance",
-		"get_capabilities":      "Query Supported Capabilities",
-		"scaffold_from_intent":  "Generate Route from Design Intent",
-		"critique_route":        "Critique and Review Route",
-		"query_impact":          "Query Impact of Changes",
+		"validate_route":       "Validate Route Configuration",
+		"test_route":           "Test Route with Fixtures",
+		"scaffold_domain":      "Scaffold New Domain",
+		"get_lineage":          "Query Message Lineage",
+		"get_provenance":       "Query Subject Provenance",
+		"get_capabilities":     "Query Supported Capabilities",
+		"scaffold_from_intent": "Generate Route from Design Intent",
+		"critique_route":       "Critique and Review Route",
+		"query_impact":         "Query Impact of Changes",
 	}
 
 	if display, exists := displayNames[name]; exists {
@@ -229,9 +229,9 @@ func (s *MCPServer) TestConnection(ctx context.Context) *ResponseEnvelope {
 		InterfaceVersion: s.version,
 		Timestamp:        time.Now().UTC(),
 		Result: map[string]interface{}{
-			"status":       "ok",
-			"version":      s.version,
-			"operations":   len(s.operations),
+			"status":     "ok",
+			"version":    s.version,
+			"operations": len(s.operations),
 		},
 	}
 }

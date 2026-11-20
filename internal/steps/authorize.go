@@ -272,10 +272,10 @@ func (as *AuthorizeStep) callPDP(ctx context.Context, req *PDPDecisionRequest) (
 
 // PDPDecisionRequest follows the neutral contract from design/PDP_CONTRACT_SPEC.md
 type PDPDecisionRequest struct {
-	Principal PDPPrincipal   `json:"principal"`
-	Action    string         `json:"action"`
-	Resource  PDPResource    `json:"resource"`
-	Context   PDPContext     `json:"context,omitempty"`
+	Principal PDPPrincipal `json:"principal"`
+	Action    string       `json:"action"`
+	Resource  PDPResource  `json:"resource"`
+	Context   PDPContext   `json:"context,omitempty"`
 }
 
 // PDPPrincipal represents the authenticated identity
@@ -295,17 +295,17 @@ type PDPResource struct {
 
 // PDPContext provides additional context for the decision
 type PDPContext struct {
-	Timestamp      string `json:"timestamp,omitempty"`
-	CorrelationID  string `json:"correlation_id,omitempty"`
-	Environment    string `json:"environment,omitempty"`
+	Timestamp     string `json:"timestamp,omitempty"`
+	CorrelationID string `json:"correlation_id,omitempty"`
+	Environment   string `json:"environment,omitempty"`
 }
 
 // PDPDecisionResponse follows the neutral contract from design/PDP_CONTRACT_SPEC.md
 type PDPDecisionResponse struct {
-	Decision   string                   `json:"decision"` // "allow" or "deny"
-	Obligations []PDPObligation         `json:"obligations,omitempty"`
-	Reason     string                   `json:"reason,omitempty"`
-	Metadata   map[string]interface{}   `json:"metadata,omitempty"`
+	Decision    string                 `json:"decision"` // "allow" or "deny"
+	Obligations []PDPObligation        `json:"obligations,omitempty"`
+	Reason      string                 `json:"reason,omitempty"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // PDPObligation represents additional requirements for an allowed decision

@@ -13,23 +13,23 @@ import (
 // OpenLineageEmitter publishes lineage events to Marquez via OpenLineage API (M1.7.2)
 // Supports dead-letter routing for failed exports (M1.7.4, R20)
 type OpenLineageEmitter struct {
-	marquezURL     string
-	httpClient     *http.Client
-	eventCh        chan *OpenLineageEvent
-	batchSize      int
-	flushTicker    *time.Ticker
-	deadLetterCh   chan interface{} // Channel for failed export messages (M1.7.4, R20)
+	marquezURL   string
+	httpClient   *http.Client
+	eventCh      chan *OpenLineageEvent
+	batchSize    int
+	flushTicker  *time.Ticker
+	deadLetterCh chan interface{} // Channel for failed export messages (M1.7.4, R20)
 }
 
 // OpenLineageEvent represents a lineage event in OpenLineage format
 type OpenLineageEvent struct {
-	EventType  string      `json:"eventType"`  // START, COMPLETE, FAIL, ABORT
-	EventTime  string      `json:"eventTime"`  // RFC3339 format
-	Run        *Run        `json:"run"`
-	Job        *Job        `json:"job"`
-	Inputs     []Dataset   `json:"inputs,omitempty"`
-	Outputs    []Dataset   `json:"outputs,omitempty"`
-	Producer   string      `json:"producer"`  // e.g., "https://github.com/naren-chakraview/dim"
+	EventType string    `json:"eventType"` // START, COMPLETE, FAIL, ABORT
+	EventTime string    `json:"eventTime"` // RFC3339 format
+	Run       *Run      `json:"run"`
+	Job       *Job      `json:"job"`
+	Inputs    []Dataset `json:"inputs,omitempty"`
+	Outputs   []Dataset `json:"outputs,omitempty"`
+	Producer  string    `json:"producer"` // e.g., "https://github.com/naren-chakraview/dim"
 }
 
 // Run represents a job run in OpenLineage

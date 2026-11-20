@@ -54,9 +54,9 @@ func TestFixturePassthrough(t *testing.T) {
 	defer cancel()
 
 	fixture := &Fixture{
-		Name:             "passthrough",
-		Input:            map[string]interface{}{"value": 42},
-		ExpectedOutput:   map[string]interface{}{"value": 42},
+		Name:           "passthrough",
+		Input:          map[string]interface{}{"value": 42},
+		ExpectedOutput: map[string]interface{}{"value": 42},
 	}
 
 	// Process in background
@@ -123,8 +123,8 @@ func TestFixtureDropped(t *testing.T) {
 	defer outputCh.Close()
 
 	filterStep := &mockStep{
-		name:        "filter",
-		shouldDrop:  true,
+		name:       "filter",
+		shouldDrop: true,
 	}
 
 	executor := engine.NewExecutor("test", inputCh, outputCh, []engine.Step{filterStep})
@@ -134,9 +134,9 @@ func TestFixtureDropped(t *testing.T) {
 	defer cancel()
 
 	fixture := &Fixture{
-		Name:              "dropped",
-		Input:             map[string]interface{}{"value": 42},
-		ExpectedDropped:   true,
+		Name:            "dropped",
+		Input:           map[string]interface{}{"value": 42},
+		ExpectedDropped: true,
 	}
 
 	go executor.Run(ctx)
@@ -207,9 +207,9 @@ func TestFixtureTimeout(t *testing.T) {
 	defer cancel()
 
 	fixture := &Fixture{
-		Name:      "timeout",
-		Input:     map[string]interface{}{"value": 42},
-		TimeoutMs: 50, // 50ms timeout (should trigger timeout)
+		Name:          "timeout",
+		Input:         map[string]interface{}{"value": 42},
+		TimeoutMs:     50, // 50ms timeout (should trigger timeout)
 		ExpectedError: true,
 	}
 

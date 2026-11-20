@@ -154,9 +154,9 @@ func TestFilterStepMetadataPreservation(t *testing.T) {
 // TestFilterStepTruthyFalsy verifies that JSONata truthy/falsy values are handled correctly
 func TestFilterStepTruthyFalsy(t *testing.T) {
 	tests := []struct {
-		name      string
-		expr      string
-		body      interface{}
+		name       string
+		expr       string
+		body       interface{}
 		shouldPass bool
 	}{
 		{

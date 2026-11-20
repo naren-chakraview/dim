@@ -19,12 +19,12 @@ type IdempotentStep struct {
 	evaluator  *expr.Evaluator
 	dedupStore cluster.DedupStore
 	// Legacy fields for backwards compatibility (when no dedupStore is provided)
-	keySet    map[string]time.Time // key -> expiry time
-	lock      sync.RWMutex         // protect keySet
-	ttl       time.Duration
-	stopCh    chan struct{}         // signal to stop eviction goroutine
-	wg        sync.WaitGroup        // wait for eviction goroutine
-	legacy    bool                  // true if using built-in dedup, false if using dedupStore
+	keySet map[string]time.Time // key -> expiry time
+	lock   sync.RWMutex         // protect keySet
+	ttl    time.Duration
+	stopCh chan struct{}  // signal to stop eviction goroutine
+	wg     sync.WaitGroup // wait for eviction goroutine
+	legacy bool           // true if using built-in dedup, false if using dedupStore
 }
 
 // NewIdempotentStep creates a new idempotent step from a JSONata key expression.

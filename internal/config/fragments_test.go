@@ -355,14 +355,14 @@ func TestConfigMergingSourcesAndSinks(t *testing.T) {
 				"path": "/new",
 			},
 			"kafka-in": map[string]interface{}{
-				"type": "kafka",
+				"type":  "kafka",
 				"topic": "events",
 			},
 		},
 		"sinks": map[string]interface{}{
 			"http-out": map[string]interface{}{
 				"type": "http",
-				"url": "http://example.com",
+				"url":  "http://example.com",
 			},
 		},
 	}

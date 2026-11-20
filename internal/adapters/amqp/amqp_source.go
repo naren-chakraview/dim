@@ -21,7 +21,7 @@ type AMQPSource struct {
 	deliveries   <-chan amqp.Delivery
 	outChan      *engine.Channel
 	closed       chan struct{}
-	wg            sync.WaitGroup
+	wg           sync.WaitGroup
 	config       SourceConfig
 	messageCount int64
 	mu           sync.Mutex
@@ -29,17 +29,17 @@ type AMQPSource struct {
 
 // SourceConfig defines configuration for an AMQP consumer source
 type SourceConfig struct {
-	URL             string        // AMQP connection URL (e.g., "amqp://guest:guest@localhost:5672/")
-	QueueName       string        // Queue to consume from
-	ExchangeName    string        // Exchange to bind to (optional)
-	ExchangeType    string        // Exchange type: "direct", "fanout", "topic", "headers"
-	RoutingKey      string        // Routing key for bindings
-	Durable         bool          // Queue durability
-	AutoDelete      bool          // Auto-delete when no consumers
-	AutoAck         bool          // Auto-acknowledge messages
-	PrefetchCount   int           // QoS prefetch count
-	ReconnectDelay  time.Duration // Delay before reconnection attempt
-	ConnectionName  string        // Connection name for logging
+	URL            string        // AMQP connection URL (e.g., "amqp://guest:guest@localhost:5672/")
+	QueueName      string        // Queue to consume from
+	ExchangeName   string        // Exchange to bind to (optional)
+	ExchangeType   string        // Exchange type: "direct", "fanout", "topic", "headers"
+	RoutingKey     string        // Routing key for bindings
+	Durable        bool          // Queue durability
+	AutoDelete     bool          // Auto-delete when no consumers
+	AutoAck        bool          // Auto-acknowledge messages
+	PrefetchCount  int           // QoS prefetch count
+	ReconnectDelay time.Duration // Delay before reconnection attempt
+	ConnectionName string        // Connection name for logging
 }
 
 // NewAMQPSource creates a new AMQP consumer source
@@ -125,12 +125,12 @@ func NewAMQPSourceWithConfig(config SourceConfig, outChan *engine.Channel) (*AMQ
 	// Consume messages
 	deliveries, err := channel.Consume(
 		queue.Name,
-		"",                // consumer tag
-		config.AutoAck,    // auto-ack
-		false,             // exclusive
-		false,             // no-local
-		false,             // no-wait
-		nil,               // arguments
+		"",             // consumer tag
+		config.AutoAck, // auto-ack
+		false,          // exclusive
+		false,          // no-local
+		false,          // no-wait
+		nil,            // arguments
 	)
 	if err != nil {
 		channel.Close()

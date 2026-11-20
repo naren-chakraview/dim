@@ -31,9 +31,9 @@ func ScaffoldFromIntent(ctx context.Context, req ScaffoldFromIntentRequest) (*Sc
 
 	// Step 2: Validate template shape
 	validShapes := map[string]bool{
-		"passthrough":        true,
-		"transform":          true,
-		"contract-enforced":  true,
+		"passthrough":       true,
+		"transform":         true,
+		"contract-enforced": true,
 	}
 	if !validShapes[templateShape] {
 		return nil, &OperationErr{
@@ -156,7 +156,7 @@ func extractIntentSignals(intent string) IntentSignals {
 	}
 
 	// Extract sink type (only valid schema types)
-	sinkTypes := []string{"http", "file", "sftp", "exec"}  // Valid types in schema
+	sinkTypes := []string{"http", "file", "sftp", "exec"} // Valid types in schema
 	for _, sinkType := range sinkTypes {
 		if strings.Contains(intentLower, sinkType) {
 			signals.SinkType = sinkType

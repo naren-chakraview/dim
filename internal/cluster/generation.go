@@ -79,21 +79,21 @@ func (t *StaggeredGenerationTracker) Close(ctx context.Context) error {
 // All instances must reach the same generation before any can advance further.
 // This ensures zero-downtime coordinated config pushes at the cost of slower rollouts.
 type CoordinatedGenerationTracker struct {
-	currentGen     int64
-	clusterConfig  *ClusterConfig
-	lock           sync.RWMutex
-	syncTimeout    time.Duration
-	lastSyncTime   time.Time
+	currentGen    int64
+	clusterConfig *ClusterConfig
+	lock          sync.RWMutex
+	syncTimeout   time.Duration
+	lastSyncTime  time.Time
 	// TODO: implement inter-instance heartbeat protocol for generation synchronization
 }
 
 // NewCoordinatedGenerationTracker creates a tracker that coordinates across instances.
 func NewCoordinatedGenerationTracker(initialGen int64, clusterConfig *ClusterConfig) *CoordinatedGenerationTracker {
 	return &CoordinatedGenerationTracker{
-		currentGen:   initialGen,
+		currentGen:    initialGen,
 		clusterConfig: clusterConfig,
-		syncTimeout:  30 * time.Second,
-		lastSyncTime: time.Now(),
+		syncTimeout:   30 * time.Second,
+		lastSyncTime:  time.Now(),
 	}
 }
 

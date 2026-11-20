@@ -16,9 +16,9 @@ import (
 // If the case is not found, an optional default target is used.
 // The message metadata.Route is updated with the target route name.
 type RouteStep struct {
-	evaluator      *expr.Evaluator
-	cases          map[string]string // case name → target route/sink name
-	defaultTarget  string             // fallback target if no case matches
+	evaluator     *expr.Evaluator
+	cases         map[string]string // case name → target route/sink name
+	defaultTarget string            // fallback target if no case matches
 }
 
 // NewRouteStep creates a new route step from a JSONata expression and cases map.

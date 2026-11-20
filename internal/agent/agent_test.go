@@ -369,12 +369,12 @@ func TestGetCapabilitiesReturnsSteps(t *testing.T) {
 	}
 
 	expectedSteps := map[string]bool{
-		"filter-step":      false,
-		"translate-step":   false,
-		"route-step":       false,
-		"wiretap-step":     false,
-		"idempotent-step":  false,
-		"authorize-step":   false,
+		"filter-step":     false,
+		"translate-step":  false,
+		"route-step":      false,
+		"wiretap-step":    false,
+		"idempotent-step": false,
+		"authorize-step":  false,
 	}
 
 	for _, cap := range steps {
@@ -405,10 +405,10 @@ func TestGetCapabilitiesReturnsEIPs(t *testing.T) {
 	}
 
 	expectedEIPs := map[string]bool{
-		"claim-check":             false,
-		"content-based-router":    false,
-		"dead-letter-queue":       false,
-		"wiretap":                 false,
+		"claim-check":          false,
+		"content-based-router": false,
+		"dead-letter-queue":    false,
+		"wiretap":              false,
 	}
 
 	for _, cap := range eips {

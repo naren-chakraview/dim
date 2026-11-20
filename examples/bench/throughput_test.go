@@ -19,7 +19,7 @@ func BenchmarkMessageThroughput(b *testing.B) {
 	outputCh := engine.NewChannel("benchmark-output", 1000)
 
 	// Create steps
-	filterStep, _ := steps.NewFilterStep("true")  // Always pass
+	filterStep, _ := steps.NewFilterStep("true") // Always pass
 	translateStep, _ := steps.NewTranslateStep("{\"id\": body.id, \"ts\": $now()}")
 	authorizeStep, _ := steps.NewAuthorizeStep(
 		"rbac",
@@ -204,9 +204,9 @@ func BenchmarkChannelOperations(b *testing.B) {
 func BenchmarkMessageCloning(b *testing.B) {
 	original := engine.NewMessage(
 		map[string]interface{}{
-			"id":    "test-123",
+			"id":     "test-123",
 			"amount": 1000.50,
-			"items": []string{"a", "b", "c"},
+			"items":  []string{"a", "b", "c"},
 		},
 		"bench",
 		"v1",

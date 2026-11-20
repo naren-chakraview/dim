@@ -13,10 +13,10 @@ type CatalogResult struct {
 }
 
 type SearchResults struct {
-	Query   string           `json:"query"`
-	Count   int              `json:"count"`
-	Results []CatalogResult  `json:"results"`
-	Took    time.Duration    `json:"took_ms,omitempty"`
+	Query   string          `json:"query"`
+	Count   int             `json:"count"`
+	Results []CatalogResult `json:"results"`
+	Took    time.Duration   `json:"took_ms,omitempty"`
 }
 
 type ApicurioArtifact struct {

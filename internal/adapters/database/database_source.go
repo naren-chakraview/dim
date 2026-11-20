@@ -14,14 +14,14 @@ import (
 // DatabaseSource is a polling-based database source adapter (M2.3.1)
 // Executes parameterized queries with watermark-based incremental polling
 type DatabaseSource struct {
-	db                *sql.DB
-	config            *SourceConfig
-	outChan           *engine.Channel
-	closed            chan struct{}
-	wg                sync.WaitGroup
-	currentWatermark  interface{}
-	mu                sync.RWMutex
-	lastPollTime      time.Time
+	db               *sql.DB
+	config           *SourceConfig
+	outChan          *engine.Channel
+	closed           chan struct{}
+	wg               sync.WaitGroup
+	currentWatermark interface{}
+	mu               sync.RWMutex
+	lastPollTime     time.Time
 }
 
 // SourceConfig defines configuration for database polling source

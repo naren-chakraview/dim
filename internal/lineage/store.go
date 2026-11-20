@@ -32,13 +32,13 @@ type LineageRecord struct {
 
 // PurgeEvent represents a purge/reap event for evidence logging
 type PurgeEvent struct {
-	ID        string    `json:"id"`
-	EventType string    `json:"event_type"` // "manual_purge", "auto_reap"
-	SubjectID string    `json:"subject_id"` // NULL if bulk purge
-	PurgedCount int      `json:"purged_count"`
-	Reason    string    `json:"reason"`
-	PurgedAt  time.Time `json:"purged_at"`
-	ExpiresAt time.Time `json:"expires_at"`
+	ID          string    `json:"id"`
+	EventType   string    `json:"event_type"` // "manual_purge", "auto_reap"
+	SubjectID   string    `json:"subject_id"` // NULL if bulk purge
+	PurgedCount int       `json:"purged_count"`
+	Reason      string    `json:"reason"`
+	PurgedAt    time.Time `json:"purged_at"`
+	ExpiresAt   time.Time `json:"expires_at"`
 }
 
 // writeRequest is an internal type for queueing write operations
@@ -262,19 +262,19 @@ func (s *Store) RecordLineage(
 	req := writeRequest{
 		op: "insert_lineage",
 		data: map[string]interface{}{
-			"id":                msg.Metadata.CorrelationID,
-			"route_name":        routeName,
-			"subject_id":        "", // Will be set by caller
-			"message_body":      string(msgBody),
-			"message_headers":   string(msgHeaders),
-			"metadata":          string(metadata),
-			"route_version":     routeVersion,
-			"contract_version":  contractVersion,
-			"principal":         principalStr,
-			"retention_policy":  retentionPolicy,
-			"created_at":        msg.Metadata.IngestedAt,
-			"processed_at":      time.Now().UTC(),
-			"expires_at":        expiresAt,
+			"id":               msg.Metadata.CorrelationID,
+			"route_name":       routeName,
+			"subject_id":       "", // Will be set by caller
+			"message_body":     string(msgBody),
+			"message_headers":  string(msgHeaders),
+			"metadata":         string(metadata),
+			"route_version":    routeVersion,
+			"contract_version": contractVersion,
+			"principal":        principalStr,
+			"retention_policy": retentionPolicy,
+			"created_at":       msg.Metadata.IngestedAt,
+			"processed_at":     time.Now().UTC(),
+			"expires_at":       expiresAt,
 		},
 		respCh: make(chan error, 1),
 	}

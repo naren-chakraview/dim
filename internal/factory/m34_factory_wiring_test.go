@@ -17,7 +17,7 @@ func TestSingleRouteWithTenantManager(t *testing.T) {
 	cfg := &config.RouteConfig{
 		Routes: map[string]config.RouteSpec{
 			"customer-a-orders": {
-				From: "api",
+				From:   "api",
 				Domain: "customer-a", // Tenant domain (M3.4)
 				Steps: []config.StepSpec{
 					{
@@ -37,9 +37,9 @@ func TestSingleRouteWithTenantManager(t *testing.T) {
 	// Create tenant manager with custom quotas
 	tenantManager := tenant.NewManager()
 	err := tenantManager.RegisterTenant(&tenant.Config{
-		Name:              "customer-a",
-		MessageRateLimit:  500,
-		WorkerSlots:       10,
+		Name:                "customer-a",
+		MessageRateLimit:    500,
+		WorkerSlots:         10,
 		LineageQuotaRecords: 50000,
 	})
 	if err != nil {
@@ -73,9 +73,9 @@ func TestTenantManagerRegistration(t *testing.T) {
 
 	// Register multiple tenants with different quotas
 	acmeCfg := &tenant.Config{
-		Name:              "acme-corp",
-		MessageRateLimit:  1000,
-		WorkerSlots:       10,
+		Name:                "acme-corp",
+		MessageRateLimit:    1000,
+		WorkerSlots:         10,
 		LineageQuotaRecords: 100000,
 	}
 	if err := tenantManager.RegisterTenant(acmeCfg); err != nil {
@@ -83,9 +83,9 @@ func TestTenantManagerRegistration(t *testing.T) {
 	}
 
 	globexCfg := &tenant.Config{
-		Name:              "globex-inc",
-		MessageRateLimit:  5000,
-		WorkerSlots:       20,
+		Name:                "globex-inc",
+		MessageRateLimit:    5000,
+		WorkerSlots:         20,
 		LineageQuotaRecords: 500000,
 	}
 	if err := tenantManager.RegisterTenant(globexCfg); err != nil {

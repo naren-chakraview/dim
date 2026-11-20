@@ -9,10 +9,10 @@ import (
 // MockRegistry is a RegistryBackend implementation for testing and BYO support verification.
 // It demonstrates that the registry interface is truly pluggable and not tied to Apicurio.
 type MockRegistry struct {
-	mu       sync.RWMutex
-	schemas  map[string]map[string][]schemaVersion // group -> subject -> versions
-	nextVer  map[string]int                         // group:subject -> next version ID
-	healthy  bool
+	mu      sync.RWMutex
+	schemas map[string]map[string][]schemaVersion // group -> subject -> versions
+	nextVer map[string]int                        // group:subject -> next version ID
+	healthy bool
 }
 
 // schemaVersion holds a schema and its version ID.

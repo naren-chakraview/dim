@@ -86,7 +86,7 @@ type WorkerSlotManager struct {
 	manager *Manager
 
 	// Per-tenant slot tracking
-	slotsUsed map[string]int
+	slotsUsed  map[string]int
 	slotsQueue map[string]int // Queued messages waiting for slot
 }
 

@@ -112,9 +112,9 @@ func TestClaimCheckMultipleAttachments(t *testing.T) {
 	docPackage := map[string]interface{}{
 		"package_id":      "PKG-2026-001",
 		"document_count":  3,
-		"invoice":         make([]byte, 2*1024*1024),    // 2 MB
-		"receipt":         make([]byte, 1*1024*1024),    // 1 MB
-		"compliance_cert": make([]byte, 1024*1024),      // 1 MB
+		"invoice":         make([]byte, 2*1024*1024), // 2 MB
+		"receipt":         make([]byte, 1*1024*1024), // 1 MB
+		"compliance_cert": make([]byte, 1024*1024),   // 1 MB
 	}
 
 	msg := engine.NewMessage(docPackage, "document-processing", "v1")

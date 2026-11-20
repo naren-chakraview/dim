@@ -11,13 +11,13 @@ import (
 // Test 1: Span formatting with all attributes
 func TestFormatSpanWithAttributes(t *testing.T) {
 	span := &Span{
-		TraceID:    "trace123",
-		SpanID:     "span456",
-		Name:       "message_processing",
-		StartTime:  time.Date(2026, 9, 1, 20, 34, 56, 0, time.UTC),
-		EndTime:    time.Date(2026, 9, 1, 20, 34, 57, 0, time.UTC),
-		Duration:   time.Duration(1000 * time.Millisecond),
-		Status:     "ok",
+		TraceID:   "trace123",
+		SpanID:    "span456",
+		Name:      "message_processing",
+		StartTime: time.Date(2026, 9, 1, 20, 34, 56, 0, time.UTC),
+		EndTime:   time.Date(2026, 9, 1, 20, 34, 57, 0, time.UTC),
+		Duration:  time.Duration(1000 * time.Millisecond),
+		Status:    "ok",
 		Attributes: map[string]interface{}{
 			"route_name":     "payment-processing",
 			"correlation_id": "corr-123",
@@ -56,9 +56,9 @@ func TestColorCodingForStatus(t *testing.T) {
 		icon   string
 		color  string
 	}{
-		{"ok", "✓", "\033[32m"},       // Green
-		{"error", "✗", "\033[31m"},    // Red
-		{"skipped", "—", "\033[33m"},  // Yellow
+		{"ok", "✓", "\033[32m"},      // Green
+		{"error", "✗", "\033[31m"},   // Red
+		{"skipped", "—", "\033[33m"}, // Yellow
 	}
 
 	for _, tt := range tests {
@@ -109,9 +109,9 @@ func TestTimestampFormatting(t *testing.T) {
 // Test 4: Attribute display (principal, step_index)
 func TestAttributeDisplay(t *testing.T) {
 	tests := []struct {
-		name         string
-		attributes   map[string]interface{}
-		shouldHave   []string
+		name          string
+		attributes    map[string]interface{}
+		shouldHave    []string
 		shouldNotHave []string
 	}{
 		{
@@ -122,7 +122,7 @@ func TestAttributeDisplay(t *testing.T) {
 				"step_index":     2,
 				"correlation_id": "corr-456",
 			},
-			shouldHave:   []string{"principal=user-123", "step_index=2", "correlation_id=corr-456"},
+			shouldHave:    []string{"principal=user-123", "step_index=2", "correlation_id=corr-456"},
 			shouldNotHave: []string{},
 		},
 		{
@@ -130,13 +130,13 @@ func TestAttributeDisplay(t *testing.T) {
 			attributes: map[string]interface{}{
 				"route_name": "audit",
 			},
-			shouldHave:   []string{},
+			shouldHave:    []string{},
 			shouldNotHave: []string{"principal"},
 		},
 		{
-			name: "empty attributes",
-			attributes: map[string]interface{}{},
-			shouldHave:   []string{},
+			name:          "empty attributes",
+			attributes:    map[string]interface{}{},
+			shouldHave:    []string{},
 			shouldNotHave: []string{},
 		},
 	}
@@ -179,12 +179,12 @@ func TestQueryRecentSpans(t *testing.T) {
 	// Add test spans
 	for i := 0; i < 30; i++ {
 		span := &Span{
-			TraceID:    "trace123",
-			SpanID:     fmt.Sprintf("span%d", i),
-			Name:       "test_span",
-			StartTime:  time.Now().Add(time.Duration(i) * time.Millisecond),
-			Duration:   10 * time.Millisecond,
-			Status:     "ok",
+			TraceID:   "trace123",
+			SpanID:    fmt.Sprintf("span%d", i),
+			Name:      "test_span",
+			StartTime: time.Now().Add(time.Duration(i) * time.Millisecond),
+			Duration:  10 * time.Millisecond,
+			Status:    "ok",
 			Attributes: map[string]interface{}{
 				"route_name": "payment",
 			},
@@ -221,12 +221,12 @@ func TestFilterSpansByRoute(t *testing.T) {
 	routes := []string{"payment", "audit", "payment"}
 	for i, route := range routes {
 		span := &Span{
-			TraceID:    "trace123",
-			SpanID:     fmt.Sprintf("span%d", i),
-			Name:       "test_span",
-			StartTime:  time.Now(),
-			Duration:   10 * time.Millisecond,
-			Status:     "ok",
+			TraceID:   "trace123",
+			SpanID:    fmt.Sprintf("span%d", i),
+			Name:      "test_span",
+			StartTime: time.Now(),
+			Duration:  10 * time.Millisecond,
+			Status:    "ok",
 			Attributes: map[string]interface{}{
 				"route_name": route,
 			},
@@ -277,12 +277,12 @@ func TestStreamSpans(t *testing.T) {
 		for i := 0; i < 5; i++ {
 			time.Sleep(100 * time.Millisecond)
 			span := &Span{
-				TraceID:    "trace123",
-				SpanID:     fmt.Sprintf("span%d", i),
-				Name:       "test_span",
-				StartTime:  time.Now(),
-				Duration:   10 * time.Millisecond,
-				Status:     "ok",
+				TraceID:   "trace123",
+				SpanID:    fmt.Sprintf("span%d", i),
+				Name:      "test_span",
+				StartTime: time.Now(),
+				Duration:  10 * time.Millisecond,
+				Status:    "ok",
 				Attributes: map[string]interface{}{
 					"route_name": "payment",
 				},
@@ -325,12 +325,12 @@ func TestSpanStreamerWithNilProvider(t *testing.T) {
 // Test 9: Span hierarchy formatting
 func TestFormatSpanHierarchy(t *testing.T) {
 	parentSpan := &Span{
-		TraceID:    "trace123",
-		SpanID:     "parent",
-		Name:       "message_processing",
-		StartTime:  time.Now(),
-		Duration:   50 * time.Millisecond,
-		Status:     "ok",
+		TraceID:   "trace123",
+		SpanID:    "parent",
+		Name:      "message_processing",
+		StartTime: time.Now(),
+		Duration:  50 * time.Millisecond,
+		Status:    "ok",
 		Attributes: map[string]interface{}{
 			"route_name": "payment",
 		},

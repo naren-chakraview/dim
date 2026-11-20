@@ -98,9 +98,9 @@ type FakeDataPlugin struct {
 func NewFakeDataPlugin() *FakeDataPlugin {
 	return &FakeDataPlugin{
 		functions: map[string]sdk.Function{
-			"validate_email":   &ValidateEmailPlugin{},
-			"enrich_customer":  &EnrichCustomerPlugin{},
-			"transform_phone":  &TransformPhonePlugin{},
+			"validate_email":  &ValidateEmailPlugin{},
+			"enrich_customer": &EnrichCustomerPlugin{},
+			"transform_phone": &TransformPhonePlugin{},
 		},
 	}
 }

@@ -92,13 +92,13 @@ func TestDatabaseSinkInsert(t *testing.T) {
 
 	// Create sink pointing to same database file
 	config := &SinkConfig{
-		Driver:        "sqlite3",
-		DSN:           tmpFile,
-		Table:         "users",
-		InsertColumns: []string{"id", "name", "email"},
-		UpsertEnabled: false,
-		BatchSize:     2,
-		TimeoutSec:    5,
+		Driver:          "sqlite3",
+		DSN:             tmpFile,
+		Table:           "users",
+		InsertColumns:   []string{"id", "name", "email"},
+		UpsertEnabled:   false,
+		BatchSize:       2,
+		TimeoutSec:      5,
 		FlushIntervalMs: 1000,
 	}
 
@@ -161,14 +161,14 @@ func TestDatabaseSinkUpsert(t *testing.T) {
 
 	// Create sink with UPSERT
 	config := &SinkConfig{
-		Driver:        "sqlite3",
-		DSN:           ":memory:",
-		Table:         "users",
-		InsertColumns: []string{"id", "name", "email"},
-		UpsertEnabled: true,
-		UpsertKeys:    []string{"id"},
-		BatchSize:     1,
-		TimeoutSec:    5,
+		Driver:          "sqlite3",
+		DSN:             ":memory:",
+		Table:           "users",
+		InsertColumns:   []string{"id", "name", "email"},
+		UpsertEnabled:   true,
+		UpsertKeys:      []string{"id"},
+		BatchSize:       1,
+		TimeoutSec:      5,
 		FlushIntervalMs: 1000,
 	}
 

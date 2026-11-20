@@ -172,9 +172,9 @@ func TestValidateTokenWithoutRoles(t *testing.T) {
 
 func TestValidateTokenWithCustomAttributes(t *testing.T) {
 	attrs := map[string]string{
-		"org_id":  "org-123",
-		"dept":    "sales",
-		"region":  "us-west",
+		"org_id": "org-123",
+		"dept":   "sales",
+		"region": "us-west",
 	}
 	token, err := CreateTestToken("user-555", []string{}, attrs, testSecret, 1*time.Hour)
 	if err != nil {
@@ -288,7 +288,6 @@ func TestCreateTestToken(t *testing.T) {
 		t.Errorf("Subject = %s, want test-user", principal.Subject)
 	}
 }
-
 
 func TestJWTValidatorInitialization(t *testing.T) {
 	t.Run("with HMAC secret", func(t *testing.T) {

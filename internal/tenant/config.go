@@ -19,16 +19,16 @@ const (
 type RateLimitStrategy string
 
 const (
-	RateLimitReject RateLimitStrategy = "reject"  // Return 429
-	RateLimitQueue  RateLimitStrategy = "queue"   // Queue and wait
+	RateLimitReject RateLimitStrategy = "reject" // Return 429
+	RateLimitQueue  RateLimitStrategy = "queue"  // Queue and wait
 )
 
 // LineageQuotaStrategy determines how to handle lineage quota exhaustion
 type LineageQuotaStrategy string
 
 const (
-	LineageQuotaReject LineageQuotaStrategy = "reject"         // Skip write
-	LineageQuotaExpire LineageQuotaStrategy = "expire_oldest"  // Delete oldest
+	LineageQuotaReject LineageQuotaStrategy = "reject"        // Skip write
+	LineageQuotaExpire LineageQuotaStrategy = "expire_oldest" // Delete oldest
 )
 
 // Config represents resource quotas for a single tenant
@@ -173,13 +173,13 @@ func (m *Manager) LoadFromYAML(data map[string]interface{}) error {
 // parseTenanConfig converts a YAML-parsed map into a Config struct
 func parseTenanConfig(name string, data interface{}) (*Config, error) {
 	cfg := &Config{
-		Name:                name,
-		MessageRateLimit:    100,
-		MessageRateStrategy: RateLimitReject,
-		WorkerSlots:         5,
-		LineageQuotaRecords: 10000,
+		Name:                 name,
+		MessageRateLimit:     100,
+		MessageRateStrategy:  RateLimitReject,
+		WorkerSlots:          5,
+		LineageQuotaRecords:  10000,
 		LineageQuotaStrategy: LineageQuotaReject,
-		Priority:            PriorityNormal,
+		Priority:             PriorityNormal,
 	}
 
 	m, ok := data.(map[string]interface{})

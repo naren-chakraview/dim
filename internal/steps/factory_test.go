@@ -163,7 +163,7 @@ func TestBuildStepsFromSpecRoute(t *testing.T) {
 			Route: &config.RouteStepSpec{
 				Expr: "body.type",
 				Cases: map[string]config.RouteCase{
-					"premium": {Target: "sink-premium"},
+					"premium":  {Target: "sink-premium"},
 					"standard": {Target: "sink-standard"},
 				},
 				Default: "sink-default",

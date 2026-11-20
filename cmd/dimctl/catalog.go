@@ -23,10 +23,10 @@ var searchCmd = &cobra.Command{
 }
 
 var (
-	searchType       string
-	searchDomain     string
-	searchConnType   string
-	outputJSON       bool
+	searchType     string
+	searchDomain   string
+	searchConnType string
+	outputJSON     bool
 )
 
 func init() {

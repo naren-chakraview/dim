@@ -9,12 +9,12 @@ func TestManagerRegisterTenant(t *testing.T) {
 	manager := NewManager()
 
 	cfg := &Config{
-		Name:               "acme-corp",
-		Description:        "ACME Corporation",
-		MessageRateLimit:   1000,
-		WorkerSlots:        50,
+		Name:                "acme-corp",
+		Description:         "ACME Corporation",
+		MessageRateLimit:    1000,
+		WorkerSlots:         50,
 		LineageQuotaRecords: 1000000,
-		Priority:           PriorityHigh,
+		Priority:            PriorityHigh,
 	}
 
 	err := manager.RegisterTenant(cfg)
@@ -151,14 +151,14 @@ func TestUsageUnlimitedQuota(t *testing.T) {
 // TestParseTenanConfig verifies YAML parsing (M3.4.2)
 func TestParseTenanConfig(t *testing.T) {
 	data := map[string]interface{}{
-		"description":              "Test Domain",
-		"message_rate_limit":       float64(2000),
-		"message_rate_strategy":    "queue",
-		"worker_slots":             float64(75),
-		"lineage_quota_records":    float64(2000000),
-		"lineage_quota_strategy":   "expire_oldest",
+		"description":                  "Test Domain",
+		"message_rate_limit":           float64(2000),
+		"message_rate_strategy":        "queue",
+		"worker_slots":                 float64(75),
+		"lineage_quota_records":        float64(2000000),
+		"lineage_quota_strategy":       "expire_oldest",
 		"lineage_quota_retention_days": float64(60),
-		"priority":                 "high",
+		"priority":                     "high",
 	}
 
 	cfg, err := parseTenanConfig("test-domain", data)
