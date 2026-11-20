@@ -134,6 +134,12 @@ func (s *S3Source) poll(ctx context.Context) {
 			fmt.Printf("[WARN] S3 read body failed: %v\n", err)
 			continue
 		}
+		// An empty object carries no message. The file source skips empty files too. The
+		// key's modification time is already recorded, so a later write is picked up.
+		if len(bodyBytes) == 0 {
+			fmt.Printf("[WARN] skipping empty S3 object s3://%s/%s\n", s.bucket, key)
+			continue
+		}
 
 		var body interface{}
 		if err := json.Unmarshal(bodyBytes, &body); err != nil {
