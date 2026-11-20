@@ -22,7 +22,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && npm run embed",
-    "embed": "mkdir -p ../cmd/dimctl/web_dist && cp -r dist/* ../cmd/dimctl/web_dist/",
+    "embed": "rm -rf ../cmd/dimctl/web_dist && mkdir -p ../cmd/dimctl/web_dist && cp -a dist/. ../cmd/dimctl/web_dist/",
     "preview": "vite preview",
     "test": "vitest"
   }
