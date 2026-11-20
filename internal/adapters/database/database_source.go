@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/naren-chakraview/dim/internal/secrets"
 	"log"
 	"sync"
 	"time"
@@ -241,4 +242,22 @@ func (ds *DatabaseSource) GetLastPollTime() time.Time {
 	ds.mu.RLock()
 	defer ds.mu.RUnlock()
 	return ds.lastPollTime
+}
+
+// NewDatabaseSourceWithDomain is NewDatabaseSource with domain-scoped secret
+// resolution: the DSN and query are resolved for domain and refused if they cannot be.
+// A DSN is where credentials usually live, so this is the case that must fail closed.
+func NewDatabaseSourceWithDomain(config *SourceConfig, outChan *engine.Channel, domain string, resolver *secrets.Resolver) (*DatabaseSource, error) {
+	if config == nil {
+		return nil, fmt.Errorf("database source config cannot be nil")
+	}
+	resolved := *config
+	var err error
+	if resolved.DSN, err = secrets.ResolveScoped(resolver, domain, config.DSN); err != nil {
+		return nil, fmt.Errorf("database dsn: %w", err)
+	}
+	if resolved.Query, err = secrets.ResolveScoped(resolver, domain, config.Query); err != nil {
+		return nil, fmt.Errorf("database query: %w", err)
+	}
+	return NewDatabaseSource(&resolved, outChan)
 }

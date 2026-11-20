@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/naren-chakraview/dim/internal/secrets"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -273,4 +274,27 @@ func (ks *KafkaSource) Checkpoint() (interface{}, error) {
 		checkpoint[k] = v
 	}
 	return checkpoint, nil
+}
+
+// NewKafkaSourceWithDomain is NewKafkaSource with domain-scoped secret resolution:
+// ${SECRET:...} references in the brokers, topic and group are resolved for domain
+// and refused if they cannot be (see secrets.ResolveScoped).
+func NewKafkaSourceWithDomain(brokers []string, topic, groupID string, outChan *engine.Channel, domain string, resolver *secrets.Resolver) (*KafkaSource, error) {
+	resolved := make([]string, len(brokers))
+	for i, b := range brokers {
+		v, err := secrets.ResolveScoped(resolver, domain, b)
+		if err != nil {
+			return nil, fmt.Errorf("kafka broker %d: %w", i, err)
+		}
+		resolved[i] = v
+	}
+	topicV, err := secrets.ResolveScoped(resolver, domain, topic)
+	if err != nil {
+		return nil, fmt.Errorf("kafka topic: %w", err)
+	}
+	groupV, err := secrets.ResolveScoped(resolver, domain, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("kafka group: %w", err)
+	}
+	return NewKafkaSource(resolved, topicV, groupV, outChan)
 }

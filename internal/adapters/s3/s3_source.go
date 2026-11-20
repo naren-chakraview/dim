@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/naren-chakraview/dim/internal/secrets"
 	"io"
 	"sync"
 	"time"
@@ -139,4 +140,20 @@ func (s *S3Source) Checkpoint() (interface{}, error) {
 		checkpoint[k] = v.Unix()
 	}
 	return checkpoint, nil
+}
+
+// NewS3SourceWithDomain is NewS3Source with domain-scoped secret resolution: the bucket,
+// prefix and region are resolved for domain and refused if they cannot be.
+func NewS3SourceWithDomain(cfg SourceConfig, outChan *engine.Channel, domain string, resolver *secrets.Resolver) (*S3Source, error) {
+	var err error
+	if cfg.Bucket, err = secrets.ResolveScoped(resolver, domain, cfg.Bucket); err != nil {
+		return nil, fmt.Errorf("s3 bucket: %w", err)
+	}
+	if cfg.Prefix, err = secrets.ResolveScoped(resolver, domain, cfg.Prefix); err != nil {
+		return nil, fmt.Errorf("s3 prefix: %w", err)
+	}
+	if cfg.Region, err = secrets.ResolveScoped(resolver, domain, cfg.Region); err != nil {
+		return nil, fmt.Errorf("s3 region: %w", err)
+	}
+	return NewS3Source(cfg, outChan)
 }
